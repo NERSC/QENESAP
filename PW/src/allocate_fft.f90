@@ -7,7 +7,7 @@
 !
 !
 !-----------------------------------------------------------------------
-SUBROUTINE allocate_fft
+SUBROUTINE allocate_fft(is_exx)
   !-----------------------------------------------------------------------
   !     This routine computes the data structure associated to the FFT
   !     grid and allocate memory for all the arrays which depend upon
@@ -28,10 +28,17 @@ SUBROUTINE allocate_fft
   USE wavefunctions_module, ONLY : psic, psic_nc
   USE funct,     ONLY: dft_is_meta
   IMPLICIT NONE
+  INTEGER, OPTIONAL, INTENT(in) :: is_exx
+  INTEGER :: is_exx_
   !
   !     determines the data structure for fft arrays
   !
-  CALL data_structure( gamma_only )
+  IF( PRESENT(is_exx) ) THEN
+     is_exx_ = is_exx
+  ELSE
+     is_exx_ = 0
+  END IF
+  CALL data_structure( gamma_only, is_exx_ )
   !
   IF (dfftp%nnr.lt.ngm) THEN
      WRITE( stdout, '(/,4x," nr1=",i4," nr2= ", i4, " nr3=",i4, &
@@ -50,6 +57,8 @@ SUBROUTINE allocate_fft
   IF (dfftp%nnr <= 0) CALL errore ('allocate_fft', 'wrong nnr', 1)
   IF (dffts%nnr<= 0) CALL errore ('allocate_fft', 'wrong smooth nnr', 1)
   IF (nspin<= 0) CALL errore ('allocate_fft', 'wrong nspin', 1)
+  ! Stop if this is part of an exact exchange calculation
+  IF (is_exx_.gt.0) RETURN
   !
   !     Allocate memory for all kind of stuff.
   !

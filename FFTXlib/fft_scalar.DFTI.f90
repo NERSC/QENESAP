@@ -56,7 +56,7 @@
 !=----------------------------------------------------------------------=!
 !
 
-   SUBROUTINE cft_1z(c, nsl, nz, ldz, isign, cout)
+   SUBROUTINE cft_1z(c, nsl, nz, ldz, isign, cout, is_exx)
 
 !     driver routine for nsl 1d complex fft's of length nz
 !     ldz >= nz is the distance between sequences to be transformed
@@ -69,13 +69,19 @@
 
      INTEGER, INTENT(IN) :: isign
      INTEGER, INTENT(IN) :: nsl, nz, ldz
+     LOGICAL, OPTIONAL, INTENT(IN) :: is_exx
+     LOGICAL :: is_exx_
 
      COMPLEX (DP) :: c(:), cout(:)
 
      REAL (DP)  :: tscale
      INTEGER    :: i, err, idir, ip, void
-     INTEGER, SAVE :: zdims( 3, ndims ) = -1
-     INTEGER, SAVE :: icurrent = 1
+     INTEGER :: zdims( 3, ndims ) = -1
+     INTEGER :: icurrent = 1
+     INTEGER, SAVE :: zdims_local( 3, ndims ) = -1
+     INTEGER, SAVE :: icurrent_local = 1
+     INTEGER, SAVE :: zdims_exx( 3, ndims ) = -1
+     INTEGER, SAVE :: icurrent_exx = 1
      LOGICAL :: found
 
      INTEGER :: tid
@@ -88,9 +94,30 @@
 
      !   Intel MKL native FFT driver
 
-     TYPE(DFTI_DESCRIPTOR_ARRAY), SAVE :: hand( ndims )
-     LOGICAL, SAVE :: dfti_first = .TRUE.
+     TYPE(DFTI_DESCRIPTOR_ARRAY) :: hand( ndims )
+     LOGICAL :: dfti_first = .TRUE.
+     TYPE(DFTI_DESCRIPTOR_ARRAY), SAVE :: hand_local( ndims )
+     LOGICAL, SAVE :: dfti_first_local = .TRUE.
+     TYPE(DFTI_DESCRIPTOR_ARRAY), SAVE :: hand_exx( ndims )
+     LOGICAL, SAVE :: dfti_first_exx = .TRUE.
      INTEGER :: dfti_status = 0
+
+     IF(PRESENT(is_exx))THEN
+        is_exx_ = is_exx
+     ELSE
+        is_exx_ = .FALSE.
+     END IF
+     IF(is_exx_)THEN
+        zdims = zdims_exx
+        icurrent = icurrent_exx
+        hand = hand_exx
+        dfti_first = dfti_first_exx
+     ELSE
+        zdims = zdims_local
+        icurrent = icurrent_local
+        hand = hand_local
+        dfti_first = dfti_first_local
+     END IF
      !
      CALL check_dims()
      !
@@ -128,6 +155,18 @@
 #if defined(__FFT_CLOCKS)
      CALL stop_clock( 'cft_1z' )
 #endif
+
+     IF(is_exx_)THEN
+        zdims_exx = zdims
+        icurrent_exx = icurrent
+        hand_exx = hand
+        dfti_first_exx = dfti_first
+     ELSE
+        zdims_local = zdims
+        icurrent_local = icurrent
+        hand_local = hand
+        dfti_first_local = dfti_first
+     END IF
 
      RETURN
 
@@ -222,7 +261,7 @@
 !
 !
 
-   SUBROUTINE cft_2xy(r, nzl, nx, ny, ldx, ldy, isign, pl2ix)
+   SUBROUTINE cft_2xy(r, nzl, nx, ny, ldx, ldy, isign, pl2ix, is_exx)
 
 !     driver routine for nzl 2d complex fft's of lengths nx and ny
 !     input : r(ldx*ldy)  complex, transform is in-place
@@ -238,11 +277,17 @@
 
      INTEGER, INTENT(IN) :: isign, ldx, ldy, nx, ny, nzl
      INTEGER, OPTIONAL, INTENT(IN) :: pl2ix(:)
+     LOGICAL, OPTIONAL, INTENT(IN) :: is_exx
+     LOGICAL :: is_exx_
      COMPLEX (DP) :: r( : )
      INTEGER :: i, k, j, err, idir, ip, kk, void
      REAL(DP) :: tscale
-     INTEGER, SAVE :: icurrent = 1
-     INTEGER, SAVE :: dims( 4, ndims) = -1
+     INTEGER :: icurrent = 1
+     INTEGER :: dims( 4, ndims) = -1
+     INTEGER, SAVE :: icurrent_local = 1
+     INTEGER, SAVE :: dims_local( 4, ndims) = -1
+     INTEGER, SAVE :: icurrent_exx = 1
+     INTEGER, SAVE :: dims_exx( 4, ndims) = -1
      LOGICAL :: dofft( nfftx ), found
      INTEGER, PARAMETER  :: stdout = 6
 
@@ -254,9 +299,30 @@
      EXTERNAL :: omp_get_thread_num, omp_get_num_threads, omp_get_max_threads
 #endif
 
-     TYPE(DFTI_DESCRIPTOR_ARRAY), SAVE :: hand( ndims )
-     LOGICAL, SAVE :: dfti_first = .TRUE.
+     TYPE(DFTI_DESCRIPTOR_ARRAY) :: hand( ndims )
+     LOGICAL :: dfti_first = .TRUE.
+     TYPE(DFTI_DESCRIPTOR_ARRAY), SAVE :: hand_local( ndims )
+     LOGICAL, SAVE :: dfti_first_local = .TRUE.
+     TYPE(DFTI_DESCRIPTOR_ARRAY), SAVE :: hand_exx( ndims )
+     LOGICAL, SAVE :: dfti_first_exx = .TRUE.
      INTEGER :: dfti_status = 0
+
+     IF(PRESENT(is_exx))THEN
+        is_exx_ = is_exx
+     ELSE
+        is_exx_ = .FALSE.
+     END IF
+     IF(is_exx_)THEN
+        dims = dims_exx
+        icurrent = icurrent_exx
+        hand = hand_exx
+        dfti_first = dfti_first_exx
+     ELSE
+        dims = dims_local
+        icurrent = icurrent_local
+        hand = hand_local
+        dfti_first = dfti_first_local
+     END IF
 
      dofft( 1 : nx ) = .TRUE.
      IF( PRESENT( pl2ix ) ) THEN
@@ -312,6 +378,18 @@
 #if defined(__FFT_CLOCKS)
      CALL stop_clock( 'cft_2xy' )
 #endif
+
+     IF(is_exx_)THEN
+        dims_exx = dims
+        icurrent_exx = icurrent
+        hand_exx = hand
+        dfti_first_exx = dfti_first
+     ELSE
+        dims_local = dims
+        icurrent_local = icurrent
+        hand_local = hand
+        dfti_first_local = dfti_first
+     END IF
 
      RETURN
 
@@ -404,7 +482,7 @@
 !=----------------------------------------------------------------------=!
 !
 
-   SUBROUTINE cfft3d( f, nx, ny, nz, ldx, ldy, ldz, isign )
+   SUBROUTINE cfft3d( f, nx, ny, nz, ldx, ldy, ldz, isign, is_exx )
 
   !     driver routine for 3d complex fft of lengths nx, ny, nz
   !     input  :  f(ldx*ldy*ldz)  complex, transform is in-place
@@ -421,17 +499,44 @@
 
      INTEGER, INTENT(IN) :: nx, ny, nz, ldx, ldy, ldz, isign
      COMPLEX (DP) :: f(:)
+     LOGICAL, OPTIONAL, INTENT(IN) :: is_exx
+     LOGICAL :: is_exx_
      INTEGER :: i, k, j, err, idir, ip
      REAL(DP) :: tscale
-     INTEGER, SAVE :: icurrent = 1
-     INTEGER, SAVE :: dims(3,ndims) = -1
+     INTEGER :: icurrent = 1
+     INTEGER :: dims(4,ndims) = -1
+     INTEGER, SAVE :: icurrent_local = 1
+     INTEGER, SAVE :: dims_local(4,ndims) = -1
+     INTEGER, SAVE :: icurrent_exx = 1
+     INTEGER, SAVE :: dims_exx(4,ndims) = -1
 
      !   Intel MKL native FFT driver
 
      TYPE(DFTI_DESCRIPTOR_ARRAY), SAVE :: hand(ndims)
      LOGICAL, SAVE :: dfti_first = .TRUE.
+     TYPE(DFTI_DESCRIPTOR_ARRAY), SAVE :: hand_local(ndims)
+     LOGICAL, SAVE :: dfti_first_local = .TRUE.
+     TYPE(DFTI_DESCRIPTOR_ARRAY), SAVE :: hand_exx(ndims)
+     LOGICAL, SAVE :: dfti_first_exx = .TRUE.
      INTEGER :: dfti_status = 0
      !
+
+     IF(PRESENT(is_exx))THEN
+        is_exx_ = is_exx
+     ELSE
+        is_exx_ = .FALSE.
+     END IF
+     IF(is_exx_)THEN
+        dims = dims_exx
+        icurrent = icurrent_exx
+        hand = hand_exx
+        dfti_first = dfti_first_exx
+     ELSE
+        dims = dims_local
+        icurrent = icurrent_local
+        hand = hand_local
+        dfti_first = dfti_first_local
+     END IF
 
      CALL check_dims()
 
@@ -470,6 +575,18 @@
            STOP
         ENDIF
         !
+     END IF
+
+     IF(is_exx_)THEN
+        dims_exx = dims
+        icurrent_exx = icurrent
+        hand_exx = hand
+        dfti_first_exx = dfti_first
+     ELSE
+        dims_local = dims
+        icurrent_local = icurrent
+        hand_local = hand
+        dfti_first_local = dfti_first
      END IF
 
      RETURN
@@ -567,16 +684,23 @@
 !=----------------------------------------------------------------------=!
 !
 
-SUBROUTINE cfft3ds (f, nx, ny, nz, ldx, ldy, ldz, isign, do_fft_x, do_fft_y)
+SUBROUTINE cfft3ds (f, nx, ny, nz, ldx, ldy, ldz, isign, do_fft_x, do_fft_y, is_exx)
   !
   implicit none
 
   integer :: nx, ny, nz, ldx, ldy, ldz, isign
+  LOGICAL, OPTIONAL, INTENT(IN) :: is_exx
+  LOGICAL :: is_exx_
   !
   complex(DP) :: f ( ldx * ldy * ldz )
   integer :: do_fft_x(:), do_fft_y(:)
   !
-  CALL cfft3d (f, nx, ny, nz, ldx, ldy, ldz, isign)
+  IF(PRESENT(is_exx))THEN
+     is_exx_ = is_exx
+  ELSE
+     is_exx_ = .FALSE.
+  END IF
+  CALL cfft3d (f, nx, ny, nz, ldx, ldy, ldz, isign, is_exx=is_exx_)
 
 END SUBROUTINE cfft3ds
 

@@ -16,8 +16,8 @@ SUBROUTINE data_structure_custom(fc, gamma_only)
   USE cell_base,  ONLY : bg, tpiba, tpiba2
   USE klist,      ONLY : xk, nks
   USE mp,         ONLY : mp_sum, mp_max,mp_barrier
-  USE mp_bands,   ONLY : me_bgrp, nproc_bgrp, inter_bgrp_comm, &
-                         intra_bgrp_comm, root_bgrp, ntask_groups 
+  USE mp_exx,   ONLY : me_egrp, nproc_egrp, inter_egrp_comm, &
+                         intra_egrp_comm, root_egrp, ntask_groups 
   USE stick_set,  ONLY : pstickset_custom
   USE fft_custom, ONLY : fft_cus, gvec_init
   USE fft_base,   ONLY : dfftp
@@ -43,11 +43,11 @@ SUBROUTINE data_structure_custom(fc, gamma_only)
   ! compute gkcut calling an internal procedure
   !
 
-  me = me_bgrp
-  nproc = nproc_bgrp
-  inter_comm = inter_bgrp_comm
-  intra_comm = intra_bgrp_comm
-  root = root_bgrp
+  me = me_egrp
+  nproc = nproc_egrp
+  inter_comm = inter_egrp_comm
+  intra_comm = intra_egrp_comm
+  root = root_egrp
   nogrp = ntask_groups
 
   IF (nks == 0) THEN

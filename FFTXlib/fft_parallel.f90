@@ -31,7 +31,7 @@ CONTAINS
 !  General purpose driver, including Task groups parallelization
 !
 !----------------------------------------------------------------------------
-SUBROUTINE tg_cft3s( f, dfft, isgn, use_task_groups )
+SUBROUTINE tg_cft3s( f, dfft, isgn, use_task_groups, is_exx )
   !----------------------------------------------------------------------------
   !
   ! ... isgn = +-1 : parallel 3d fft for rho and for the potential
@@ -96,6 +96,13 @@ SUBROUTINE tg_cft3s( f, dfft, isgn, use_task_groups )
   LOGICAL                    :: use_tg
   !
   !
+  LOGICAL, OPTIONAL, INTENT(IN) :: is_exx
+  LOGICAL :: is_exx_
+  IF( present( is_exx ) ) THEN
+     is_exx_ = is_exx
+  ELSE
+     is_exx_ = .FALSE.
+  END IF
   IF( present( use_task_groups ) ) THEN
      use_tg = use_task_groups
   ELSE
@@ -128,7 +135,7 @@ SUBROUTINE tg_cft3s( f, dfft, isgn, use_task_groups )
         IF( use_tg ) &
            CALL fftx_error__( ' tg_cft3s ', ' task groups on large mesh not implemented ', 1 )
         !
-        CALL cft_1z( f, dfft%nsp( me_p ), n3, nx3, isgn, aux )
+        CALL cft_1z( f, dfft%nsp( me_p ), n3, nx3, isgn, aux, is_exx = is_exx_ )
         !
         planes = dfft%iplp
         !
@@ -136,9 +143,11 @@ SUBROUTINE tg_cft3s( f, dfft, isgn, use_task_groups )
         !
         IF( use_tg ) THEN
            CALL pack_group_sticks( f, yf, dfft )
-           CALL cft_1z( yf, dfft%tg_nsw( me_p ), n3, nx3, isgn, aux )
+           CALL cft_1z( yf, dfft%tg_nsw( me_p ), n3, nx3, isgn, aux, &
+                is_exx = is_exx_ )
         ELSE
-           CALL cft_1z( f, dfft%nsw( me_p ), n3, nx3, isgn, aux )
+           CALL cft_1z( f, dfft%nsw( me_p ), n3, nx3, isgn, aux, &
+                is_exx = is_exx_ )
         ENDIF
         !
         planes = dfft%iplw
@@ -148,9 +157,11 @@ SUBROUTINE tg_cft3s( f, dfft, isgn, use_task_groups )
      CALL fw_scatter( isgn ) ! forward scatter from stick to planes
      !
      IF( use_tg ) THEN
-        CALL cft_2xy( f, dfft%tg_npp( me_p ), n1, n2, nx1, nx2, isgn, planes )
+        CALL cft_2xy( f, dfft%tg_npp( me_p ), n1, n2, nx1, nx2, isgn, planes, &
+             is_exx = is_exx_ )
      ELSE
-        CALL cft_2xy( f, dfft%npp( me_p ), n1, n2, nx1, nx2, isgn, planes )
+        CALL cft_2xy( f, dfft%npp( me_p ), n1, n2, nx1, nx2, isgn, planes, &
+             is_exx = is_exx_)
      ENDIF
      !
   ELSE
@@ -169,24 +180,28 @@ SUBROUTINE tg_cft3s( f, dfft, isgn, use_task_groups )
      ENDIF
 
      IF( use_tg ) THEN
-        CALL cft_2xy( f, dfft%tg_npp( me_p ), n1, n2, nx1, nx2, isgn, planes )
+        CALL cft_2xy( f, dfft%tg_npp( me_p ), n1, n2, nx1, nx2, isgn, planes, &
+             is_exx = is_exx_)
      ELSE
-        CALL cft_2xy( f, dfft%npp( me_p ), n1, n2, nx1, nx2, isgn, planes)
+        CALL cft_2xy( f, dfft%npp( me_p ), n1, n2, nx1, nx2, isgn, planes, &
+             is_exx = is_exx_)
      ENDIF
      !
      CALL bw_scatter( isgn )
      !
      IF ( isgn /= -2 ) THEN
         !
-        CALL cft_1z( aux, dfft%nsp( me_p ), n3, nx3, isgn, f )
-         !
+        CALL cft_1z( aux, dfft%nsp( me_p ), n3, nx3, isgn, f, is_exx = is_exx_ )
+        !
      ELSE
         !
         IF( use_tg ) THEN
-           CALL cft_1z( aux, dfft%tg_nsw( me_p ), n3, nx3, isgn, yf )
+           CALL cft_1z( aux, dfft%tg_nsw( me_p ), n3, nx3, isgn, yf, &
+                is_exx = is_exx_ )
            CALL unpack_group_sticks( yf, f, dfft )
         ELSE
-           CALL cft_1z( aux, dfft%nsw( me_p ), n3, nx3, isgn, f )
+           CALL cft_1z( aux, dfft%nsw( me_p ), n3, nx3, isgn, f, &
+                is_exx = is_exx_ )
         ENDIF
         !
      ENDIF

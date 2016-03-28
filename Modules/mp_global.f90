@@ -22,6 +22,7 @@ MODULE mp_global
   USE mp_pools
   USE mp_bands
   USE mp_bands_TDDFPT
+  USE mp_exx
   USE mp_diag
   !
   IMPLICIT NONE 
@@ -73,6 +74,7 @@ CONTAINS
     END IF
     !
     CALL mp_start_pools ( npool_, intra_image_comm )
+    CALL mp_start_exx ( nband_, ntg_, intra_pool_comm )
     CALL mp_start_bands ( nband_, ntg_, intra_pool_comm )
     !
     ! linear algebra parallelization. comment/uncomment as desired

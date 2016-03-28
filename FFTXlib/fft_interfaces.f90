@@ -21,16 +21,17 @@ MODULE fft_interfaces
      !! and to the "box-grid" version **invfft_b**, used only in CP 
      !! (the latter has an additional argument)
      
-     SUBROUTINE invfft_x( grid_type, f, dfft )
+     SUBROUTINE invfft_x( grid_type, f, dfft, is_exx )
        USE fft_types,  ONLY: fft_dlay_descriptor
        IMPLICIT NONE
        INTEGER, PARAMETER :: DP = selected_real_kind(14,200)
        CHARACTER(LEN=*),  INTENT(IN) :: grid_type
        TYPE(fft_dlay_descriptor), INTENT(IN) :: dfft
        COMPLEX(DP) :: f(:)
+       LOGICAL, OPTIONAL, INTENT(IN) :: is_exx
      END SUBROUTINE invfft_x
      !
-     SUBROUTINE invfft_b( grid_type, f, dfft, ia )
+     SUBROUTINE invfft_b( grid_type, f, dfft, ia, is_exx )
        USE fft_types,  ONLY: fft_dlay_descriptor
        IMPLICIT NONE
        INTEGER, PARAMETER :: DP = selected_real_kind(14,200)
@@ -38,17 +39,19 @@ MODULE fft_interfaces
        CHARACTER(LEN=*),  INTENT(IN) :: grid_type
        TYPE(fft_dlay_descriptor), INTENT(IN) :: dfft
        COMPLEX(DP) :: f(:)
+       LOGICAL, OPTIONAL, INTENT(IN) :: is_exx
      END SUBROUTINE invfft_b
   END INTERFACE
 
   INTERFACE fwfft
-     SUBROUTINE fwfft_x( grid_type, f, dfft )
+     SUBROUTINE fwfft_x( grid_type, f, dfft, is_exx )
        USE fft_types,  ONLY: fft_dlay_descriptor
        IMPLICIT NONE
        INTEGER, PARAMETER :: DP = selected_real_kind(14,200)
        CHARACTER(LEN=*), INTENT(IN) :: grid_type
        TYPE(fft_dlay_descriptor), INTENT(IN) :: dfft
        COMPLEX(DP) :: f(:)
+       LOGICAL, OPTIONAL, INTENT(IN) :: is_exx
      END SUBROUTINE fwfft_x
   END INTERFACE
 
@@ -56,7 +59,7 @@ END MODULE fft_interfaces
 !=---------------------------------------------------------------------------=!
 !
 !=---------------------------------------------------------------------------=!
-SUBROUTINE invfft_x( grid_type, f, dfft )
+SUBROUTINE invfft_x( grid_type, f, dfft, is_exx )
   !! Compute G-space to R-space for a specific grid type
   !! 
   !! **grid_type = 'Dense'** : 
@@ -96,6 +99,13 @@ SUBROUTINE invfft_x( grid_type, f, dfft )
   TYPE(fft_dlay_descriptor), INTENT(IN) :: dfft
   CHARACTER(LEN=*), INTENT(IN) :: grid_type
   COMPLEX(DP) :: f(:)
+  LOGICAL, OPTIONAL, INTENT(IN) :: is_exx
+  LOGICAL :: is_exx_
+  IF( present( is_exx ) ) THEN
+     is_exx_ = is_exx
+  ELSE
+     is_exx_ = .FALSE.
+  END IF
   !
   IF( grid_type == 'Dense' ) THEN
      CALL start_clock( 'fft' )
@@ -117,9 +127,9 @@ SUBROUTINE invfft_x( grid_type, f, dfft )
      
   IF( grid_type == 'Dense' .OR. grid_type == 'Smooth' .OR. &
        grid_type == 'Custom' ) THEN
-     CALL tg_cft3s( f, dfft, 1 )
+     CALL tg_cft3s( f, dfft, 1, is_exx=is_exx_ )
   ELSE IF( grid_type == 'Wave' .OR. grid_type == 'CustomWave' ) THEN
-     CALL tg_cft3s( f, dfft, 2, dfft%have_task_groups )
+     CALL tg_cft3s( f, dfft, 2, dfft%have_task_groups, is_exx=Is_exx_ )
   END IF
 
 #else
@@ -162,7 +172,7 @@ END SUBROUTINE invfft_x
 !=---------------------------------------------------------------------------=!
 !
 !=---------------------------------------------------------------------------=!
-SUBROUTINE fwfft_x( grid_type, f, dfft )
+SUBROUTINE fwfft_x( grid_type, f, dfft, is_exx )
   !! Compute R-space to G-space for a specific grid type
   !! 
   !! **grid_type = 'Dense'**
@@ -201,6 +211,13 @@ SUBROUTINE fwfft_x( grid_type, f, dfft )
   TYPE(fft_dlay_descriptor), INTENT(IN) :: dfft
   CHARACTER(LEN=*), INTENT(IN) :: grid_type
   COMPLEX(DP) :: f(:)
+  LOGICAL, OPTIONAL, INTENT(IN) :: is_exx
+  LOGICAL :: is_exx_
+  IF( present(is_exx) ) THEN
+     is_exx_ = is_exx
+  ELSE
+     is_exx_ = .FALSE.
+  END IF
 
   IF( grid_type == 'Dense' ) THEN
      CALL start_clock( 'fft' )
@@ -220,9 +237,9 @@ SUBROUTINE fwfft_x( grid_type, f, dfft )
      
   IF( grid_type == 'Dense' .OR. grid_type == 'Smooth' .OR. &
       grid_type == 'Custom' ) THEN
-     CALL tg_cft3s(f,dfft,-1)
+     CALL tg_cft3s(f,dfft,-1,is_exx=is_exx_)
   ELSE IF( grid_type == 'Wave' .OR. grid_type == 'CustomWave' ) THEN
-     CALL tg_cft3s(f,dfft,-2, dfft%have_task_groups )
+     CALL tg_cft3s(f,dfft,-2, dfft%have_task_groups, is_exx=is_exx_ )
   END IF
 
 #else 
@@ -265,7 +282,7 @@ END SUBROUTINE fwfft_x
 !=---------------------------------------------------------------------------=!
 !
 !=---------------------------------------------------------------------------=!
-SUBROUTINE invfft_b( grid_type, f, dfft, ia )
+SUBROUTINE invfft_b( grid_type, f, dfft, ia, is_exx )
   !! Not-so-parallel 3d fft for box grid, implemented ONLY for sign=1
   !!
   !! ComputeG-space to R-space, $$ output = \sum_G f(G)exp(+iG*R) $$
@@ -303,6 +320,13 @@ SUBROUTINE invfft_b( grid_type, f, dfft, ia )
   COMPLEX(DP) :: f(:)
   !
   INTEGER :: imin3, imax3, np3
+  LOGICAL, OPTIONAL, INTENT(IN) :: is_exx
+  LOGICAL :: is_exx_
+  IF( present(is_exx) )THEN
+     is_exx_ = is_exx
+  ELSE
+     is_exx_ = .FALSE.
+  END IF
 
   IF( grid_type /= 'Box' ) &
        CALL fftx_error__( ' invfft ', ' inconsistent call for Box fft ', 1 )
