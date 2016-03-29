@@ -54,12 +54,12 @@ static int file_get_input(void *data)
      return getc((FILE *) data);
 }
 
-fftw_status fftw_import_wisdom_from_file(FILE *input_file)
+/*fftw_status fftw_import_wisdom_from_file(FILE *input_file)
 {
      if (!input_file)
 	  return FFTW_FAILURE;
      return fftw_import_wisdom(file_get_input, (void *) input_file);
-}
+}*/
 
 /*************** import/export using string **************/
 
