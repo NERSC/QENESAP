@@ -7,7 +7,7 @@
 !
 !
 !-----------------------------------------------------------------------
-SUBROUTINE data_structure( gamma_only, is_exx )
+SUBROUTINE data_structure( gamma_only )
   !-----------------------------------------------------------------------
   ! this routine sets the data structure for the fft arrays
   ! (both the smooth and the dense grid)
@@ -17,7 +17,8 @@ SUBROUTINE data_structure( gamma_only, is_exx )
   USE mp,         ONLY : mp_max
   USE mp_bands,   ONLY : me_bgrp, nproc_bgrp, root_bgrp, intra_bgrp_comm, &
                          ntask_groups
-  USE mp_exx,   ONLY : me_egrp, nproc_egrp, root_egrp, intra_egrp_comm
+  USE mp_exx,     ONLY : me_egrp, nproc_egrp, root_egrp, intra_egrp_comm, &
+                         exx_mode
   USE mp_pools,   ONLY : inter_pool_comm
   USE fft_base,   ONLY : dfftp, dffts
   USE cell_base,  ONLY : bg, tpiba
@@ -30,15 +31,8 @@ SUBROUTINE data_structure( gamma_only, is_exx )
   !
   IMPLICIT NONE
   LOGICAL, INTENT(in) :: gamma_only
-  INTEGER, OPTIONAL, INTENT(in) :: is_exx
-  INTEGER :: is_exx_
   REAL (DP) :: gkcut
   INTEGER :: ik, ngm_, ngs_, ngw_
-  IF( PRESENT(is_exx) ) THEN
-     is_exx_ = is_exx
-  ELSE
-     is_exx_ = 0
-  END IF
   !
   ! ... calculate gkcut = max |k+G|^2, in (2pi/a)^2 units
   !
@@ -65,7 +59,7 @@ SUBROUTINE data_structure( gamma_only, is_exx )
   !
   ! ... set up fft descriptors, including parallel stuff: sticks, planes, etc.
   !
-  IF (is_exx_.eq.1) THEN
+  IF (exx_mode.eq.1) THEN
      CALL pstickset( gamma_only, bg, gcutm, gkcut, gcutms, &
           dfftp, dffts, ngw_ , ngm_ , ngs_ , me_egrp, &
           root_egrp, nproc_egrp, intra_egrp_comm, ntask_groups, ionode, stdout )
@@ -78,11 +72,11 @@ SUBROUTINE data_structure( gamma_only, is_exx )
   !     on output, ngm_ and ngs_ contain the local number of G-vectors
   !     for the two grids. Initialize local and global number of G-vectors
   !
-  IF (is_exx_.gt.0) THEN
+  IF (exx_mode.gt.0) THEN
      call deallocate_gvect_exx()
      call deallocate_gvecs()
   END IF
-  IF (is_exx_.eq.1) THEN
+  IF (exx_mode.eq.1) THEN
      call gvect_init ( ngm_ , intra_egrp_comm )
      call gvecs_init ( ngs_ , intra_egrp_comm );
   ELSE

@@ -247,9 +247,9 @@
      REAL(DP) :: tscale
      INTEGER :: icurrent = 1
      INTEGER :: dims( 4, ndims) = -1
-     INTEGER, SAVE :: icurrent_local
+     INTEGER, SAVE :: icurrent_local = 1
      INTEGER, SAVE :: dims_local( 4, ndims) = -1
-     INTEGER, SAVE :: icurrent_exx
+     INTEGER, SAVE :: icurrent_exx = 1
      INTEGER, SAVE :: dims_exx( 4, ndims) = -1
      LOGICAL :: dofft( nfftx ), done
      INTEGER, PARAMETER  :: stdout = 6

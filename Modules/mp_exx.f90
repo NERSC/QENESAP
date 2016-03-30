@@ -39,6 +39,9 @@ MODULE mp_exx
   !
   INTEGER :: ntask_groups = 1  ! number of proc. in an orbital "task group"
   !
+  ! flag for whether the exx part of the calculation is in progress
+  !
+  INTEGER :: exx_mode = 0
 CONTAINS
   !
   !----------------------------------------------------------------------------
@@ -172,20 +175,24 @@ CONTAINS
        ALLOCATE(band_roots(nbnd))
        ALLOCATE(contributed_bands(nbnd))
     END IF
-    n_underloaded = MODULO(nbnd*nbnd-(max_pairs-1)*negrp,negrp)
+    !n_underloaded = MODULO(nbnd*nbnd-(max_pairs-1)*negrp,negrp)
+    n_underloaded = MODULO(max_pairs*negrp-nbnd*nbnd,negrp)
     
     pair_bands = 0
     egrp_pairs = 0
+    j = 1
     DO iegrp=1, negrp
-       j = all_start(iegrp) !SHOULD CHANGE TO SOMETHING ELSE, IN CASE negrp > nbnd
+       !j = all_start(iegrp) !SHOULD CHANGE TO SOMETHING ELSE, IN CASE negrp > nbnd
        
        npairs = max_pairs
        IF (iegrp.le.n_underloaded) npairs = npairs - 1
        DO ipair=1, npairs
           !get the first value of i for which the (i,j) pair has not been assigned yet
           i = 1
-          DO WHILE (i.le.nbnd.and.pair_bands(i,j).gt.0)
+          !DO WHILE (i.le.nbnd.and.pair_bands(i,j).gt.0)
+          DO WHILE (pair_bands(i,j).gt.0)
              i = i + 1
+             IF(i.gt.nbnd) exit
           END DO
           IF (i.le.nbnd) THEN
              pair_bands(i,j) = iegrp
@@ -196,7 +203,7 @@ CONTAINS
           j = j + 1
           IF (j.gt.nbnd) j = 1
        END DO
-
+       
     END DO
 
     !create a list of the roots for each band
@@ -208,7 +215,9 @@ CONTAINS
 
     !determine the bands for which this band group will calculate a pair
     contributed_bands = .FALSE.
-    DO ipair=1, max_pairs
+    npairs = max_pairs
+    IF ((myrank+1).le.n_underloaded) npairs = npairs - 1
+    DO ipair=1, npairs
        contributed_bands(egrp_pairs(1,ipair,myrank+1)) = .TRUE.
     END DO
 

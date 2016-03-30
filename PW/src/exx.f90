@@ -1621,6 +1621,8 @@ MODULE exx
     big_result = 0.0_DP
     old_ibnd = 0
 
+    WRITE(6,*)'   Using max_pairs: ',max_pairs
+
     DO ipair=1, max_pairs
        ibnd = egrp_pairs(1,ipair,my_egrp_id+1)
        jbnd = egrp_pairs(2,ipair,my_egrp_id+1)
@@ -1784,7 +1786,7 @@ MODULE exx
 
 
 
-       IF (ipair.eq.max_pairs.or.egrp_pairs(1,ipair+1,my_egrp_id+1).ne.ibnd) THEN
+       IF (ipair.eq.max_pairs.or.egrp_pairs(1,min(ipair+1,max_pairs),my_egrp_id+1).ne.ibnd) THEN
           !
           IF(okvan) THEN
              CALL mp_sum(deexx,intra_egrp_comm)
@@ -4321,7 +4323,7 @@ MODULE exx
     USE fft_interfaces, ONLY : fwfft, invfft
     USE becmod,         ONLY : bec_type
     USE mp_exx,       ONLY : inter_egrp_comm, intra_egrp_comm, my_egrp_id, &
-                               negrp, nproc_egrp, me_egrp
+                               negrp, nproc_egrp, me_egrp, exx_mode
     USE gvect,              ONLY : ig_l2g, mill_g
     USE uspp,           ONLY : nkb, okvan, vkb
     USE mp,             ONLY : mp_sum, mp_barrier, mp_bcast, mp_size, mp_rank
@@ -4357,13 +4359,16 @@ MODULE exx
 !!!!       dffts_save = dffts
 !!!!       dfftp = dfftp_exx
 !!!!       dffts = dffts_exx
+       exx_mode = 1
        call allocate_fft(1)
        comm = intra_egrp_comm
     ELSE
 !!!!       dfftp = dfftp_save
 !!!!       dffts = dffts_save
+       exx_mode = 2
        call allocate_fft(2)
        comm = intra_pool_comm
+       exx_mode = 0
     END IF
     CALL ggen( gamma_only, at, bg, comm, no_global_sort = .FALSE. )
 
