@@ -15,7 +15,8 @@ SUBROUTINE close_files(lflag)
   USE control_flags, ONLY : twfcollect, io_level
   USE fixed_occ,     ONLY : one_atom_occupations
   USE io_files,      ONLY : prefix, iunwfc, iunigk, iunsat, &
-                            iunhub, iunefield, iunefieldm, iunefieldp
+                            iunhub, iunefield, iunefieldm, iunefieldp, &
+                            iunwfc_exx, iunigk_exx
   USE buffers,       ONLY : close_buffer
   USE mp_images,     ONLY : intra_image_comm
   USE mp,            ONLY : mp_barrier
@@ -41,6 +42,13 @@ SUBROUTINE close_files(lflag)
   !
   INQUIRE( UNIT = iunigk, OPENED = opnd )
   IF ( opnd ) CLOSE( UNIT = iunigk, STATUS = 'DELETE' )
+  !
+  ! ... close files associated with the EXX calculation
+  !
+  INQUIRE( UNIT = iunigk_exx, OPENED = opnd )
+  IF ( opnd ) CLOSE( UNIT = iunigk_exx, STATUS = 'DELETE' )
+  INQUIRE( UNIT = iunwfc_exx, OPENED = opnd )
+  IF ( opnd ) CALL close_buffer ( iunwfc_exx, 'DELETE' )
   !
   ! ... iunsat contains the (orthogonalized) atomic wfcs * S
   ! ... iunhub as above, only for wavefcts having an associated Hubbard U
