@@ -31,31 +31,35 @@ SUBROUTINE data_structure( gamma_only )
   !
   IMPLICIT NONE
   LOGICAL, INTENT(in) :: gamma_only
-  REAL (DP) :: gkcut
+  REAL (DP), SAVE :: gkcut
+  LOGICAL, SAVE :: first_call = .TRUE.
   INTEGER :: ik, ngm_, ngs_, ngw_
   !
   ! ... calculate gkcut = max |k+G|^2, in (2pi/a)^2 units
   !
-  IF (nks == 0) THEN
+  IF (first_call ) THEN
+     IF (nks == 0) THEN
+        !
+        ! if k-points are automatically generated (which happens later)
+        ! use max(bg)/2 as an estimate of the largest k-point
+        !
+        gkcut = 0.5d0 * max ( &
+             sqrt (sum(bg (1:3, 1)**2) ), &
+             sqrt (sum(bg (1:3, 2)**2) ), &
+             sqrt (sum(bg (1:3, 3)**2) ) )
+     ELSE
+        gkcut = 0.0d0
+        DO ik = 1, nks
+           gkcut = max (gkcut, sqrt ( sum(xk (1:3, ik)**2) ) )
+        ENDDO
+     ENDIF
+     gkcut = (sqrt (ecutwfc) / tpiba + gkcut)**2
      !
-     ! if k-points are automatically generated (which happens later)
-     ! use max(bg)/2 as an estimate of the largest k-point
+     ! ... find maximum value among all the processors
      !
-     gkcut = 0.5d0 * max ( &
-        sqrt (sum(bg (1:3, 1)**2) ), &
-        sqrt (sum(bg (1:3, 2)**2) ), &
-        sqrt (sum(bg (1:3, 3)**2) ) )
-  ELSE
-     gkcut = 0.0d0
-     DO ik = 1, nks
-        gkcut = max (gkcut, sqrt ( sum(xk (1:3, ik)**2) ) )
-     ENDDO
-  ENDIF
-  gkcut = (sqrt (ecutwfc) / tpiba + gkcut)**2
-  !
-  ! ... find maximum value among all the processors
-  !
-  CALL mp_max (gkcut, inter_pool_comm )
+     CALL mp_max (gkcut, inter_pool_comm )
+     first_call = .FALSE.
+  END IF
   !
   ! ... set up fft descriptors, including parallel stuff: sticks, planes, etc.
   !

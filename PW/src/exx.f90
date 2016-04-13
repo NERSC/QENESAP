@@ -132,7 +132,9 @@ MODULE exx
   TYPE(comm_packet), ALLOCATABLE :: comm_send_reverse(:,:)
   INTEGER, ALLOCATABLE :: lda_local(:,:)
   INTEGER, ALLOCATABLE :: lda_exx(:,:)
-  INTEGER :: npwx_local, npwx_exx
+  INTEGER, ALLOCATABLE :: ngk_local(:), ngk_exx(:)
+  INTEGER :: npwx_local = 0
+  INTEGER :: npwx_exx = 0
   INTEGER :: nwordwfc_exx
   LOGICAL :: first_data_structure_change = .TRUE.
  CONTAINS
@@ -3375,6 +3377,8 @@ MODULE exx
     lda = npwx
     n = npwx 
     npwx_local = npwx
+    IF( .not.allocated(ngk_local) ) allocate(ngk_local(nks))
+    ngk_local = ngk
 
     IF ( .not.allocated(comm_recv) ) THEN
        !initialize all of the conversion maps
@@ -3389,6 +3393,8 @@ MODULE exx
     lda = npwx
     n = npwx 
     npwx_exx = npwx
+    IF( .not.allocated(ngk_exx) ) allocate(ngk_exx(nks))
+    ngk_exx = ngk
     
     !get evc_exx
     IF(.not.allocated(evc_exx))THEN
@@ -4100,7 +4106,7 @@ MODULE exx
 
 
   !-----------------------------------------------------------------------
-  SUBROUTINE deconstruct_for_exact(m, ik, psi, psi_out)
+  SUBROUTINE deconstruct_for_exact(m, psi, psi_out)
   !-----------------------------------------------------------------------
     USE mp,           ONLY : mp_sum
     USE mp_pools,     ONLY : nproc_pool, me_pool
@@ -4110,6 +4116,7 @@ MODULE exx
     USE parallel_include, ONLY : MPI_STATUS_SIZE, MPI_DOUBLE_COMPLEX
 #endif
     USE klist,        ONLY : xk, wk, nkstot, nks, qnorm
+    USE wvfct,        ONLY : current_k
     !
     !
     IMPLICIT NONE
@@ -4131,7 +4138,8 @@ MODULE exx
 #endif
     INTEGER, EXTERNAL :: find_current_k
 
-    current_ik=find_current_k(ik, nkstot, nks)
+    current_ik = current_k
+!    current_ik=find_current_k(ik, nkstot, nks)
     prev_lda_exx = sum( lda_exx(1:me_egrp,current_ik) )
 
     !send communication packets
@@ -4206,7 +4214,6 @@ MODULE exx
   SUBROUTINE end_exx_parallelization(lda, n, m, psi, hpsi)
   !-----------------------------------------------------------------------
     USE mp_exx,       ONLY : negrp
-    USE wvfct,        ONLY : current_k
     !
     IMPLICIT NONE
     !
@@ -4221,7 +4228,7 @@ MODULE exx
 
     CALL change_data_structure(.FALSE.)
     
-    call deconstruct_for_exact(m,current_k,hpsi_exx,hpsi)
+    call deconstruct_for_exact(m,hpsi_exx,hpsi)
 
     CALL stop_clock ('end_exxp')
 
@@ -4289,7 +4296,15 @@ MODULE exx
     CALL ggen( gamma_only, at, bg, comm, no_global_sort = .FALSE. )
 
     !get npwx
-    call n_plane_waves (ecutwfc, tpiba2, nks, xk, g, ngm, npwx, ngk)
+    IF ( is_exx.and.npwx_exx.gt.0 ) THEN
+       npwx = npwx_exx
+       ngk = ngk_exx
+    ELSE IF ( .not.is_exx.and.npwx_local.gt.0 ) THEN
+       npwx = npwx_local
+       ngk = ngk_local
+    ELSE
+       call n_plane_waves (ecutwfc, tpiba2, nks, xk, g, ngm, npwx, ngk)
+    END IF
     
     !get igk
     deallocate(igk)
