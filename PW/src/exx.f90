@@ -838,7 +838,9 @@ MODULE exx
                 END DO
              end if
 
-             CALL invfft ('CustomWave', psic_exx, exx_fft%dfftt)
+             !<<<
+             CALL invfft ('CustomWave', psic_exx, exx_fft%dfftt, is_exx=.TRUE.)
+             !>>>
 
              exxbuff(1:nrxxs,h_ibnd,ik)=psic_exx(1:nrxxs)
              
@@ -853,13 +855,19 @@ MODULE exx
              IF (noncolin) THEN
                 temppsic_nc(:,:) = ( 0._dp, 0._dp )
                 temppsic_nc(exx_fft%nlt(igk(1:npw)),1) = evc_exx(1:npw,ibnd_exx)
-                CALL invfft ('CustomWave', temppsic_nc(:,1), exx_fft%dfftt)
+                !<<<
+                CALL invfft ('CustomWave', temppsic_nc(:,1), exx_fft%dfftt, is_exx=.TRUE.)
+                !>>>
                 temppsic_nc(exx_fft%nlt(igk(1:npw)),2) = evc_exx(npwx+1:npwx+npw,ibnd_exx)
-                CALL invfft ('CustomWave', temppsic_nc(:,2), exx_fft%dfftt)
+                !<<<
+                CALL invfft ('CustomWave', temppsic_nc(:,2), exx_fft%dfftt, is_exx=.TRUE.)
+                !>>>
              ELSE
                 temppsic(:) = ( 0._dp, 0._dp )
                 temppsic(exx_fft%nlt(igk(1:npw))) = evc_exx(1:npw,ibnd_exx)
-                CALL invfft ('CustomWave', temppsic, exx_fft%dfftt)
+                !<<<
+                CALL invfft ('CustomWave', temppsic, exx_fft%dfftt, is_exx=.TRUE.)
+                !>>>
              ENDIF
              !
              DO ikq=1,nkqs
@@ -4244,7 +4252,7 @@ MODULE exx
     USE io_files,       ONLY : nwordwfc, iunwfc, iunigk, iunigk_exx, seqopn
     USE constants,      ONLY : fpi, e2, pi
     USE cell_base,      ONLY : omega, at, bg, tpiba2
-    USE gvect,          ONLY : ngm, g, eigts1, eigts2, eigts3
+    USE gvect,          ONLY : ngm, g, eigts1, eigts2, eigts3, ngl, igtongl
     USE wvfct,          ONLY : npwx, npw, igk, current_k, ecutwfc, g2kin
     USE control_flags,  ONLY : gamma_only
     USE klist,          ONLY : xk, nks, nkstot, ngk
@@ -4263,6 +4271,7 @@ MODULE exx
     USE paw_exx,        ONLY : PAW_newdxx
     USE recvec_subs,        ONLY : ggen 
     USE fft_base,             ONLY : dfftp, dffts
+    USE cellmd,             ONLY : lmovecell
     USE mp_pools
     !
     !
@@ -4354,6 +4363,11 @@ MODULE exx
 !          READ( iunigk ) igk
 !       END DO
 !    END IF
+
+    !<<<
+    !generate ngl and igtongl
+    CALL gshells( lmovecell )
+    !>>>
 
   END SUBROUTINE change_data_structure
 
