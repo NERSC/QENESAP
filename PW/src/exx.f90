@@ -140,6 +140,25 @@ MODULE exx
   INTEGER :: npw_exx = 0
   INTEGER :: nwordwfc_exx
   LOGICAL :: first_data_structure_change = .TRUE.
+  !<<<
+
+  INTEGER :: ngm_loc, ngm_g_loc, gstart_loc
+  INTEGER, ALLOCATABLE :: ig_l2g_loc(:)
+  REAL(DP), ALLOCATABLE :: g_loc(:,:), gg_loc(:)
+  INTEGER, ALLOCATABLE :: mill_loc(:,:), nl_loc(:)
+  INTEGER :: ngms_loc, ngms_g_loc
+  INTEGER, ALLOCATABLE :: nls_loc(:)
+
+  !gcutm
+  INTEGER :: ngm_exx, ngm_g_exx, gstart_exx
+  INTEGER, ALLOCATABLE :: ig_l2g_exx(:)
+  REAL(DP), ALLOCATABLE :: g_exx(:,:), gg_exx(:)
+  INTEGER, ALLOCATABLE :: mill_exx(:,:), nl_exx(:)
+  INTEGER :: ngms_exx, ngms_g_exx
+  INTEGER, ALLOCATABLE :: nls_exx(:)
+  !gcutms
+
+  !>>>
  CONTAINS
 #define _CX(A)  CMPLX(A,0._dp,kind=DP)
 #define _CY(A)  CMPLX(0._dp,-A,kind=DP)
@@ -3945,7 +3964,7 @@ MODULE exx
 !    COMPLEX(DP) :: psi_out(lda*npol,m)
     INTEGER, INTENT(in) :: type
 
-    COMPLEX(DP), ALLOCATABLE :: psi_work(:,:,:)
+    COMPLEX(DP), ALLOCATABLE :: psi_work(:,:,:), psi_gather(:,:)
     INTEGER :: i, j, im, iproc, ig, ik
     INTEGER :: prev, lda_max_local
 
@@ -3968,16 +3987,29 @@ MODULE exx
     CALL start_clock ('comm1')
     allocate(psi_work(lda_max_local,m,negrp))
 !    allocate(psi_work(npwx_local,m,negrp))
-    psi_work = 0.0_DP
-    DO im=1, m
-       !gather psi and hpsi onto each exact group
-!       IF (my_egrp_id.eq.0) cycle
-       psi_work(1:lda_local(me_pool+1,current_ik), im, my_egrp_id+1) = &
-            psi(1:lda_local(me_pool+1,current_ik), im)
-    END DO
+    !<<<
+!    psi_work = 0.0_DP
+!    DO im=1, m
+!       !gather psi and hpsi onto each exact group
+!       psi_work(1:lda_local(me_pool+1,current_ik), im, my_egrp_id+1) = &
+!            psi(1:lda_local(me_pool+1,current_ik), im)
+!    END DO
     !NOTE: Need to change this to an allgather
-    call mp_sum(psi_work,inter_egrp_comm)
+!    call mp_sum(psi_work,inter_egrp_comm)
+    allocate(psi_gather(lda_max_local,m))
+    DO im=1, m
+       psi_gather(1:lda_local(me_pool+1,current_ik),im) = psi(:,im)
+    END DO
     CALL stop_clock ('comm1')
+    CALL start_clock ('comm2')
+    CALL MPI_ALLGATHER( psi_gather, &
+         lda_max_local*m, MPI_DOUBLE_COMPLEX, &
+         psi_work, &
+         lda_max_local*m, MPI_DOUBLE_COMPLEX, &
+         inter_egrp_comm, ierr )
+    CALL stop_clock ('comm2')
+    CALL start_clock ('comm3')
+    !>>>
     
     !-------------------------------------------------------!
     !Communication Part 2
@@ -4104,6 +4136,10 @@ MODULE exx
           CALL MPI_WAIT(request_send(iproc+1), istatus, ierr)
        END IF
     END DO
+
+    !<<<
+    CALL stop_clock ('comm3')
+    !>>>
 
   END SUBROUTINE reconstruct_for_exact
 
@@ -4261,7 +4297,7 @@ MODULE exx
     USE io_files,       ONLY : nwordwfc, iunwfc, iunigk, iunigk_exx, seqopn
     USE constants,      ONLY : fpi, e2, pi
     USE cell_base,      ONLY : omega, at, bg, tpiba2
-    USE gvect,          ONLY : ngm, g, eigts1, eigts2, eigts3, ngl, igtongl
+    !USE gvect,          ONLY : ngm, g, eigts1, eigts2, eigts3, ngl, igtongl
     USE wvfct,          ONLY : npwx, npw, igk, current_k, ecutwfc, g2kin
     USE control_flags,  ONLY : gamma_only
     USE klist,          ONLY : xk, nks, nkstot, ngk
@@ -4269,7 +4305,13 @@ MODULE exx
     USE becmod,         ONLY : bec_type
     USE mp_exx,       ONLY : inter_egrp_comm, intra_egrp_comm, my_egrp_id, &
                                negrp, nproc_egrp, me_egrp, exx_mode
-    USE gvect,              ONLY : ig_l2g, mill_g
+    !<<<
+    !USE gvect,              ONLY : ig_l2g, mill_g
+    USE gvect,              ONLY : ig_l2g, g, gg, ngm, ngm_g, gcutm, &
+                                   mill,  nl, gstart, &
+                                   eigts1, eigts2, eigts3, ngl, igtongl
+    USE gvecs,              ONLY : ngms, gcutms, ngms_g, nls
+    !>>>
     USE uspp,           ONLY : nkb, okvan, vkb
     USE mp,             ONLY : mp_sum, mp_barrier, mp_bcast, mp_size, mp_rank
     USE uspp,           ONLY : nkb, okvan
@@ -4296,22 +4338,94 @@ MODULE exx
     IF (negrp.eq.1) RETURN
     !!!!!!!!!!
 
+    CALL start_clock ('cds')
+
     !-----------------------------------------!
     ! Switch to the exx data structure        !
     !-----------------------------------------!
 
+    CALL start_clock ('cds_fft')
+
+    IF (first_data_structure_change) THEN
+       allocate( ig_l2g_loc(ngm), g_loc(3,ngm), gg_loc(ngm) )
+       allocate( mill_loc(3,ngm), nl_loc(ngm) )
+       allocate( nls_loc(ngms) )
+       ig_l2g_loc = ig_l2g
+       g_loc = g
+       gg_loc = gg
+       mill_loc = mill
+       nl_loc = nl
+       nls_loc = nls
+       ngm_loc = ngm
+       ngm_g_loc = ngm_g
+       gstart_loc = gstart
+       ngms_loc = ngms
+       ngms_g_loc = ngms_g
+    END IF
+
     !try to generate the correct gvectors for the exact exchange calculation
     IF (is_exx) THEN
        exx_mode = 1
-       call allocate_fft(1)
+       call allocate_fft()
        comm = intra_egrp_comm
     ELSE
        exx_mode = 2
-       call allocate_fft(2)
+       call allocate_fft()
        comm = intra_pool_comm
        exx_mode = 0
     END IF
-    CALL ggen( gamma_only, at, bg, comm, no_global_sort = .FALSE. )
+
+    CALL stop_clock ('cds_fft')
+
+    CALL start_clock ('cds_ggn')
+
+    IF (first_data_structure_change) THEN
+       CALL ggen( gamma_only, at, bg, comm, no_global_sort = .FALSE. )
+       allocate( ig_l2g_exx(ngm), g_exx(3,ngm), gg_exx(ngm) )
+       allocate( mill_exx(3,ngm), nl_exx(ngm) )
+       allocate( nls_exx(ngms) )
+       ig_l2g_exx = ig_l2g
+       g_exx = g
+       gg_exx = gg
+       mill_exx = mill
+       nl_exx = nl
+       nls_exx = nls
+       ngm_exx = ngm
+       ngm_g_exx = ngm_g
+       gstart_exx = gstart
+       ngms_exx = ngms
+       ngms_g_exx = ngms_g
+    ELSE IF ( is_exx ) THEN
+       ig_l2g = ig_l2g_exx
+       g = g_exx
+       gg = gg_exx
+       mill = mill_exx
+       nl = nl_exx
+       nls = nls_exx
+       ngm = ngm_exx
+       ngm_g = ngm_g_exx
+       gstart = gstart_exx
+       ngms = ngms_exx
+       ngms_g = ngms_g_exx
+    ELSE ! not is_exx
+       ig_l2g = ig_l2g_loc
+       g = g_loc
+       gg = gg_loc
+       mill = mill_loc
+       nl = nl_loc
+       nls = nls_loc
+       ngm = ngm_loc
+       ngm_g = ngm_g_loc
+       gstart = gstart_loc
+       ngms = ngms_loc
+       ngms_g = ngms_g_loc
+    END IF
+
+    CALL stop_clock ('cds_ggn')
+
+
+
+    CALL start_clock ('cds_npw')
 
     !get npwx
     IF ( is_exx.and.npwx_exx.gt.0 ) THEN
@@ -4325,10 +4439,16 @@ MODULE exx
     ELSE
        call n_plane_waves (ecutwfc, tpiba2, nks, xk, g, ngm, npwx, ngk)
     END IF
+
+    CALL stop_clock ('cds_npw')
+
+
+
+
+    CALL start_clock ('cds_igk')
     
     !get igk
     IF( first_data_structure_change ) THEN
-!!!    deallocate(igk)
        allocate(igk_exx(npwx),work_space(npwx))
        first_data_structure_change = .FALSE.
        IF ( nks.eq.1 ) THEN
@@ -4345,26 +4465,18 @@ MODULE exx
           
        END IF
     END IF
-    !!!!!
 
-!!!    IF ( nks.eq.1 ) THEN
-!!!       CALL gk_sort( xk, ngm, g, ecutwfc / tpiba2, npw, igk, work_space )
-!!!    END IF
+    CALL stop_clock ('cds_igk')
 
-!!!!    ik = current_k
-!!!!    CALL gk_sort( xk(1,ik), ngm, g, ecutwfc / tpiba2, npw, igk, work_space )
-!    IF ( nks > 1 ) THEN
-!       WRITE(6,*)'   resetting igk for ik of: ',current_k
-!       REWIND( iunigk )
-!       DO ik=1, current_k
-!          READ( iunigk ) igk
-!       END DO
-!    END IF
 
-    !<<<
+
+
     !generate ngl and igtongl
+    CALL start_clock ('cds_ngl')
     CALL gshells( lmovecell )
-    !>>>
+    CALL stop_clock ('cds_ngl')
+
+    CALL stop_clock ('cds')
 
   END SUBROUTINE change_data_structure
 
