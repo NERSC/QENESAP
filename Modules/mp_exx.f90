@@ -25,7 +25,15 @@ MODULE mp_exx
   INTEGER :: my_egrp_id  = 0  ! index of my band group
   INTEGER :: inter_egrp_comm  = 0  ! inter band group communicator
   INTEGER :: intra_egrp_comm  = 0  ! intra band group communicator  
+  LOGICAL :: tegrp       = .FALSE. ! logical flag. .TRUE. when negrp > 1
+  !
+  ! ... "task" groups (for band parallelization of FFT)
+  !
+  INTEGER :: ntask_groups = 1  ! number of proc. in an orbital "task group"
   !<<<
+  !
+  ! variables for the pair parallelization
+  !
   INTEGER :: max_pairs ! maximum pairs per band group
   INTEGER, ALLOCATABLE :: egrp_pairs(:,:,:) ! pairs for each band group
   INTEGER, ALLOCATABLE :: band_roots(:) ! root for each band
@@ -33,11 +41,6 @@ MODULE mp_exx
   !>>>
   INTEGER :: iexx_start = 0              ! starting band index used in bgrp parallelization
   INTEGER :: iexx_end = 0                ! ending band index used in bgrp parallelization
-  LOGICAL :: tegrp       = .FALSE. ! logical flag. .TRUE. when negrp > 1
-  !
-  ! ... "task" groups (for band parallelization of FFT)
-  !
-  INTEGER :: ntask_groups = 1  ! number of proc. in an orbital "task group"
   !
   ! flag for whether the exx part of the calculation is in progress
   !
@@ -113,11 +116,16 @@ CONTAINS
   END SUBROUTINE mp_start_exx
   !<<<
   !
-  SUBROUTINE init_index_over_band(comm,nbnd)
+  !<<<
+  SUBROUTINE init_index_over_band(comm,nbnd,m)
+  !>>>
     !
     USE io_global, ONLY : stdout
     IMPLICIT NONE
     INTEGER, INTENT(IN) :: comm, nbnd
+    !<<<
+    INTEGER, INTENT(IN) :: m
+    !>>>
     
     INTEGER :: npe, myrank, rest, k
     INTEGER :: i, j, ipair, iegrp, root
@@ -169,14 +177,24 @@ CONTAINS
     END DO
 
     !assign the pairs for each band group
-    max_pairs = CEILING(REAL(nbnd*nbnd)/REAL(negrp))
+    !<<<
+    !max_pairs = CEILING(REAL(nbnd*nbnd)/REAL(negrp))
+    max_pairs = CEILING(REAL(nbnd*m)/REAL(negrp))
+    IF (allocated(egrp_pairs)) THEN
+       DEALLOCATE(egrp_pairs)
+       DEALLOCATE(band_roots)
+       DEALLOCATE(contributed_bands)
+    END IF
+    !>>>
     IF (.not.allocated(egrp_pairs)) THEN
        ALLOCATE(egrp_pairs(2,max_pairs,negrp))
        ALLOCATE(band_roots(nbnd))
        ALLOCATE(contributed_bands(nbnd))
     END IF
-    !n_underloaded = MODULO(nbnd*nbnd-(max_pairs-1)*negrp,negrp)
-    n_underloaded = MODULO(max_pairs*negrp-nbnd*nbnd,negrp)
+    !<<<
+    !n_underloaded = MODULO(max_pairs*negrp-nbnd*nbnd,negrp)
+    n_underloaded = MODULO(max_pairs*negrp-nbnd*m,negrp)
+    !>>>
     
     pair_bands = 0
     egrp_pairs = 0
@@ -192,9 +210,15 @@ CONTAINS
           !DO WHILE (i.le.nbnd.and.pair_bands(i,j).gt.0)
           DO WHILE (pair_bands(i,j).gt.0)
              i = i + 1
-             IF(i.gt.nbnd) exit
+             !<<<
+             !IF(i.gt.nbnd) exit
+             IF(i.gt.m) exit
+             !>>>
           END DO
-          IF (i.le.nbnd) THEN
+          !<<<
+          !IF (i.le.nbnd) THEN
+          IF (i.le.m) THEN
+          !>>>
              pair_bands(i,j) = iegrp
           END IF
           egrp_pairs(1,ipair,iegrp) = i

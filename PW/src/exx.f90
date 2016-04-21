@@ -792,7 +792,9 @@ MODULE exx
     ENDDO
 
     CALL set_egrp_indices(x_nbnd_occ,ibnd_start,ibnd_end)
-    CALL init_index_over_band(inter_egrp_comm,nbnd)
+    !<<<
+    CALL init_index_over_band(inter_egrp_comm,nbnd,nbnd)
+    !>>>
 
     !this will cause exxbuff to be calculated for every band
     ibnd_start_new = 1
@@ -1183,7 +1185,11 @@ MODULE exx
     USE control_flags,  ONLY : gamma_only
     USE uspp,           ONLY : okvan
     USE paw_variables,  ONLY : okpaw
-    USE mp_exx,         ONLY : negrp
+    !<<<
+    !USE mp_exx,         ONLY : negrp
+    USE mp_exx,         ONLY : negrp, inter_egrp_comm, init_index_over_band
+    USE wvfct,          ONLY : nbnd
+    !>>>
     !
     IMPLICIT NONE
     !
@@ -1203,6 +1209,7 @@ MODULE exx
        IF(negrp.eq.1)THEN
           CALL vexx_k_pairs(lda, n, m, psi, hpsi, becpsi)
        ELSE
+          CALL init_index_over_band(inter_egrp_comm,nbnd,m)
           CALL start_exx_parallelization(lda,n,m,psi,hpsi,becpsi)
           !CALL vexx_k(lda, n, m, psi_exx, hpsi_exx, becpsi)
           CALL vexx_k_pairs(lda, n, m, psi_exx, hpsi_exx, becpsi)
