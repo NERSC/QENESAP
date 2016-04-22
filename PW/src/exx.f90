@@ -1589,6 +1589,8 @@ MODULE exx
     COMPLEX(DP), ALLOCATABLE :: big_result(:,:)
     INTEGER :: ir_out, ipair, jbnd, old_ibnd
     !
+    CALL start_clock ('vexx_init')
+    !
     ALLOCATE( fac(exx_fft%ngmt) )
     nrxxs= exx_fft%dfftt%nnr
     !
@@ -1613,7 +1615,10 @@ MODULE exx
     big_result = 0.0_DP
     old_ibnd = 0
 
+    CALL stop_clock ('vexx_init')
+
     DO ipair=1, max_pairs
+
        ibnd = egrp_pairs(1,ipair,my_egrp_id+1)
        jbnd = egrp_pairs(2,ipair,my_egrp_id+1)
 
@@ -1622,6 +1627,8 @@ MODULE exx
        IF (ibnd.eq.0.or.ibnd.gt.m) CYCLE
        
        IF (ibnd.ne.old_ibnd) THEN
+
+          CALL start_clock ('vexx_out1')
           
           IF(okvan) deexx = 0.0_DP
           
@@ -1665,6 +1672,8 @@ MODULE exx
           
           old_ibnd = ibnd
 
+          CALL stop_clock ('vexx_out1')
+
        END IF
        
        
@@ -1673,21 +1682,25 @@ MODULE exx
        !INNER LOOP START
        !----------------------------------------------------------------------!
        DO iq=1, nqs
-
+          
           ikq  = index_xkq(current_ik,iq)
           ik   = index_xk(ikq)
           xkq  = xkq_collect(:,ikq)
 
           !
           ! calculate the 1/|r-r'| (actually, k+q+g) factor and place it in fac
+          CALL start_clock ('vexx_g2')
           CALL g2_convolution(exx_fft%ngmt, exx_fft%gt, xk(:,current_k), &
                xkq, fac)
+          CALL stop_clock ('vexx_g2')
           IF ( okvan .AND..NOT.tqr ) CALL qvan_init (xkq, xkp)
+          !
           !
           IF ( ABS(x_occupation(jbnd,ik)) < eps_occ) CYCLE
           !
           !loads the phi from file
           !
+          CALL start_clock ('vexx_rho')
           IF (noncolin) THEN
 !$omp parallel do default(shared), private(ir)
              DO ir = 1, nrxxs
@@ -1702,22 +1715,30 @@ MODULE exx
              ENDDO
 !$omp end parallel do
           ENDIF
+          CALL stop_clock ('vexx_rho')
 
           !   >>>> add augmentation in REAL space HERE
+          CALL start_clock ('vexx_augr')
           IF(okvan .AND. tqr) THEN ! augment the "charge" in real space
              CALL addusxx_r(rhoc, becxx(ikq)%k(:,jbnd), becpsi%k(:,im))
           ENDIF
+          CALL stop_clock ('vexx_augr')
           !
           !   >>>> brings it to G-space
+          CALL start_clock ('vexx_ffft')
           CALL fwfft('Custom', rhoc, exx_fft%dfftt, is_exx=.TRUE.)
+          CALL stop_clock ('vexx_ffft')
           !
           !   >>>> add augmentation in G space HERE
+          CALL start_clock ('vexx_augg')
           IF(okvan .AND. .NOT. tqr) THEN
              CALL addusxx_g(rhoc, xkq, xkp, 'c', &
                   becphi_c=becxx(ikq)%k(:,jbnd),becpsi_c=becpsi%k(:,im))
           ENDIF
+          CALL stop_clock ('vexx_augg')
           !   >>>> charge done
           !
+          CALL start_clock ('vexx_vc')
           vc = 0._DP
           !
 !$omp parallel do default(shared), private(ig)
@@ -1726,28 +1747,38 @@ MODULE exx
                   x_occupation(jbnd,ik) / nqs
           ENDDO
 !$omp end parallel do
+          CALL stop_clock ('vexx_vc')
           !
           ! Add ultrasoft contribution (RECIPROCAL SPACE)
           ! compute alpha_I,j,k+q = \sum_J \int <beta_J|phi_j,k+q> V_i,j,k,q Q_I,J(r) d3r
+          CALL start_clock ('vexx_ultr')
           IF(okvan .AND. .NOT. tqr) THEN
              CALL newdxx_g(vc, xkq, xkp, 'c', deexx, &
                   becphi_c=becxx(ikq)%k(:,jbnd))
           ENDIF
+          CALL stop_clock ('vexx_ultr')
           !
           !brings back v in real space
+          CALL start_clock ('vexx_ifft')
           CALL invfft ('Custom', vc, exx_fft%dfftt, is_exx=.TRUE.)
+          CALL stop_clock ('vexx_ifft')
           !
           ! Add ultrasoft contribution (REAL SPACE)
+          CALL start_clock ('vexx_ultg')
           IF(okvan .AND. TQR) CALL newdxx_r(vc, becxx(ikq)%k(:,jbnd),deexx)
+          CALL stop_clock ('vexx_ultg')
           !
           ! Add PAW one-center contribution
+          CALL start_clock ('vexx_paw')
           IF(okpaw) THEN
              CALL PAW_newdxx(x_occupation(jbnd,ik)/nqs, becxx(ikq)%k(:,jbnd), &
                   becpsi%k(:,im), deexx)
           ENDIF
+          CALL stop_clock ('vexx_paw')
           !
           !accumulates over bands and k points
           !
+          CALL start_clock ('vexx_res')
           IF (noncolin) THEN
 !$omp parallel do default(shared), private(ir)
              DO ir = 1, nrxxs
@@ -1766,8 +1797,11 @@ MODULE exx
              ENDDO
 !$omp end parallel do
           ENDIF
+          CALL stop_clock ('vexx_res')
           !
+          CALL start_clock ('vexx_qcln')
           IF ( okvan .AND..NOT.tqr ) CALL qvan_clean ()
+          CALL stop_clock ('vexx_qcln')
           !
        END DO
        !----------------------------------------------------------------------!
@@ -1777,6 +1811,7 @@ MODULE exx
 
 
        IF (ipair.eq.max_pairs.or.egrp_pairs(1,min(ipair+1,max_pairs),my_egrp_id+1).ne.ibnd) THEN
+          CALL start_clock ('vexx_out2')
           !
           IF(okvan) THEN
              CALL mp_sum(deexx,intra_egrp_comm)
@@ -1796,6 +1831,7 @@ MODULE exx
                 big_result(ig,ibnd) = big_result(ig,ibnd) + result(exx_fft%nlt(igk_exx(ig)))
              ENDDO
           ENDIF
+          CALL stop_clock ('vexx_out2')
        END IF
 
 
@@ -1805,18 +1841,25 @@ MODULE exx
 
     !sum result
     DO im=1, m
+       CALL start_clock ('vexx_sum')
        CALL mp_sum( big_result(1:n,im), inter_egrp_comm )
+       CALL stop_clock ('vexx_sum')
+       CALL start_clock ('vexx_hpsi')
 !$omp parallel do default(shared), private(ig)
        DO ig = 1, n
           hpsi(ig,im)=hpsi(ig,im) - exxalfa*big_result(ig,im)
        ENDDO
 !$omp end parallel do
+       CALL stop_clock ('vexx_hpsi')
        ! add non-local \sum_I |beta_I> \alpha_Ii (the sum on i is outside)
+       CALL start_clock ('vexx_nloc')
        IF(okvan) CALL add_nlxx_pot (lda, hpsi(:,im), xkp, npw, igk_exx, &
             deexx, eps_occ, exxalfa)
+       CALL stop_clock ('vexx_nloc')
     END DO
 
     !
+    CALL start_clock ('vexx_deal')
     IF (noncolin) THEN
        DEALLOCATE(temppsic_nc, result_nc) 
     ELSE
@@ -1826,6 +1869,7 @@ MODULE exx
     DEALLOCATE(rhoc, vc, fac )
     !
     IF(okvan) DEALLOCATE( deexx)
+    CALL stop_clock ('vexx_deal')
 
   END SUBROUTINE vexx_k_pairs
 
