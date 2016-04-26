@@ -158,6 +158,10 @@ MODULE exx
   INTEGER, ALLOCATABLE :: nls_exx(:)
   !gcutms
 
+  !the coulomb factor is reused between iterations
+  REAL(DP), ALLOCATABLE :: coulomb_fac(:,:,:)
+  !list of which coulomb factors have been calculated already
+  LOGICAL, ALLOCATABLE :: coulomb_done(:,:)
   !>>>
  CONTAINS
 #define _CX(A)  CMPLX(A,0._dp,kind=DP)
@@ -1312,7 +1316,7 @@ MODULE exx
        xkq  = xkq_collect(:,ikq)
        !
        ! calculate the 1/|r-r'| (actually, k+q+g) factor and place it in fac
-       CALL g2_convolution(exx_fft%ngmt, exx_fft%gt, xk(:,current_k), xkq, fac) 
+       CALL g2_convolution(exx_fft%ngmt, exx_fft%gt, xk(:,current_k), xkq, iq, current_k) 
        IF ( okvan .AND..NOT.tqr ) CALL qvan_init (xkq, xkp)
        !
        LOOP_ON_PSI_BANDS : &
@@ -1434,8 +1438,8 @@ MODULE exx
 !$omp parallel do default(shared), private(ig)
              DO ig = 1, exx_fft%ngmt
                 ! 
-                vc(exx_fft%nlt(ig))  = fac(ig) * rhoc(exx_fft%nlt(ig)) 
-                vc(exx_fft%nltm(ig)) = fac(ig) * rhoc(exx_fft%nltm(ig)) 
+                vc(exx_fft%nlt(ig))  = coulomb_fac(ig,iq,current_k) * rhoc(exx_fft%nlt(ig)) 
+                vc(exx_fft%nltm(ig)) = coulomb_fac(ig,iq,current_k) * rhoc(exx_fft%nltm(ig)) 
                 !                 
              ENDDO
 !$omp end parallel do
@@ -1691,7 +1695,7 @@ MODULE exx
           ! calculate the 1/|r-r'| (actually, k+q+g) factor and place it in fac
           CALL start_clock ('vexx_g2')
           CALL g2_convolution(exx_fft%ngmt, exx_fft%gt, xk(:,current_k), &
-               xkq, fac)
+               xkq, iq, current_k)
           CALL stop_clock ('vexx_g2')
           IF ( okvan .AND..NOT.tqr ) CALL qvan_init (xkq, xkp)
           !
@@ -1743,8 +1747,8 @@ MODULE exx
           !
 !$omp parallel do default(shared), private(ig)
           DO ig = 1, exx_fft%ngmt
-             vc(exx_fft%nlt(ig)) = fac(ig) * rhoc(exx_fft%nlt(ig)) * &
-                  x_occupation(jbnd,ik) / nqs
+             vc(exx_fft%nlt(ig)) = coulomb_fac(ig,iq,current_k) * &
+                  rhoc(exx_fft%nlt(ig)) * x_occupation(jbnd,ik) / nqs
           ENDDO
 !$omp end parallel do
           CALL stop_clock ('vexx_vc')
@@ -1861,10 +1865,13 @@ MODULE exx
     !
     CALL start_clock ('vexx_deal')
     IF (noncolin) THEN
-       DEALLOCATE(temppsic_nc, result_nc) 
+       DEALLOCATE(temppsic_nc, result_nc)
+       DEALLOCATE(result_nc_g)
     ELSE
-       DEALLOCATE(temppsic, result) 
+       DEALLOCATE(temppsic, result)
+       DEALLOCATE(result_g)
     END IF
+    DEALLOCATE(big_result)
     !
     DEALLOCATE(rhoc, vc, fac )
     !
@@ -2023,7 +2030,7 @@ MODULE exx
           xkq  = xkq_collect(:,ikq)
           !
           ! calculate the 1/|r-r'| (actually, k+q+g) factor and place it in fac
-          CALL g2_convolution(exx_fft%ngmt, exx_fft%gt, xk(:,current_k), xkq, fac)
+          CALL g2_convolution(exx_fft%ngmt, exx_fft%gt, xk(:,current_k), xkq, iq, current_k)
           IF ( okvan .AND..NOT.tqr ) CALL qvan_init (xkq, xkp)
           !
           IBND_LOOP_K : &
@@ -2077,8 +2084,8 @@ MODULE exx
              !
 !$omp parallel do default(shared), private(ig)
              DO ig = 1, exx_fft%ngmt
-                vc(exx_fft%nlt(ig)) = fac(ig) * rhoc(exx_fft%nlt(ig)) * &
-                                             x_occupation(ibnd,ik) / nqs
+                vc(exx_fft%nlt(ig)) = coulomb_fac(ig,iq,current_k) * &
+                     rhoc(exx_fft%nlt(ig)) * x_occupation(ibnd,ik) / nqs
              ENDDO
 !$omp end parallel do
              !
@@ -2210,7 +2217,10 @@ MODULE exx
   !-----------------------------------------------------------------------
   !
   !-----------------------------------------------------------------------
-  SUBROUTINE g2_convolution(ngm, g, xk, xkq, fac)
+  !<<<
+  !SUBROUTINE g2_convolution(ngm, g, xk, xkq, fac)
+  SUBROUTINE g2_convolution(ngm, g, xk, xkq, iq, current_k)
+  !>>>
   !-----------------------------------------------------------------------
     ! This routine calculates the 1/|r-r'| part of the exact exchange 
     ! expression in reciprocal space (the G^-2 factor).
@@ -2226,7 +2236,10 @@ MODULE exx
     REAL(DP), INTENT(IN)    :: xk(3) ! current k vector
     REAL(DP), INTENT(IN)    :: xkq(3) ! current q vector
     !
-    REAL(DP), INTENT(INOUT) :: fac(ngm) ! Calculated convolution
+    !<<<
+    !REAL(DP), INTENT(INOUT) :: fac(ngm) ! Calculated convolution
+    INTEGER, INTENT(IN) :: current_k, iq
+    !>>>
     !
     !Local variables
     INTEGER :: ig !Counters 
@@ -2234,13 +2247,23 @@ MODULE exx
     REAL(DP) :: grid_factor_track(ngm), qq_track(ngm)
     REAL(DP) :: nqhalf_dble(3)
     LOGICAL :: odg(3)
+    !<<<
+    ! Check if coulomb_fac has been allocated
+    !WRITE(6,*)'Allocating coulomb_fac: ',ngm,nqs,nqs
+    IF( .NOT.ALLOCATED( coulomb_fac ) ) ALLOCATE( coulomb_fac(ngm,nqs,nqs) )
+    IF( .NOT.ALLOCATED( coulomb_done) ) THEN
+       ALLOCATE( coulomb_done(nqs,nqs) )
+       coulomb_done = .FALSE.
+    END IF
+    IF ( coulomb_done(iq,current_k) ) RETURN
+    !>>>
     !
     ! First the types of Coulomb potential that need q(3) and an external call
     !
     IF( use_coulomb_vcut_ws ) THEN 
        DO ig = 1, ngm 
           q(:)= ( xk(:) - xkq(:) + g(:,ig) ) * tpiba
-          fac(ig) = vcut_get(vcut,q)
+          coulomb_fac(ig,iq,current_k) = vcut_get(vcut,q)
        ENDDO
        RETURN
     ENDIF
@@ -2248,7 +2271,7 @@ MODULE exx
     IF ( use_coulomb_vcut_spheric ) THEN
        DO ig = 1, ngm 
           q(:)= ( xk(:) - xkq(:) + g(:,ig) ) * tpiba
-          fac(ig) = vcut_spheric_get(vcut,q)
+          coulomb_fac(ig,iq,current_k) = vcut_spheric_get(vcut,q)
        ENDDO
        RETURN
     ENDIF
@@ -2295,29 +2318,34 @@ MODULE exx
       qq = qq_track(ig) 
       !
       IF(gau_scrlen > 0) THEN
-         fac(ig)=e2*((pi/gau_scrlen)**(1.5_DP))*EXP(-qq/4._DP/gau_scrlen) * grid_factor_track(ig)
+         coulomb_fac(ig,iq,current_k)=e2*((pi/gau_scrlen)**(1.5_DP))*EXP(-qq/4._DP/gau_scrlen) * grid_factor_track(ig)
          !
       ELSE IF (qq > eps_qdiv) THEN
          !
          IF ( erfc_scrlen > 0  ) THEN
-            fac(ig)=e2*fpi/qq*(1._DP-EXP(-qq/4._DP/erfc_scrlen**2)) * grid_factor_track(ig)
+            coulomb_fac(ig,iq,current_k)=e2*fpi/qq*(1._DP-EXP(-qq/4._DP/erfc_scrlen**2)) * grid_factor_track(ig)
          ELSEIF( erf_scrlen > 0 ) THEN
-            fac(ig)=e2*fpi/qq*(EXP(-qq/4._DP/erf_scrlen**2)) * grid_factor_track(ig)
+            coulomb_fac(ig,iq,current_k)=e2*fpi/qq*(EXP(-qq/4._DP/erf_scrlen**2)) * grid_factor_track(ig)
          ELSE
-            fac(ig)=e2*fpi/( qq + yukawa ) * grid_factor_track(ig) ! as HARTREE
+            coulomb_fac(ig,iq,current_k)=e2*fpi/( qq + yukawa ) * grid_factor_track(ig) ! as HARTREE
          ENDIF
          !
       ELSE
          !
-         fac(ig)= - exxdiv ! or rather something ELSE (see F.Gygi)
+         coulomb_fac(ig,iq,current_k)= - exxdiv ! or rather something ELSE (see F.Gygi)
          !
-         IF ( yukawa > 0._DP.AND. .NOT. x_gamma_extrapolation ) fac(ig) = fac(ig) + e2*fpi/( qq + yukawa )
-         IF( erfc_scrlen > 0._DP.AND. .NOT. x_gamma_extrapolation ) fac(ig) = fac(ig) + e2*pi/(erfc_scrlen**2)
+         IF ( yukawa > 0._DP.AND. .NOT. x_gamma_extrapolation ) &
+              coulomb_fac(ig,iq,current_k) = coulomb_fac(ig,iq,current_k) + e2*fpi/( qq + yukawa )
+         IF( erfc_scrlen > 0._DP.AND. .NOT. x_gamma_extrapolation ) &
+              coulomb_fac(ig,iq,current_k) = coulomb_fac(ig,iq,current_k) + e2*pi/(erfc_scrlen**2)
          !
       ENDIF
       !
     ENDDO
 !$omp end parallel do
+    !<<<
+    coulomb_done(iq,current_k) = .TRUE.
+    !>>>
   END SUBROUTINE g2_convolution
   !-----------------------------------------------------------------------
   !
@@ -2542,8 +2570,9 @@ MODULE exx
           !
           xkq = xkq_collect(:,ikq)
           !
-          CALL g2_convolution(exx_fft%ngmt, exx_fft%gt, xk(:,current_ik), xkq, fac) 
-          fac(exx_fft%gstart_t:) = 2 * fac(exx_fft%gstart_t:)
+          CALL g2_convolution(exx_fft%ngmt, exx_fft%gt, xk(:,current_ik), xkq, iq, current_ik)
+          fac = coulomb_fac(:,iq,current_ik)
+          fac(exx_fft%gstart_t:) = 2 * coulomb_fac(exx_fft%gstart_t:,iq,current_ik)
           IF ( okvan .AND..NOT.tqr ) CALL qvan_init (xkq, xkp)
           !
           jmax = nbnd 
@@ -2858,7 +2887,7 @@ MODULE exx
              !
              xkq = xkq_collect(:,ikq)
              !
-             CALL g2_convolution(exx_fft%ngmt, exx_fft%gt, xk(:,current_ik), xkq, fac)
+             CALL g2_convolution(exx_fft%ngmt, exx_fft%gt, xk(:,current_ik), xkq, iq, current_ik)
              IF ( okvan .AND..NOT.tqr ) CALL qvan_init (xkq, xkp)
              !
              IBND_LOOP_K : &
@@ -2896,7 +2925,7 @@ MODULE exx
                 vc = 0.0_DP
 !$omp parallel do  default(shared), private(ig), reduction(+:vc)
                 DO ig=1,exx_fft%ngmt
-                   vc = vc + fac(ig) * DBLE(rhoc(exx_fft%nlt(ig)) * &
+                   vc = vc + coulomb_fac(ig,iq,current_ik) * DBLE(rhoc(exx_fft%nlt(ig)) * &
                                       CONJG(rhoc(exx_fft%nlt(ig))))
                 ENDDO
 !$omp end parallel do
@@ -3628,10 +3657,9 @@ MODULE exx
     Integer :: lda
     INTEGER :: n, m
     
-    INTEGER, ALLOCATABLE :: all_lda_exx(:,:)
     INTEGER, ALLOCATABLE :: local_map(:,:), exx_map(:,:)
     INTEGER, ALLOCATABLE :: l2e_map(:,:), e2l_map(:,:)
-    INTEGER, ALLOCATABLE :: psi_source(:), psi_dest(:,:), temp_indices(:)
+    INTEGER, ALLOCATABLE :: psi_source(:), psi_source_exx(:)
     INTEGER :: current_index
 
     INTEGER :: i, j, k, ik, im, ig, count, iproc, prev
@@ -3646,7 +3674,6 @@ MODULE exx
     INTEGER :: istatus(MPI_STATUS_SIZE)
 #endif
     INTEGER :: egrp_base, total_lda_egrp(nks), prev_lda_egrp(nks)
-    INTEGER, ALLOCATABLE :: psi_source_exx(:)
     INTEGER :: igk_loc(npwx)
     
     CALL start_clock ('init_exxp')
@@ -3976,6 +4003,11 @@ MODULE exx
 
     END DO
 
+    !deallocate arrays
+    DEALLOCATE( local_map, exx_map )
+    DEALLOCATE( l2e_map, e2l_map )
+    DEALLOCATE( psi_source, psi_source_exx )
+
     CALL stop_clock ('init_exxp')
 
   END SUBROUTINE initialize_local_to_exact_map
@@ -4188,9 +4220,10 @@ MODULE exx
        END IF
     END DO
 
-    !<<<
+    !deallocate arrays
+    DEALLOCATE( psi_work, psi_gather )
+
     CALL stop_clock ('comm3')
-    !>>>
 
   END SUBROUTINE reconstruct_for_exact
 
@@ -4380,7 +4413,7 @@ MODULE exx
     IMPLICIT NONE
     !
     LOGICAL, intent(in) :: is_exx
-    COMPLEX(DP), ALLOCATABLE :: igk_temp(:), work_space(:)
+    COMPLEX(DP), ALLOCATABLE :: work_space(:)
     INTEGER :: comm
     INTEGER :: ik, i
     LOGICAL exst
@@ -4515,6 +4548,7 @@ MODULE exx
           END DO
           
        END IF
+       DEALLOCATE( work_space )
     END IF
 
     CALL stop_clock ('cds_igk')
@@ -4597,6 +4631,8 @@ MODULE exx
     ELSE
        CALL gk_sort( xk(1,ik), ngm, g, ecutwfc / tpiba2, npw, igk, work_space )
     END IF
+
+    DEALLOCATE( work_space )
 
 !    IF ( nks > 1 ) THEN
 !       WRITE(6,*)'   resetting igk for ik of: ',current_k
