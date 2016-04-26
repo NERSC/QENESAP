@@ -140,7 +140,6 @@ MODULE exx
   INTEGER :: npw_exx = 0
   INTEGER :: nwordwfc_exx
   LOGICAL :: first_data_structure_change = .TRUE.
-  !<<<
 
   INTEGER :: ngm_loc, ngm_g_loc, gstart_loc
   INTEGER, ALLOCATABLE :: ig_l2g_loc(:)
@@ -162,7 +161,6 @@ MODULE exx
   REAL(DP), ALLOCATABLE :: coulomb_fac(:,:,:)
   !list of which coulomb factors have been calculated already
   LOGICAL, ALLOCATABLE :: coulomb_done(:,:)
-  !>>>
  CONTAINS
 #define _CX(A)  CMPLX(A,0._dp,kind=DP)
 #define _CY(A)  CMPLX(0._dp,-A,kind=DP)
@@ -200,6 +198,10 @@ MODULE exx
     CALL data_structure_custom(exx_fft, gamma_only)
     CALL ggent(exx_fft)
     exx_fft%initialized = .true.
+    !<<<
+    WRITE(6,*)'original exx_fft%dfftt%have_task_groups: ',exx_fft%dfftt%have_task_groups
+    exx_fft%dfftt%have_task_groups = .FALSE.
+    !>>>
 
     IF (gamma_only .AND. MAXVAL(ABS(ig_l2g(1:npw)-exx_fft%ig_l2gt(1:npw)))/=0) &
        CALL errore('exx_fft_create', ' exx fft grid not compatible with' &
@@ -796,9 +798,7 @@ MODULE exx
     ENDDO
 
     CALL set_egrp_indices(x_nbnd_occ,ibnd_start,ibnd_end)
-    !<<<
     CALL init_index_over_band(inter_egrp_comm,nbnd,nbnd)
-    !>>>
 
     !this will cause exxbuff to be calculated for every band
     ibnd_start_new = 1
@@ -866,9 +866,7 @@ MODULE exx
                 END DO
              end if
 
-             !<<<
              CALL invfft ('CustomWave', psic_exx, exx_fft%dfftt, is_exx=.TRUE.)
-             !>>>
 
              exxbuff(1:nrxxs,h_ibnd,ik)=psic_exx(1:nrxxs)
              
@@ -883,19 +881,13 @@ MODULE exx
              IF (noncolin) THEN
                 temppsic_nc(:,:) = ( 0._dp, 0._dp )
                 temppsic_nc(exx_fft%nlt(igk_exx(1:npw)),1) = evc_exx(1:npw,ibnd_exx)
-                !<<<
                 CALL invfft ('CustomWave', temppsic_nc(:,1), exx_fft%dfftt, is_exx=.TRUE.)
-                !>>>
                 temppsic_nc(exx_fft%nlt(igk_exx(1:npw)),2) = evc_exx(npwx+1:npwx+npw,ibnd_exx)
-                !<<<
                 CALL invfft ('CustomWave', temppsic_nc(:,2), exx_fft%dfftt, is_exx=.TRUE.)
-                !>>>
              ELSE
                 temppsic(:) = ( 0._dp, 0._dp )
                 temppsic(exx_fft%nlt(igk_exx(1:npw))) = evc_exx(1:npw,ibnd_exx)
-                !<<<
                 CALL invfft ('CustomWave', temppsic, exx_fft%dfftt, is_exx=.TRUE.)
-                !>>>
              ENDIF
              !
              DO ikq=1,nkqs
@@ -1124,10 +1116,7 @@ MODULE exx
          DO ibnd = ibnd_loop_start,ibnd_end,2
             h_ibnd = h_ibnd + 1
             phi(:) = exxbuff(:,h_ibnd,ikq)
-            !<<<
-            !CALL fwfft ('Wave', phi, dffts)
             CALL fwfft ('Wave', phi, dffts, is_exx=.TRUE.)
-            !>>>
             IF (ibnd < ibnd_end) THEN
                ! two ffts at the same time
                DO j = 1, npwq
@@ -1145,10 +1134,7 @@ MODULE exx
       ELSE
          DO ibnd = ibnd_start,ibnd_end
             phi(:) = exxbuff(:,ibnd,ikq)
-            !<<<
-            !CALL fwfft ('Wave', phi, dffts)
             CALL fwfft ('Wave', phi, dffts, is_exx=.TRUE.)
-            !>>>
             FORALL(i=1:npwq) evcq(i,ibnd) = phi(nls(igkq(i)))
          ENDDO
       ENDIF
@@ -1189,11 +1175,8 @@ MODULE exx
     USE control_flags,  ONLY : gamma_only
     USE uspp,           ONLY : okvan
     USE paw_variables,  ONLY : okpaw
-    !<<<
-    !USE mp_exx,         ONLY : negrp
     USE mp_exx,         ONLY : negrp, inter_egrp_comm, init_index_over_band
     USE wvfct,          ONLY : nbnd
-    !>>>
     !
     IMPLICIT NONE
     !
@@ -1291,7 +1274,6 @@ MODULE exx
     !
     ! This is to stop numerical inconsistencies creeping in through the band parallelization.
     !
-    !<<<
 !    !IF(my_bgrp_id>0) THEN
 !    IF(my_egrp_id>0) THEN
 !       hpsi=0.0_DP
@@ -1304,7 +1286,6 @@ MODULE exx
 !       CALL mp_bcast(hpsi,0,inter_egrp_comm)
 !       CALL mp_bcast(psi,0,inter_egrp_comm)
 !    ENDIF
-    !>>>
     !
     ! Here the loops start
     !
@@ -1350,10 +1331,7 @@ MODULE exx
           ENDIF
           !
           IF( l_fft_doubleband.OR.l_fft_singleband) THEN
-             !<<<
-             !CALL invfft ('CustomWave', result, exx_fft%dfftt)
              CALL invfft ('CustomWave', result, exx_fft%dfftt, is_exx=.TRUE.)
-             !>>>
 !$omp parallel do default(shared), private(ir)
              DO ir = 1, nrxxs
                 temppsic_dble(ir)  = DBLE ( result(ir) )
@@ -1416,10 +1394,7 @@ MODULE exx
                 CALL addusxx_r(rhoc,_CY(becxx(ikq)%r(:,ibnd+1)),_CX(becpsi%r(:,im)))
              ENDIF
              !
-             !<<<
-             !CALL fwfft ('Custom', rhoc, exx_fft%dfftt)
              CALL fwfft ('Custom', rhoc, exx_fft%dfftt, is_exx=.TRUE.)
-             !>>>
              !   >>>> add augmentation in G SPACE here
              IF(okvan .AND. .NOT. TQR) THEN
                 ! contribution from one band added to real (in real space) part of rhoc
@@ -1453,10 +1428,7 @@ MODULE exx
              ENDIF
              !
              !brings back v in real space
-             !<<<
-             !CALL invfft ('Custom', vc, exx_fft%dfftt) 
              CALL invfft ('Custom', vc, exx_fft%dfftt, is_exx=.TRUE.) 
-             !>>>
              !
              !   >>>>  compute <psi|H_fock REAL SPACE here
              IF(okvan .and. tqr) THEN
@@ -1487,30 +1459,19 @@ MODULE exx
           !
           !
           IF(okvan) THEN
-             !<<<
-             !CALL mp_sum(deexx,intra_bgrp_comm)
-             !CALL mp_sum(deexx,inter_bgrp_comm)
              CALL mp_sum(deexx,intra_egrp_comm)
              CALL mp_sum(deexx,inter_egrp_comm)
-             !>>>
           ENDIF
           !
-          !<<<
-          !CALL mp_sum( result(1:nrxxs), inter_bgrp_comm)
-          !CALL mp_sum( result(1:nrxxs), inter_egrp_comm)
-          !>>>
           !
           ! brings back result in G-space
           !
-          !<<<
-          !CALL fwfft( 'CustomWave' , result, exx_fft%dfftt )
           CALL fwfft( 'CustomWave' , result, exx_fft%dfftt, is_exx=.TRUE. )
           !communicate result
           DO ig = 1, n
              result_g(ig) = result(exx_fft%nlt(igk_exx(ig)))
           END DO
           CALL mp_sum( result_g(1:n), inter_egrp_comm)
-          !>>>
           !
 !$omp parallel do default(shared), private(ig)
           DO ig = 1, n
@@ -1537,7 +1498,6 @@ MODULE exx
   END SUBROUTINE vexx_gamma
   !-----------------------------------------------------------------------
   !
-  !<<<
   !
   !-----------------------------------------------------------------------
   SUBROUTINE vexx_k_pairs(lda, n, m, psi, hpsi, becpsi)
@@ -1888,7 +1848,6 @@ MODULE exx
 
 
 
-  !>>>
   !-----------------------------------------------------------------------
   SUBROUTINE vexx_k(lda, n, m, psi, hpsi, becpsi)
   !-----------------------------------------------------------------------
@@ -1903,10 +1862,7 @@ MODULE exx
     USE klist,          ONLY : xk, nks, nkstot
     USE fft_interfaces, ONLY : fwfft, invfft
     USE becmod,         ONLY : bec_type
-    !<<<
-    !USE mp_bands,       ONLY : inter_bgrp_comm, intra_bgrp_comm, my_bgrp_id, nbgrp
     USE mp_exx,       ONLY : inter_egrp_comm, intra_egrp_comm, my_egrp_id, negrp
-    !>>>
     USE mp,             ONLY : mp_sum, mp_barrier, mp_bcast
     USE uspp,           ONLY : nkb, okvan
     USE paw_variables,  ONLY : okpaw
@@ -1928,9 +1884,7 @@ MODULE exx
     COMPLEX(DP),ALLOCATABLE :: temppsic_nc(:,:),result_nc(:,:)
     COMPLEX(DP),ALLOCATABLE :: result_g(:)
     COMPLEX(DP),ALLOCATABLE :: result_nc_g(:,:)
-    !<<<
     INTEGER          :: request_send, request_recv
-    !>>>
     !
     COMPLEX(DP),ALLOCATABLE :: rhoc(:), vc(:), deexx(:)
     REAL(DP),   ALLOCATABLE :: fac(:)
@@ -1994,12 +1948,10 @@ MODULE exx
           ENDDO
 !$omp end parallel do
           !
-          !<<<
-          !CALL invfft ('CustomWave', temppsic_nc(:,1), exx_fft%dfftt)
-          !CALL invfft ('CustomWave', temppsic_nc(:,2), exx_fft%dfftt)
-          CALL invfft ('CustomWave', temppsic_nc(:,1), exx_fft%dfftt, is_exx=.TRUE.)
-          CALL invfft ('CustomWave', temppsic_nc(:,2), exx_fft%dfftt, is_exx=.TRUE.)
-          !>>>
+          CALL invfft ('CustomWave', temppsic_nc(:,1), exx_fft%dfftt, &
+               is_exx=.TRUE.)
+          CALL invfft ('CustomWave', temppsic_nc(:,2), exx_fft%dfftt, &
+               is_exx=.TRUE.)
           !
        ELSE
           !
@@ -2061,10 +2013,8 @@ MODULE exx
              ENDIF
              !
              !   >>>> brings it to G-space
-             !<<<
              !CALL fwfft('Custom', rhoc, exx_fft%dfftt)
              CALL fwfft('Custom', rhoc, exx_fft%dfftt, is_exx=.TRUE.)
-             !>>>
              !
              !   >>>> add augmentation in G space HERE
              IF(okvan .AND. .NOT. tqr) THEN
@@ -2073,14 +2023,11 @@ MODULE exx
              ENDIF
              !   >>>> charge done
              !
-             !<<<
-             !vc = 0._DP
 !$omp parallel do default(shared), private(ir)
              do ir=1,nrxxs
                 vc(ir) = 0._DP
              enddo
 !$omp end parallel do
-             !>>>
              !
 !$omp parallel do default(shared), private(ig)
              DO ig = 1, exx_fft%ngmt
@@ -2096,10 +2043,7 @@ MODULE exx
              ENDIF
              !
              !brings back v in real space
-             !<<<
-             !CALL invfft ('Custom', vc, exx_fft%dfftt)
              CALL invfft ('Custom', vc, exx_fft%dfftt, is_exx=.TRUE.)
-             !>>>
              !
              ! Add ultrasoft contribution (REAL SPACE)
              IF(okvan .AND. TQR) CALL newdxx_r(vc, becxx(ikq)%k(:,ibnd),deexx)
@@ -2138,21 +2082,14 @@ MODULE exx
        INTERNAL_LOOP_ON_Q
        !
        IF(okvan) THEN
-         !<<<
-         !CALL mp_sum(deexx,intra_bgrp_comm)
-         !CALL mp_sum(deexx,inter_bgrp_comm)
          CALL mp_sum(deexx,intra_egrp_comm)
          CALL mp_sum(deexx,inter_egrp_comm)
-         !>>>
        ENDIF
        !
        !brings back result in G-space
        !
        IF (noncolin) THEN
           !brings back result in G-space
-          !<<<
-          !CALL fwfft ('CustomWave', result_nc(:,1), exx_fft%dfftt)
-          !CALL fwfft ('CustomWave', result_nc(:,2), exx_fft%dfftt)
           CALL fwfft ('CustomWave', result_nc(:,1), exx_fft%dfftt, is_exx=.TRUE.)
           CALL fwfft ('CustomWave', result_nc(:,2), exx_fft%dfftt, is_exx=.TRUE.)
           !communicate result
@@ -2163,7 +2100,6 @@ MODULE exx
              result_nc_g(ig,2) = result_nc(exx_fft%nlt(igk_exx(ig)),2)
           END DO
           CALL mp_sum( result_nc_g(1:n,1:2), inter_egrp_comm)
-          !>>>
           !
           !adds it to hpsi
 !$omp parallel do default(shared), private(ig)
@@ -3452,6 +3388,7 @@ MODULE exx
 
     LOGICAL :: exst_mem, exst_file
 
+    WRITE(6,*)'start of convert_evc'
     CALL start_clock ('conv_evc')
 
 
@@ -3467,6 +3404,12 @@ MODULE exx
        IF(.not.allocated(vkb_exx)) THEN
           ALLOCATE( vkb_exx( npwx, nkb ) )
           vkb_exx = vkb
+       END IF
+
+       !get igk_exx
+       IF(.not.allocated(igk_exx)) THEN
+          ALLOCATE( igk_exx( npwx ) )
+          igk_exx = igk
        END IF
 
        !this is to ensure that the correct buffer is used
@@ -3553,6 +3496,10 @@ MODULE exx
 
 
     CALL stop_clock ('conv_evc')
+    WRITE(6,*)'end of convert_evc'
+    WRITE(6,*)'npwx_local: ',npwx_local
+    WRITE(6,*)'npwx_exx: ',npwx_exx
+    WRITE(6,*)'size of igk_exx: ',size(igk_exx)
 
   END SUBROUTINE convert_evc
 
@@ -4420,6 +4367,7 @@ MODULE exx
 
     !!!!!!!!!!
     IF (negrp.eq.1) RETURN
+    WRITE(6,*)'start of change_data_structure'
     !!!!!!!!!!
 
     CALL start_clock ('cds')
@@ -4562,6 +4510,8 @@ MODULE exx
     CALL stop_clock ('cds_ngl')
 
     CALL stop_clock ('cds')
+
+    WRITE(6,*)'end of change_data_structure'
 
   END SUBROUTINE change_data_structure
 

@@ -44,8 +44,10 @@ SUBROUTINE init_run()
   !
   CALL allocate_fft()
   !
-  IF ( dft_is_hybrid() .AND. dffts%have_task_groups ) &
-     CALL errore ('init_run', '-ntg option incompatible with EXX',1)
+  !<<<
+  !IF ( dft_is_hybrid() .AND. dffts%have_task_groups ) &
+  !   CALL errore ('init_run', '-ntg option incompatible with EXX',1)
+  !>>>
   !
   ! ... generate reciprocal-lattice vectors and fft indices
   !
