@@ -199,7 +199,6 @@ MODULE exx
     CALL ggent(exx_fft)
     exx_fft%initialized = .true.
     !<<<
-    WRITE(6,*)'original exx_fft%dfftt%have_task_groups: ',exx_fft%dfftt%have_task_groups
     exx_fft%dfftt%have_task_groups = .FALSE.
     !>>>
 
@@ -3388,7 +3387,6 @@ MODULE exx
 
     LOGICAL :: exst_mem, exst_file
 
-    WRITE(6,*)'start of convert_evc'
     CALL start_clock ('conv_evc')
 
 
@@ -3496,10 +3494,6 @@ MODULE exx
 
 
     CALL stop_clock ('conv_evc')
-    WRITE(6,*)'end of convert_evc'
-    WRITE(6,*)'npwx_local: ',npwx_local
-    WRITE(6,*)'npwx_exx: ',npwx_exx
-    WRITE(6,*)'size of igk_exx: ',size(igk_exx)
 
   END SUBROUTINE convert_evc
 
@@ -4367,7 +4361,6 @@ MODULE exx
 
     !!!!!!!!!!
     IF (negrp.eq.1) RETURN
-    WRITE(6,*)'start of change_data_structure'
     !!!!!!!!!!
 
     CALL start_clock ('cds')
@@ -4510,8 +4503,6 @@ MODULE exx
     CALL stop_clock ('cds_ngl')
 
     CALL stop_clock ('cds')
-
-    WRITE(6,*)'end of change_data_structure'
 
   END SUBROUTINE change_data_structure
 
