@@ -16,6 +16,9 @@ MODULE exx
   USE fft_custom,           ONLY : fft_cus
   !
   USE control_flags, ONLY : tqr
+  !<<<
+  USE fft_types, ONLY : fft_dlay_descriptor
+  !>>>
 
   IMPLICIT NONE
   SAVE
@@ -161,6 +164,12 @@ MODULE exx
   REAL(DP), ALLOCATABLE :: coulomb_fac(:,:,:)
   !list of which coulomb factors have been calculated already
   LOGICAL, ALLOCATABLE :: coulomb_done(:,:)
+
+  TYPE(fft_dlay_descriptor) :: dfftp_loc, dffts_loc
+  TYPE(fft_dlay_descriptor) :: dfftp_exx, dffts_exx
+  INTEGER :: ngw_loc, ngs_loc
+  INTEGER :: ngw_exx, ngs_exx
+
  CONTAINS
 #define _CX(A)  CMPLX(A,0._dp,kind=DP)
 #define _CY(A)  CMPLX(0._dp,-A,kind=DP)
@@ -4395,23 +4404,40 @@ MODULE exx
     IF (is_exx) THEN
        exx_mode = 1
        !call data_structure( gamma_only )
-       CALL pstickset( gamma_only, bg, gcutm, gkcut, gcutms, &
-            dfftp, dffts, ngw_ , ngm_ , ngs_ , me_egrp, &
-            root_egrp, nproc_egrp, intra_egrp_comm, ntask_groups, ionode, stdout )
+       IF(first_data_structure_change)THEN
+          dfftp_loc = dfftp
+          dffts_loc = dffts
+          !CALL pstickset( gamma_only, bg, gcutm, gkcut, gcutms, &
+          !     dfftp, dffts, ngw_ , ngm_ , ngs_ , me_egrp, &
+          !     root_egrp, nproc_egrp, intra_egrp_comm, ntask_groups, ionode, &
+          !     stdout )
+          CALL pstickset( gamma_only, bg, gcutm, gkcut, gcutms, &
+               dfftp, dffts, ngw_ , ngm_ , ngs_ , me_egrp, &
+               root_egrp, nproc_egrp, intra_egrp_comm, 1, ionode, stdout )
+          dfftp_exx = dfftp
+          dffts_exx = dffts
+          ngm = ngm_
+          ngms = ngs_
+       ELSE
+          dfftp = dfftp_exx
+          dffts = dffts_exx
+          ngm = ngm_exx
+          ngms = ngms_exx
+       END IF
        call deallocate_gvect_exx()
        call deallocate_gvecs()
-       call gvect_init( ngm_ , intra_egrp_comm )
-       call gvecs_init( ngs_ , intra_egrp_comm )
+       call gvect_init( ngm , intra_egrp_comm )
+       call gvecs_init( ngms , intra_egrp_comm )
     ELSE
        exx_mode = 2
-       !call data_structure( gamma_only )
-       CALL pstickset( gamma_only, bg, gcutm, gkcut, gcutms, &
-            dfftp, dffts, ngw_ , ngm_ , ngs_ , me_bgrp, &
-            root_bgrp, nproc_bgrp, intra_bgrp_comm, ntask_groups, ionode, stdout )
+       dfftp = dfftp_loc
+       dffts = dffts_loc
+       ngm = ngm_loc
+       ngms = ngms_loc
        call deallocate_gvect_exx()
        call deallocate_gvecs()
-       call gvect_init( ngm_ , intra_bgrp_comm )
-       call gvecs_init( ngs_ , intra_bgrp_comm )
+       call gvect_init( ngm , intra_bgrp_comm )
+       call gvecs_init( ngms , intra_bgrp_comm )
        exx_mode = 0
     END IF
 
