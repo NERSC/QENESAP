@@ -4322,21 +4322,21 @@ MODULE exx
     USE io_files,       ONLY : nwordwfc, iunwfc, iunigk, iunigk_exx, seqopn
     USE constants,      ONLY : fpi, e2, pi
     USE cell_base,      ONLY : omega, at, bg, tpiba2
-    !USE gvect,          ONLY : ngm, g, eigts1, eigts2, eigts3, ngl, igtongl
     USE wvfct,          ONLY : npwx, npw, igk, current_k, ecutwfc, g2kin
     USE control_flags,  ONLY : gamma_only
     USE klist,          ONLY : xk, nks, nkstot, ngk
     USE fft_interfaces, ONLY : fwfft, invfft
     USE becmod,         ONLY : bec_type
-    USE mp_exx,       ONLY : inter_egrp_comm, intra_egrp_comm, my_egrp_id, &
-                               negrp, nproc_egrp, me_egrp, exx_mode
-    !<<<
-    !USE gvect,              ONLY : ig_l2g, mill_g
+    USE mp_bands,       ONLY : root_bgrp, me_bgrp, nproc_bgrp, ntask_groups, &
+                               intra_bgrp_comm
+    USE mp_exx,         ONLY : inter_egrp_comm, intra_egrp_comm, my_egrp_id, &
+                               negrp, nproc_egrp, me_egrp, exx_mode, root_egrp
     USE gvect,              ONLY : ig_l2g, g, gg, ngm, ngm_g, gcutm, &
-                                   mill,  nl, gstart, &
-                                   eigts1, eigts2, eigts3, ngl, igtongl
-    USE gvecs,              ONLY : ngms, gcutms, ngms_g, nls
-    !>>>
+                                   mill,  nl, gstart, gkcut, &
+                                   eigts1, eigts2, eigts3, ngl, igtongl, &
+                                   gvect_init, deallocate_gvect_exx
+    USE gvecs,          ONLY : ngms, gcutms, ngms_g, nls, gvecs_init, &
+                               deallocate_gvecs
     USE uspp,           ONLY : nkb, okvan, vkb
     USE mp,             ONLY : mp_sum, mp_barrier, mp_bcast, mp_size, mp_rank
     USE uspp,           ONLY : nkb, okvan
@@ -4348,6 +4348,8 @@ MODULE exx
     USE recvec_subs,        ONLY : ggen 
     USE fft_base,             ONLY : dfftp, dffts
     USE cellmd,             ONLY : lmovecell
+    USE io_global,      ONLY : stdout
+    USE stick_set,      ONLY : pstickset
     USE mp_pools
     !
     !
@@ -4355,8 +4357,9 @@ MODULE exx
     !
     LOGICAL, intent(in) :: is_exx
     COMPLEX(DP), ALLOCATABLE :: work_space(:)
-    INTEGER :: comm
+    !INTEGER :: comm
     INTEGER :: ik, i
+    INTEGER :: ngm_, ngs_, ngw_
     LOGICAL exst
 
     !!!!!!!!!!
@@ -4391,12 +4394,24 @@ MODULE exx
     !try to generate the correct gvectors for the exact exchange calculation
     IF (is_exx) THEN
        exx_mode = 1
-       call allocate_fft()
-       comm = intra_egrp_comm
+       !call data_structure( gamma_only )
+       CALL pstickset( gamma_only, bg, gcutm, gkcut, gcutms, &
+            dfftp, dffts, ngw_ , ngm_ , ngs_ , me_egrp, &
+            root_egrp, nproc_egrp, intra_egrp_comm, ntask_groups, ionode, stdout )
+       call deallocate_gvect_exx()
+       call deallocate_gvecs()
+       call gvect_init( ngm_ , intra_egrp_comm )
+       call gvecs_init( ngs_ , intra_egrp_comm )
     ELSE
        exx_mode = 2
-       call allocate_fft()
-       comm = intra_pool_comm
+       !call data_structure( gamma_only )
+       CALL pstickset( gamma_only, bg, gcutm, gkcut, gcutms, &
+            dfftp, dffts, ngw_ , ngm_ , ngs_ , me_bgrp, &
+            root_bgrp, nproc_bgrp, intra_bgrp_comm, ntask_groups, ionode, stdout )
+       call deallocate_gvect_exx()
+       call deallocate_gvecs()
+       call gvect_init( ngm_ , intra_bgrp_comm )
+       call gvecs_init( ngs_ , intra_bgrp_comm )
        exx_mode = 0
     END IF
 
@@ -4405,7 +4420,7 @@ MODULE exx
     CALL start_clock ('cds_ggn')
 
     IF (first_data_structure_change) THEN
-       CALL ggen( gamma_only, at, bg, comm, no_global_sort = .FALSE. )
+       CALL ggen( gamma_only, at, bg, intra_egrp_comm, no_global_sort = .FALSE. )
        allocate( ig_l2g_exx(ngm), g_exx(3,ngm), gg_exx(ngm) )
        allocate( mill_exx(3,ngm), nl_exx(ngm) )
        allocate( nls_exx(ngms) )

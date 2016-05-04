@@ -7,7 +7,7 @@
 !
 !
 !-----------------------------------------------------------------------
-SUBROUTINE allocate_fft()
+SUBROUTINE allocate_fft
   !-----------------------------------------------------------------------
   !     This routine computes the data structure associated to the FFT
   !     grid and allocate memory for all the arrays which depend upon
@@ -22,7 +22,6 @@ SUBROUTINE allocate_fft()
   USE spin_orb,  ONLY : domag
   USE scf,       ONLY : rho, v, vnew, vltot, vrs, rho_core, rhog_core, &
                         kedtau, create_scf_type
-  USE mp_exx,    ONLY : exx_mode
   USE control_flags, ONLY : gamma_only
   USE noncollin_module, ONLY : pointlist, factlist, r_loc, &
       report, i_cons, noncolin, npol
@@ -51,10 +50,6 @@ SUBROUTINE allocate_fft()
   IF (dfftp%nnr <= 0) CALL errore ('allocate_fft', 'wrong nnr', 1)
   IF (dffts%nnr<= 0) CALL errore ('allocate_fft', 'wrong smooth nnr', 1)
   IF (nspin<= 0) CALL errore ('allocate_fft', 'wrong nspin', 1)
-  !
-  ! Stop if this is part of an exact exchange calculation
-  !
-  IF (exx_mode.gt.0) RETURN
   !
   !     Allocate memory for all kind of stuff.
   !

@@ -29,6 +29,7 @@
 
      REAL(DP) :: ecutrho = 0.0_DP ! energy cut-off for charge density 
      REAL(DP) :: gcutm = 0.0_DP   ! ecutrho/(2 pi/a)^2, cut-off for |G|^2
+     REAL(DP) :: gkcut    ! gkcut = max |k+G|^2, in (2pi/a)^2 units
 
      ! nl  = fft index for G-vectors (with gamma tricks, only for G>)
      ! nlm = as above, for G< (used only with gamma tricks)
