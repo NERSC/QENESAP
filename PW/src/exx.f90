@@ -3552,12 +3552,51 @@ MODULE exx
     CALL reconstruct_for_exact(lda, n, m, current_k, psi, psi_exx, 0)
 
     !get hpsi_exx
-    CALL reconstruct_for_exact(lda, n, m, current_k, hpsi, hpsi_exx, 0)
+!    CALL reconstruct_for_exact(lda, n, m, current_k, hpsi, hpsi_exx, 0)
+    hpsi_exx = 0.d0
 
     CALL stop_clock ('start_exxp')
 
   END SUBROUTINE start_exx_parallelization
 
+
+
+
+
+
+
+  !-----------------------------------------------------------------------
+  SUBROUTINE end_exx_parallelization(lda, n, m, psi, hpsi)
+  !-----------------------------------------------------------------------
+    USE mp_exx,       ONLY : negrp
+    !
+    IMPLICIT NONE
+    !
+    INTEGER :: lda
+    INTEGER :: n, m
+    COMPLEX(DP) :: psi(lda_original*npol,m)
+    COMPLEX(DP) :: hpsi(lda_original*npol,m)
+ 
+    INTEGER :: ig
+    COMPLEX(DP) :: hpsi_temp(lda_original*npol,m)
+
+    CALL start_clock ('end_exxp')
+
+    CALL change_data_structure(.FALSE.)
+
+    !!!!
+    !get igk
+    CALL update_igk(.FALSE.)
+    !!!!
+    
+    !CALL deconstruct_for_exact(m,hpsi_exx,hpsi)
+    !CALL deconstruct_for_exact(m,hpsi_exx,hpsi_temp)
+    !hpsi = hpsi + hpsi_temp
+    CALL deconstruct_for_exact(m,hpsi_exx,hpsi)
+
+    CALL stop_clock ('end_exxp')
+
+  END SUBROUTINE end_exx_parallelization
 
 
 
@@ -3979,7 +4018,7 @@ MODULE exx
     USE mp,           ONLY : mp_sum
     USE mp_pools,     ONLY : nproc_pool, me_pool
     USE mp_exx,       ONLY : intra_egrp_comm, inter_egrp_comm, &
-         nproc_egrp, me_egrp, negrp, my_egrp_id
+         nproc_egrp, me_egrp, negrp, my_egrp_id, nibands, ibands
 #if defined(__MPI)
     USE parallel_include, ONLY : MPI_STATUS_SIZE, MPI_DOUBLE_COMPLEX
 #endif
@@ -3998,13 +4037,15 @@ MODULE exx
     INTEGER, INTENT(in) :: type
 
     COMPLEX(DP), ALLOCATABLE :: psi_work(:,:,:), psi_gather(:,:)
-    INTEGER :: i, j, im, iproc, ig, ik
+    INTEGER :: i, j, im, iproc, ig, ik, iegrp
     INTEGER :: prev, lda_max_local
 
     INTEGER :: request_send(nproc_egrp), request_recv(nproc_egrp)
     INTEGER :: ierr
     INTEGER :: current_ik
     INTEGER, EXTERNAL :: find_current_k
+    INTEGER :: recvcount(negrp)
+    INTEGER :: displs(negrp)
 #if defined(__MPI)
     INTEGER :: istatus(MPI_STATUS_SIZE)
 #endif
@@ -4035,11 +4076,44 @@ MODULE exx
     END DO
     CALL stop_clock ('comm1')
     CALL start_clock ('comm2')
-    CALL MPI_ALLGATHER( psi_gather, &
-         lda_max_local*m, MPI_DOUBLE_COMPLEX, &
-         psi_work, &
-         lda_max_local*m, MPI_DOUBLE_COMPLEX, &
-         inter_egrp_comm, ierr )
+    IF ( type.eq.0 ) THEN
+
+       recvcount = lda_max_local
+       DO iegrp=1, negrp
+          displs(iegrp) = (iegrp-1)*(lda_max_local*m)
+       END DO
+       DO iegrp=1, negrp
+          !CALL MPI_GATHER( psi_gather, &
+          !     lda_max_local*m, MPI_DOUBLE_COMPLEX, &
+          !     psi_work, &
+          !     lda_max_local*m, MPI_DOUBLE_COMPLEX, &
+          !     iegrp-1, &
+          !     inter_egrp_comm, ierr )
+          DO im=1, nibands(iegrp)
+             IF ( my_egrp_id.eq.(iegrp-1) ) THEN
+                DO j=1, negrp
+                   displs(j) = (j-1)*(lda_max_local*m) + &
+                        lda_max_local*(ibands(im,iegrp)-1)
+                END DO
+             END IF
+             CALL MPI_GATHERV( psi_gather(:, ibands(im,iegrp) ), &
+                  lda_max_local, MPI_DOUBLE_COMPLEX, &
+                  psi_work, &
+                  recvcount, displs, MPI_DOUBLE_COMPLEX, &
+                  iegrp-1, &
+                  inter_egrp_comm, ierr )
+          END DO
+       END DO
+
+    ELSE
+       
+       CALL MPI_ALLGATHER( psi_gather, &
+            lda_max_local*m, MPI_DOUBLE_COMPLEX, &
+            psi_work, &
+            lda_max_local*m, MPI_DOUBLE_COMPLEX, &
+            inter_egrp_comm, ierr )
+       
+    END IF
     CALL stop_clock ('comm2')
     CALL start_clock ('comm3')
     !>>>
@@ -4064,13 +4138,13 @@ MODULE exx
              END DO
 
              IF ( type.eq.0 ) THEN !psi or hpsi
-                DO im=1, m
+                !DO im=1, m
+                !   comm_send(iproc+1,current_ik)%msg(i,im) = &
+                !        psi_work(ig,im,1+(j-1)/nproc_egrp)
+                !END DO
+                DO im=1, nibands(my_egrp_id+1)
                    comm_send(iproc+1,current_ik)%msg(i,im) = &
-                        psi_work(ig,im,1+(j-1)/nproc_egrp)
-!                   comm_send(iproc+1,current_ik)%msg(i,im) = &
-!                        ig
-!                   comm_send(iproc+1,current_ik)%msg(i,im) = &
-!                        psi_work(ig,im,1) - psi_work(ig,im,2)
+                        psi_work(ig,ibands(im,my_egrp_id+1),1+(j-1)/nproc_egrp)
                 END DO
              ELSE IF (type.eq.1) THEN !evc
                 DO im=1, m
@@ -4090,7 +4164,8 @@ MODULE exx
           !send the message
           IF ( type.eq.0 ) THEN !psi or hpsi
              CALL MPI_ISEND( comm_send(iproc+1,current_ik)%msg, &
-                  comm_send(iproc+1,current_ik)%size*m, MPI_DOUBLE_COMPLEX, &
+                  comm_send(iproc+1,current_ik)%size*nibands(my_egrp_id+1), &
+                  MPI_DOUBLE_COMPLEX, &
                   iproc, 100+iproc*nproc_egrp+me_egrp, &
                   intra_egrp_comm, request_send(iproc+1), ierr )
           ELSE IF (type.eq.1) THEN !evc
@@ -4116,7 +4191,8 @@ MODULE exx
           !recieve the message
           IF (type.eq.0) THEN !psi or hpsi
              CALL MPI_IRECV( comm_recv(iproc+1,current_ik)%msg, &
-                  comm_recv(iproc+1,current_ik)%size*m, MPI_DOUBLE_COMPLEX, &
+                  comm_recv(iproc+1,current_ik)%size*nibands(my_egrp_id+1), &
+                  MPI_DOUBLE_COMPLEX, &
                   iproc, 100+me_egrp*nproc_egrp+iproc, &
                   intra_egrp_comm, request_recv(iproc+1), ierr )
           ELSE IF (type.eq.1) THEN !evc
@@ -4145,8 +4221,13 @@ MODULE exx
 
              !SET PSI_EXX HERE
              IF (type.eq.0) THEN !psi or hpsi
-                DO im=1, m
-                   psi_out(ig,im) = comm_recv(iproc+1,current_ik)%msg(i,im)
+                !DO im=1, m
+                !   psi_out(ig,im) = comm_recv(iproc+1,current_ik)%msg(i,im)
+                !END DO
+                DO im=1, nibands(my_egrp_id+1)
+                   psi_out(ig,ibands(im,my_egrp_id+1)) = &
+                        comm_recv(iproc+1,current_ik)%msg(i,im)
+                        !comm_recv(iproc+1,current_ik)%msg(i,ibands(im,my_egrp_id+1))
                 END DO
              ELSE IF (type.eq.1) THEN !evc
                 DO im=1, m
@@ -4270,7 +4351,8 @@ MODULE exx
 
              !set psi_out
              DO im=1, m
-                psi_out(ig,im) = comm_recv_reverse(iproc+1,current_ik)%msg(i,im)
+                psi_out(ig,im) = psi_out(ig,im) + &
+                     comm_recv_reverse(iproc+1,current_ik)%msg(i,im)
              END DO
 
           END DO
@@ -4290,36 +4372,6 @@ MODULE exx
 
 
 
-
-
-  !-----------------------------------------------------------------------
-  SUBROUTINE end_exx_parallelization(lda, n, m, psi, hpsi)
-  !-----------------------------------------------------------------------
-    USE mp_exx,       ONLY : negrp
-    !
-    IMPLICIT NONE
-    !
-    INTEGER :: lda
-    INTEGER :: n, m
-    COMPLEX(DP) :: psi(lda_original*npol,m)
-    COMPLEX(DP) :: hpsi(lda_original*npol,m)
- 
-    INTEGER :: ig
-
-    CALL start_clock ('end_exxp')
-
-    CALL change_data_structure(.FALSE.)
-
-    !!!!
-    !get igk
-    CALL update_igk(.FALSE.)
-    !!!!
-    
-    CALL deconstruct_for_exact(m,hpsi_exx,hpsi)
-
-    CALL stop_clock ('end_exxp')
-
-  END SUBROUTINE end_exx_parallelization
 
 
 
@@ -4413,7 +4465,8 @@ MODULE exx
           !     stdout )
           CALL pstickset( gamma_only, bg, gcutm, gkcut, gcutms, &
                dfftp, dffts, ngw_ , ngm_ , ngs_ , me_egrp, &
-               root_egrp, nproc_egrp, intra_egrp_comm, 1, ionode, stdout )
+               root_egrp, nproc_egrp, intra_egrp_comm, ntask_groups, ionode, &
+               stdout, exx_mode = 1 )
           dfftp_exx = dfftp
           dffts_exx = dffts
           ngm = ngm_

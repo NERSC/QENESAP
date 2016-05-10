@@ -32,7 +32,10 @@
 
       SUBROUTINE pstickset( gamma_only, bg, gcut, gkcut, gcuts, &
           dfftp, dffts, ngw, ngm, ngs, mype, root, nproc, comm, nogrp_ , &
-          ionode, stdout, dfft3d )
+          !<<<
+          ionode, stdout, dfft3d, exx_mode )
+          !ionode, stdout, dfft3d )
+          !>>>
 
           LOGICAL, INTENT(in) :: gamma_only
 ! ...     bg(:,1), bg(:,2), bg(:,3) reciprocal space base vectors.
@@ -47,6 +50,9 @@
           INTEGER, INTENT(IN) :: stdout
 
           TYPE(fft_dlay_descriptor), OPTIONAL, INTENT(inout) :: dfft3d
+          !<<<
+          INTEGER, OPTIONAL, INTENT(IN) :: exx_mode
+          !>>>
 
 
           LOGICAL :: tk
@@ -237,7 +243,11 @@
           !  Initialize task groups.
           !  Note that this call modify dffts adding task group data.
           !
-          CALL task_groups_init( dffts )
+          !<<<
+          IF( .NOT.PRESENT(exx_mode) ) THEN
+             CALL task_groups_init( dffts )
+          END IF
+          !>>>
           !
 
           IF (ionode) THEN

@@ -37,7 +37,9 @@ MODULE mp_exx
   INTEGER :: max_pairs ! maximum pairs per band group
   INTEGER, ALLOCATABLE :: egrp_pairs(:,:,:) ! pairs for each band group
   INTEGER, ALLOCATABLE :: band_roots(:) ! root for each band
-  LOGICAL, ALLOCATABLE :: contributed_bands(:) ! bands for which the bgroup has a pair
+  LOGICAL, ALLOCATABLE :: contributed_bands(:,:) ! bands for which the bgroup has a pair
+  INTEGER, ALLOCATABLE :: nibands(:) ! number of bands for which the bgroup has a pair
+  INTEGER, ALLOCATABLE :: ibands(:,:) ! bands for which the bgroup has a pair
   !>>>
   INTEGER :: iexx_start = 0              ! starting band index used in bgrp parallelization
   INTEGER :: iexx_end = 0                ! ending band index used in bgrp parallelization
@@ -184,12 +186,16 @@ CONTAINS
        DEALLOCATE(egrp_pairs)
        DEALLOCATE(band_roots)
        DEALLOCATE(contributed_bands)
+       DEALLOCATE(nibands)
+       DEALLOCATE(ibands)
     END IF
     !>>>
     IF (.not.allocated(egrp_pairs)) THEN
        ALLOCATE(egrp_pairs(2,max_pairs,negrp))
        ALLOCATE(band_roots(nbnd))
-       ALLOCATE(contributed_bands(nbnd))
+       ALLOCATE(contributed_bands(nbnd,negrp))
+       ALLOCATE(nibands(negrp))
+       ALLOCATE(ibands(nbnd,negrp))
     END IF
     !<<<
     !n_underloaded = MODULO(max_pairs*negrp-nbnd*nbnd,negrp)
@@ -239,10 +245,22 @@ CONTAINS
 
     !determine the bands for which this band group will calculate a pair
     contributed_bands = .FALSE.
-    npairs = max_pairs
-    IF ((myrank+1).le.n_underloaded) npairs = npairs - 1
-    DO ipair=1, npairs
-       contributed_bands(egrp_pairs(1,ipair,myrank+1)) = .TRUE.
+    DO iegrp=1, negrp
+       npairs = max_pairs
+       IF (iegrp.le.n_underloaded) npairs = npairs - 1
+       DO ipair=1, npairs
+          contributed_bands(egrp_pairs(1,ipair,iegrp),iegrp) = .TRUE.
+       END DO
+    END DO
+    nibands = 0
+    ibands = 0
+    DO iegrp=1, negrp
+       DO i=1, nbnd
+          IF (contributed_bands(i,iegrp)) THEN
+             nibands(iegrp) = nibands(iegrp) + 1
+             ibands(nibands(iegrp),iegrp) = i
+          END IF
+       END DO
     END DO
 
   END SUBROUTINE init_index_over_band
