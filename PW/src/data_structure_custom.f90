@@ -29,7 +29,7 @@ SUBROUTINE data_structure_custom(fc, gamma_only)
   TYPE(fft_cus) :: fc
   LOGICAL :: gamma_only
   REAL (DP) :: gkcut
-  INTEGER :: ik, ngm_, ngs_, ngw_ , nogrp
+  INTEGER :: ik, ngm_, ngs_, ngw_
   INTEGER :: me, nproc, inter_comm, intra_comm, root
 
   INTEGER :: kpoint
@@ -48,7 +48,6 @@ SUBROUTINE data_structure_custom(fc, gamma_only)
   inter_comm = inter_egrp_comm
   intra_comm = intra_egrp_comm
   root = root_egrp
-  nogrp = ntask_groups
 
   IF (nks == 0) THEN
      !
@@ -75,7 +74,7 @@ SUBROUTINE data_structure_custom(fc, gamma_only)
   !
   CALL pstickset_custom( gamma_only, bg, gcutm, gkcut, fc%gcutmt, &
                   dfftp, fc%dfftt, ngw_ , ngm_, ngs_, me, root, nproc, &
-                  intra_comm, nogrp )
+                  intra_comm, 1 )
   !
   !     on output, ngm_ and ngs_ contain the local number of G-vectors
   !     for the two grids. Initialize local and global number of G-vectors

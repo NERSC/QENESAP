@@ -704,9 +704,10 @@ MODULE exx
     USE klist,                ONLY : ngk, nks, nkstot
     USE symm_base,            ONLY : nsym, s, sr, ftau
     USE mp_pools,             ONLY : npool, nproc_pool, me_pool, inter_pool_comm
-    USE mp_exx,             ONLY : me_egrp, set_egrp_indices, &
-         init_index_over_band, &
-         inter_egrp_comm, intra_egrp_comm
+    USE mp_exx,               ONLY : me_egrp, set_egrp_indices, negrp, &
+                                     init_index_over_band, &
+                                     inter_egrp_comm, intra_egrp_comm, &
+                                     iexx_start, iexx_end
     USE mp,                   ONLY : mp_sum
     USE funct,                ONLY : get_exx_fraction, start_exx,exx_is_active,&
                                      get_screening_parameter, get_gau_parameter
@@ -822,6 +823,10 @@ MODULE exx
         ibnd_buff_start = ibnd_start_new
         ibnd_buff_end   = ibnd_end_new
     ENDIF
+    !<<<<<<<<<
+    ibnd_start_new = iexx_start
+    ibnd_end_new = iexx_end
+    !>>>>>>>>>
     !
     IF (.NOT. allocated(exxbuff)) &
         ALLOCATE( exxbuff(nrxxs*npol, ibnd_buff_start:ibnd_buff_end, nkqs))
@@ -969,6 +974,17 @@ MODULE exx
 #endif 
     ENDIF
     !
+    !<<<<<<<<<<<
+    !   All band groups must have the complete set of wavefunctions
+    IF (negrp>1) CALL mp_sum(exxbuff, inter_egrp_comm)
+    !IF (negrp>1) THEN
+    !   CALL MPI_ALLGATHER( psi_gather, &
+    !        lda_max_local*m, MPI_DOUBLE_COMPLEX, &
+    !        psi_work, &
+    !        lda_max_local*m, MPI_DOUBLE_COMPLEX, &
+    !        inter_egrp_comm, ierr )
+    !END IF
+    !>>>>>>>>>>>
     !   All pools must have the complete set of wavefunctions (i.e. from every kpoint)
     IF (npool>1) CALL mp_sum(exxbuff, inter_pool_comm)
     !
@@ -1594,7 +1610,9 @@ MODULE exx
        ibnd = egrp_pairs(1,ipair,my_egrp_id+1)
        jbnd = egrp_pairs(2,ipair,my_egrp_id+1)
 
-!       CALL communicate_exxbuff(ipair, request_send, request_recv)
+       !CALL start_clock ('vexx_bcom')
+       !CALL communicate_exxbuff(ipair, request_send, request_recv)
+       !CALL stop_clock ('vexx_bcom')
        
        IF (ibnd.eq.0.or.ibnd.gt.m) CYCLE
        
@@ -1812,10 +1830,17 @@ MODULE exx
 
 
     !sum result
+    !<<<
+    CALL start_clock ('vexx_sum')
+    CALL result_sum(n, m, big_result)
+    CALL stop_clock ('vexx_sum')
+    !>>>
     DO im=1, m
-       CALL start_clock ('vexx_sum')
-       CALL mp_sum( big_result(1:n,im), inter_egrp_comm )
-       CALL stop_clock ('vexx_sum')
+       !<<<
+       !CALL start_clock ('vexx_sum')
+       !CALL mp_sum( big_result(1:n,im), inter_egrp_comm )
+       !CALL stop_clock ('vexx_sum')
+       !>>>
        CALL start_clock ('vexx_hpsi')
 !$omp parallel do default(shared), private(ig)
        DO ig = 1, n
@@ -4465,7 +4490,7 @@ MODULE exx
           !     stdout )
           CALL pstickset( gamma_only, bg, gcutm, gkcut, gcutms, &
                dfftp, dffts, ngw_ , ngm_ , ngs_ , me_egrp, &
-               root_egrp, nproc_egrp, intra_egrp_comm, ntask_groups, ionode, &
+               root_egrp, nproc_egrp, intra_egrp_comm, 1, ionode, &
                stdout, exx_mode = 1 )
           dfftp_exx = dfftp
           dffts_exx = dffts
@@ -4701,42 +4726,80 @@ MODULE exx
 #endif
     
     nrxxs= exx_fft%dfftt%nnr
-    
+
     IF (ipair.lt.max_pairs) THEN
        
        IF (ipair.gt.1) THEN
-          !CALL start_clock('vexx_wait')
 #if defined(__MPI)
           CALL MPI_WAIT(request_send, istatus, ierr)
           CALL MPI_WAIT(request_recv, istatus, ierr)
 #endif
-          !CALL stop_clock('vexx_wait')
        END IF
        
-       jnext = egrp_pairs(2,ipair+1,my_egrp_id+1)
-       
-       !CALL start_clock('vexx_send')
        sender = my_egrp_id + 1
+       WRITE(6,*)'AAA: ',sender,negrp
        IF (sender.ge.negrp) sender = 0
+       jnext = egrp_pairs(2,ipair+1,sender+1)
+
        dest = my_egrp_id - 1
+       WRITE(6,*)'BBB: ',dest
        IF (dest.lt.0) dest = negrp - 1
        jnext_dest = egrp_pairs(2,ipair+1,dest+1)
+       
+       WRITE(6,*)'sender:     ',sender
+       WRITE(6,*)'jnext:      ',jnext
+       WRITE(6,*)' '
+       WRITE(6,*)'dest:       ',dest
+       WRITE(6,*)'jnext_dest: ',jnext_dest
 #if defined(__MPI)
        CALL MPI_ISEND( exxbuff(:,:,jnext_dest), nrxxs*npol*nqs, &
             MPI_DOUBLE_COMPLEX, dest, 101, inter_egrp_comm, request_send, ierr )
 #endif
-       !CALL stop_clock('vexx_send')
-       !CALL start_clock('vexx_recv')
+
 #if defined(__MPI)
        CALL MPI_IRECV( exxbuff(:,:,jnext), nrxxs*npol*nqs, &
             MPI_DOUBLE_COMPLEX, sender, 101, inter_egrp_comm, &
             request_recv, ierr )
 #endif
-       !CALL stop_clock('vexx_recv')
 
     END IF
     
   END SUBROUTINE communicate_exxbuff
+
+
+
+
+
+
+  SUBROUTINE result_sum (n, m, data)
+    USE mp_exx,       ONLY : iexx_start, iexx_end, inter_egrp_comm, &
+                               intra_egrp_comm, my_egrp_id, negrp, &
+                               max_pairs, egrp_pairs
+#if defined(__MPI)
+    USE parallel_include, ONLY : MPI_STATUS_SIZE, MPI_DOUBLE_COMPLEX
+#endif
+    USE io_global,      ONLY : stdout
+    USE mp,                   ONLY : mp_sum
+
+    INTEGER, INTENT(in) :: n, m
+    COMPLEX(DP), INTENT(inout) :: data(n,m)
+#if defined(__MPI)
+    INTEGER :: istatus(MPI_STATUS_SIZE)
+#endif
+    INTEGER :: im
+
+    IF (negrp.eq.1) RETURN
+    
+    !gather data onto the correct nodes
+    
+
+    !broadcast data from the correct nodes onto every node
+
+    DO im=1, m
+       CALL mp_sum( data(:,im), inter_egrp_comm )
+    END DO
+
+  END SUBROUTINE result_sum
 
 
 
