@@ -77,6 +77,7 @@ esm_cft.o \
 ewald.o \
 ewald_dipole.o \
 exx.o \
+exx_old.o \
 fcp.o \
 find_group.o \
 forces_bp_efield.o \

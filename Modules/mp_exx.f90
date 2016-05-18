@@ -10,6 +10,8 @@ MODULE mp_exx
   !----------------------------------------------------------------------------
   !
   USE mp, ONLY : mp_barrier, mp_bcast, mp_size, mp_rank, mp_comm_split
+  USE mp_bands, ONLY : nbgrp, nproc_bgrp, me_bgrp, root_bgrp, my_bgrp_id, &
+       inter_bgrp_comm, intra_bgrp_comm, tbgrp
   USE parallel_include
   !
   IMPLICIT NONE 
@@ -30,7 +32,10 @@ MODULE mp_exx
   ! ... "task" groups (for band parallelization of FFT)
   !
   INTEGER :: ntask_groups = 1  ! number of proc. in an orbital "task group"
-  !<<<
+  !
+  ! should the old band parallelization method be used?
+  !
+  LOGICAL :: use_old_exx = .FALSE.
   !
   ! variables for the pair parallelization
   !
@@ -40,7 +45,6 @@ MODULE mp_exx
   LOGICAL, ALLOCATABLE :: contributed_bands(:,:) ! bands for which the bgroup has a pair
   INTEGER, ALLOCATABLE :: nibands(:) ! number of bands for which the bgroup has a pair
   INTEGER, ALLOCATABLE :: ibands(:,:) ! bands for which the bgroup has a pair
-  !>>>
   INTEGER :: iexx_start = 0              ! starting band index used in bgrp parallelization
   INTEGER :: iexx_end = 0                ! ending band index used in bgrp parallelization
   INTEGER, ALLOCATABLE :: iexx_istart(:) ! starting band inded for the outer loop
@@ -71,6 +75,10 @@ CONTAINS
     INTEGER :: parent_nproc = 1, parent_mype = 0
     !
 #if defined (__MPI)
+    !
+    IF(.FALSE.) THEN
+       use_old_exx = .TRUE.
+    END IF
     !
     parent_nproc = mp_size( parent_comm )
     parent_mype  = mp_rank( parent_comm )
@@ -117,6 +125,18 @@ CONTAINS
        ntask_groups = ntg_
     END IF
     !
+    ! turn on the old band group parallelization method
+    !
+    IF(use_old_exx) THEN
+       nbgrp = negrp
+       nproc_bgrp = nproc_egrp
+       me_bgrp = me_egrp
+       root_bgrp = root_egrp
+       my_bgrp_id = my_egrp_id
+       inter_bgrp_comm = inter_egrp_comm
+       intra_bgrp_comm = intra_egrp_comm
+       tbgrp = tegrp
+    END IF
 #endif
     RETURN
     !
