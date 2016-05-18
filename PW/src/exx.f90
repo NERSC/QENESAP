@@ -1830,17 +1830,10 @@ MODULE exx
 
 
     !sum result
-    !<<<
     CALL start_clock ('vexx_sum')
     CALL result_sum(n, m, big_result)
     CALL stop_clock ('vexx_sum')
-    !>>>
     DO im=1, m
-       !<<<
-       !CALL start_clock ('vexx_sum')
-       !CALL mp_sum( big_result(1:n,im), inter_egrp_comm )
-       !CALL stop_clock ('vexx_sum')
-       !>>>
        CALL start_clock ('vexx_hpsi')
 !$omp parallel do default(shared), private(ig)
        DO ig = 1, n
@@ -2218,7 +2211,6 @@ MODULE exx
     LOGICAL :: odg(3)
     !<<<
     ! Check if coulomb_fac has been allocated
-    !WRITE(6,*)'Allocating coulomb_fac: ',ngm,nqs,nqs
     IF( .NOT.ALLOCATED( coulomb_fac ) ) ALLOCATE( coulomb_fac(ngm,nqs,nqs) )
     IF( .NOT.ALLOCATED( coulomb_done) ) THEN
        ALLOCATE( coulomb_done(nqs,nqs) )
@@ -4694,14 +4686,6 @@ MODULE exx
 
     DEALLOCATE( work_space )
 
-!    IF ( nks > 1 ) THEN
-!       WRITE(6,*)'   resetting igk for ik of: ',current_k
-!       REWIND( iunigk )
-!       DO ik=1, current_k
-!          READ( iunigk ) igk
-!       END DO
-!    END IF
-
   END SUBROUTINE update_igk
 
 
@@ -4737,20 +4721,13 @@ MODULE exx
        END IF
        
        sender = my_egrp_id + 1
-       WRITE(6,*)'AAA: ',sender,negrp
        IF (sender.ge.negrp) sender = 0
        jnext = egrp_pairs(2,ipair+1,sender+1)
 
        dest = my_egrp_id - 1
-       WRITE(6,*)'BBB: ',dest
        IF (dest.lt.0) dest = negrp - 1
        jnext_dest = egrp_pairs(2,ipair+1,dest+1)
        
-       WRITE(6,*)'sender:     ',sender
-       WRITE(6,*)'jnext:      ',jnext
-       WRITE(6,*)' '
-       WRITE(6,*)'dest:       ',dest
-       WRITE(6,*)'jnext_dest: ',jnext_dest
 #if defined(__MPI)
        CALL MPI_ISEND( exxbuff(:,:,jnext_dest), nrxxs*npol*nqs, &
             MPI_DOUBLE_COMPLEX, dest, 101, inter_egrp_comm, request_send, ierr )
@@ -4774,30 +4751,111 @@ MODULE exx
   SUBROUTINE result_sum (n, m, data)
     USE mp_exx,       ONLY : iexx_start, iexx_end, inter_egrp_comm, &
                                intra_egrp_comm, my_egrp_id, negrp, &
-                               max_pairs, egrp_pairs
+                               max_pairs, egrp_pairs, max_contributors, &
+                               contributed_bands, all_end, &
+                               iexx_istart, iexx_iend, band_roots
 #if defined(__MPI)
     USE parallel_include, ONLY : MPI_STATUS_SIZE, MPI_DOUBLE_COMPLEX
 #endif
     USE io_global,      ONLY : stdout
-    USE mp,                   ONLY : mp_sum
+    USE mp,                   ONLY : mp_sum, mp_bcast
 
     INTEGER, INTENT(in) :: n, m
     COMPLEX(DP), INTENT(inout) :: data(n,m)
 #if defined(__MPI)
     INTEGER :: istatus(MPI_STATUS_SIZE)
 #endif
-    INTEGER :: im
+    COMPLEX(DP) :: recvbuf(n*max_contributors,(iexx_end-iexx_start+1))
+    COMPLEX(DP) :: data_sum(n,m), test(negrp)
+    INTEGER :: im, iegrp, ibuf, i, j, nsending(m)
+    INTEGER :: ncontributing(m)
+    INTEGER :: contrib_this(negrp,m), displs(negrp,m)
+
+    INTEGER sendcount, sendtype, ierr, root, request(m)
+    INTEGER sendc(negrp), sendd(negrp)
 
     IF (negrp.eq.1) RETURN
-    
+
     !gather data onto the correct nodes
-    
-
-    !broadcast data from the correct nodes onto every node
-
+    CALL start_clock ('sum1')
+    displs = 0
+    ibuf = 0
+    nsending = 0
+    contrib_this = 0
     DO im=1, m
-       CALL mp_sum( data(:,im), inter_egrp_comm )
+       
+       IF(contributed_bands(im,my_egrp_id+1)) THEN
+          sendcount = n
+       ELSE
+          sendcount = 0
+       END IF
+
+       root = band_roots(im)
+
+       IF(my_egrp_id.eq.root) THEN
+          !determine the number of sending processors
+          ibuf = ibuf + 1
+          ncontributing(im) = 0
+          DO iegrp=1, negrp
+             IF(contributed_bands(im,iegrp)) THEN
+                ncontributing(im) = ncontributing(im) + 1
+                contrib_this(iegrp,im) = n
+                IF(iegrp.lt.negrp) displs(iegrp+1,im) = displs(iegrp,im) + n
+                nsending(im) = nsending(im) + 1
+             ELSE
+                contrib_this(iegrp,im) = 0
+                IF(iegrp.lt.negrp) displs(iegrp+1,im) = displs(iegrp,im)
+             END IF
+          END DO
+       END IF
+       
+       CALL MPI_IGATHERV(data(:,im), sendcount, MPI_DOUBLE_COMPLEX, &
+            recvbuf(:,ibuf), contrib_this(:,im), &
+            displs(:,im), MPI_DOUBLE_COMPLEX, &
+            root, inter_egrp_comm, request(im), ierr)
+
     END DO
+    CALL stop_clock ('sum1')
+
+    CALL start_clock ('sum2')
+    DO im=1, m
+       CALL MPI_WAIT(request(im), istatus, ierr)
+    END DO
+    CALL stop_clock ('sum2')
+
+    !perform the sum
+    CALL start_clock ('sum3')
+    DO im=iexx_istart(my_egrp_id+1), iexx_iend(my_egrp_id+1)
+       IF(im.eq.0)exit
+       data_sum(:,im) = 0._dp
+       ibuf = im - iexx_istart(my_egrp_id+1) + 1
+       DO j=1, nsending(im)
+          DO i=1, n
+             data_sum(i,im) = data_sum(i,im) + recvbuf(i+n*(j-1),ibuf)
+          END DO
+       END DO
+    END DO
+    CALL stop_clock ('sum3')
+
+    CALL start_clock ('sum4')
+    sendd = 0
+    DO iegrp=1, negrp
+       IF (iexx_istart(iegrp).eq.0) THEN
+          sendc(iegrp) = 0
+          IF(iegrp.lt.negrp) sendd(iegrp+1) = sendd(iegrp)
+       ELSE
+          sendc(iegrp) = n*(iexx_iend(iegrp) - iexx_istart(iegrp) + 1)
+          IF(iegrp.lt.negrp) sendd(iegrp+1) = sendd(iegrp) + sendc(iegrp)
+       END IF
+    END DO
+    CALL stop_clock ('sum4')
+    CALL start_clock ('sum5')
+    CALL MPI_Allgatherv(data_sum(1,max(1,iexx_istart(my_egrp_id+1))), &
+         sendc(my_egrp_id+1), &
+         MPI_DOUBLE_COMPLEX, &
+         data, sendc, sendd, &
+         MPI_DOUBLE_COMPLEX, inter_egrp_comm, ierr)
+    CALL stop_clock ('sum5')
 
   END SUBROUTINE result_sum
 

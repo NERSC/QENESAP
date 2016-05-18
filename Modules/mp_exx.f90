@@ -43,6 +43,11 @@ MODULE mp_exx
   !>>>
   INTEGER :: iexx_start = 0              ! starting band index used in bgrp parallelization
   INTEGER :: iexx_end = 0                ! ending band index used in bgrp parallelization
+  INTEGER, ALLOCATABLE :: iexx_istart(:) ! starting band inded for the outer loop
+  INTEGER, ALLOCATABLE :: iexx_iend(:)  ! ending band index used in the outer loop
+  INTEGER, ALLOCATABLE :: all_start(:)
+  INTEGER, ALLOCATABLE :: all_end(:)
+  INTEGER :: max_contributors
   !
   ! flag for whether the exx part of the calculation is in progress
   !
@@ -129,19 +134,20 @@ CONTAINS
     INTEGER, INTENT(IN) :: m
     !>>>
     
-    INTEGER :: npe, myrank, rest, k
+    INTEGER :: npe, myrank, rest, k, rest_i, k_i
     INTEGER :: i, j, ipair, iegrp, root
-    INTEGER :: ibnd, npairs
+    INTEGER :: ibnd, npairs, ncontributing
     INTEGER :: n_underloaded ! number of band groups that are under max load
     INTEGER :: pair_bands(nbnd,nbnd)
-    INTEGER, ALLOCATABLE :: all_start(:)
-    INTEGER, ALLOCATABLE :: all_end(:)
     
-    !IF (ALLOCATED(all_start)) THEN
-    !   DEALLOCATE( all_start, all_end )
-    !END IF
+    IF (ALLOCATED(all_start)) THEN
+       DEALLOCATE( all_start, all_end )
+       DEALLOCATE( iexx_istart, iexx_iend )
+    END IF
     ALLOCATE( all_start(negrp) )
     ALLOCATE( all_end(negrp) )
+    ALLOCATE( iexx_istart(negrp) )
+    ALLOCATE( iexx_iend(negrp) )
     
     myrank = mp_rank(comm)
     npe = mp_size(comm)
@@ -178,6 +184,29 @@ CONTAINS
        END IF
     END DO
 
+    !determine the first and last indices for the outer loop
+    rest_i = mod(m, npe)
+    k_i = int(m/npe)
+    DO i=1, negrp
+       IF ( k_i >= 1 ) THEN
+          IF ( rest_i > i-1 ) THEN
+             iexx_istart(i) = (i-1)*k_i + i
+             iexx_iend(i) = i*k_i + i
+          ELSE
+             iexx_istart(i) = (i-1)*k_i + rest_i + 1
+             iexx_iend(i) = i*k_i + rest_i
+          END IF
+       ELSE
+          IF(i.le.m) THEN
+             iexx_istart(i) = i
+             iexx_iend(i) = i
+          ELSE
+             iexx_istart(i) = 0
+             iexx_iend(i) = 0
+          END IF
+       END IF
+    END DO
+
     !assign the pairs for each band group
     !<<<
     !max_pairs = CEILING(REAL(nbnd*nbnd)/REAL(negrp))
@@ -192,7 +221,7 @@ CONTAINS
     !>>>
     IF (.not.allocated(egrp_pairs)) THEN
        ALLOCATE(egrp_pairs(2,max_pairs,negrp))
-       ALLOCATE(band_roots(nbnd))
+       ALLOCATE(band_roots(m))
        ALLOCATE(contributed_bands(nbnd,negrp))
        ALLOCATE(nibands(negrp))
        ALLOCATE(ibands(nbnd,negrp))
@@ -236,13 +265,6 @@ CONTAINS
        
     END DO
 
-    !create a list of the roots for each band
-    root = 0
-    DO i=1, nbnd
-       band_roots(i) = root
-       IF (MODULO(i,k).eq.0) root = root + 1
-    END DO
-
     !determine the bands for which this band group will calculate a pair
     contributed_bands = .FALSE.
     DO iegrp=1, negrp
@@ -261,6 +283,42 @@ CONTAINS
              ibands(nibands(iegrp),iegrp) = i
           END IF
        END DO
+    END DO
+
+    !determine the maximum number of contributing egrps for any band
+    max_contributors = 0
+    DO i=1, nbnd
+       !determine the number of sending egrps
+       ncontributing = 0
+       DO iegrp=1, negrp
+          IF(contributed_bands(i,iegrp)) THEN
+             ncontributing = ncontributing + 1
+          END IF
+       END DO
+       IF(ncontributing.gt.max_contributors) THEN
+          max_contributors = ncontributing
+       END IF
+    END DO
+
+    !create a list of the roots for each band
+    !root = 0
+    DO i=1, m
+       !band_roots(i) = root
+       !IF (MODULO(i,k_i).eq.0) root = root + 1
+       !find the first egrp that contributes to this band
+       !DO iegrp=1, negrp
+       !   IF(contributed_bands(i,iegrp)) THEN
+       !      band_roots(i) = root
+       !      exit
+       !   END IF
+       !END DO
+       DO iegrp=1, negrp
+          IF(iexx_iend(iegrp).ge.i) THEN
+             band_roots(i) = iegrp - 1
+             exit
+          END IF
+       END DO
+       
     END DO
 
   END SUBROUTINE init_index_over_band
