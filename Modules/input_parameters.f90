@@ -414,6 +414,9 @@ MODULE input_parameters
           !
         REAL(DP) :: exx_fraction = -1.0_DP      ! if negative, use defaults
         REAL(DP) :: screening_parameter = -1.0_DP
+! Debug Zhenfei Liu 9/22/2015
+        REAL(DP) :: rsh_beta = -1.0_DP
+! DONE Debug.
         INTEGER  :: nqx1 = 0, nqx2 = 0, nqx3=0  ! use the same values as nk1, nk2, nk3
         !gau-pbe in
         REAL(DP) :: gau_parameter = -1.0_DP
@@ -431,6 +434,9 @@ MODULE input_parameters
         REAL(DP) :: ecutvcut = 0.0_DP
           ! auxiliary variables to define exxdiv treatment
         LOGICAL  :: adaptive_thr = .FALSE.
+! Debug Zhenfei Liu 10/21/2015
+        INTEGER :: perturb_hyb = 0
+! Debug DONE.
         REAL(DP) :: conv_thr_init = 0.001_DP
         REAL(DP) :: conv_thr_multi = 0.1_DP
         REAL(DP) :: ecutfock = -1.d0
@@ -577,6 +583,9 @@ MODULE input_parameters
              Hubbard_J0, Hubbard_beta,                                        &
              edir, emaxpos, eopreg, eamp, smearing, starting_ns_eigenvalue,   &
              U_projection_type, input_dft, la2F, assume_isolated,             &
+! Debug Zhenfei Liu 09/22/2015
+             rsh_beta,                                                        &
+! DONE Debug.
              nqx1, nqx2, nqx3, ecutfock,                                      &
              exxdiv_treatment, x_gamma_extrapolation, yukawa, ecutvcut,       &
              exx_fraction, screening_parameter, ref_alat,                     &
@@ -939,7 +948,10 @@ MODULE input_parameters
           mixing_mode, mixing_beta, mixing_ndim, mixing_fixed_ns,      &
           tqr, diago_cg_maxiter, diago_david_ndim, diagonalization,    &
           startingpot, startingwfc , conv_thr,                         &
-          adaptive_thr, conv_thr_init, conv_thr_multi,                 &
+! Debug Zhenfei Liu 10/21/2015
+!          adaptive_thr, conv_thr_init, conv_thr_multi,                 &
+          adaptive_thr, conv_thr_init, conv_thr_multi, perturb_hyb,    &
+! Debug DONE
           diago_thr_init, n_inner, fermi_energy, rotmass, occmass,     &
           rotation_damping, occupation_damping, rotation_dynamics,     &
           occupation_dynamics, tcg, maxiter, etresh, passop, epol,     &

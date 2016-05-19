@@ -1361,6 +1361,9 @@ CONTAINS
     !------------------------------------------------------------------------
     SUBROUTINE qexml_write_exx( x_gamma_extrapolation, nqx1, nqx2, nqx3, &
                           exxdiv_treatment, yukawa, ecutvcut, exx_fraction, &
+! Debug Zhenfei Liu 9/22/2015
+                          rsh_beta, &
+! DONE Debug.
                           gau_parameter, screening_parameter, exx_is_active, ecutfock )
       !------------------------------------------------------------------------
       !
@@ -1369,6 +1372,9 @@ CONTAINS
       CHARACTER(LEN=*),   INTENT(IN) :: exxdiv_treatment
       REAL(DP),           INTENT(IN) :: yukawa, ecutvcut, exx_fraction, ecutfock
       REAL(DP),           INTENT(IN) :: screening_parameter
+! Debug Zhenfei Liu 9/22/2015
+      REAL(DP),           INTENT(IN) :: rsh_beta
+! DONE Debug.
       REAL(DP),           INTENT(IN) :: gau_parameter
       !
       CALL iotk_write_begin(ounit, "EXACT_EXCHANGE" )
@@ -2908,6 +2914,9 @@ CONTAINS
     !------------------------------------------------------------------------
     SUBROUTINE qexml_read_exx( x_gamma_extrapolation, nqx1, nqx2, nqx3, &
                           exxdiv_treatment, yukawa, ecutvcut, exx_fraction, &
+! Debug Zhenfei Liu 9/22/2015
+                          rsh_beta, &
+! DONE Debug.
                           screening_parameter, gau_parameter, exx_is_active, ecutfock, &
                           found, ierr )
       !----------------------------------------------------------------------
@@ -2920,6 +2929,9 @@ CONTAINS
       REAL(DP),         OPTIONAL, INTENT(OUT) :: yukawa, ecutvcut, exx_fraction
       REAL(DP),         OPTIONAL, INTENT(OUT) :: screening_parameter, ecutfock
       REAL(DP),         OPTIONAL, INTENT(OUT) :: gau_parameter
+! Debug Zhenfei Liu 9/22/2015
+      REAL(DP),         OPTIONAL, INTENT(OUT) :: rsh_beta
+! DONE Debug.
       LOGICAL,                    INTENT(out) :: found
       INTEGER,                    INTENT(out) :: ierr
       !

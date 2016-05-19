@@ -53,6 +53,9 @@ module funct
   PUBLIC  :: start_exx, stop_exx, get_exx_fraction, exx_is_active
   PUBLIC  :: set_exx_fraction
   PUBLIC  :: set_screening_parameter, get_screening_parameter
+! Debug Zhenfei Liu 9/22/2015
+  PUBLIC  :: set_rsh_beta, get_rsh_beta
+! DONE Debug.
   PUBLIC  :: set_gau_parameter, get_gau_parameter
 
   ! additional subroutines/functions for finite size corrections
@@ -294,6 +297,9 @@ module funct
   !
   real(DP):: exx_fraction = 0.0_DP
   real(DP):: screening_parameter = 0.0_DP
+! Debug Zhenfei Liu 9/22/2015
+  real(DP):: rsh_beta = 0.0_DP
+! DONE Debug.
   real(DP):: gau_parameter = 0.0_DP
   logical :: islda       = .false.
   logical :: isgradient  = .false.
@@ -306,19 +312,24 @@ module funct
   real(DP):: finite_size_cell_volume = notset
   logical :: discard_input_dft = .false.
   !
-  integer, parameter:: nxc=8, ncc=10, ngcx=27, ngcc=12, nmeta=3, ncnl=6
+  integer, parameter:: nxc=9, ncc=10, ngcx=28, ngcc=12, nmeta=3, ncnl=6
+! Debug Zhenfei Liu 9/22/2015 : changed ngcx to 28
+! Debug Zhenfei Liu 9/30/2015 : changed nxc to 9
   character (len=4) :: exc, corr, gradx, gradc, meta, nonlocc
   dimension :: exc (0:nxc), corr (0:ncc), gradx (0:ngcx), gradc (0:ngcc), &
                meta(0:nmeta), nonlocc (0:ncnl)
 
-  data exc  / 'NOX', 'SLA', 'SL1', 'RXC', 'OEP', 'HF', 'PB0X', 'B3LP', 'KZK' /
+  data exc  / 'NOX', 'SLA', 'SL1', 'RXC', 'OEP', 'HF', 'PB0X', 'B3LP', &
+              'KZK', 'SLZ' /
+! Debug Zhenfei Liu 9/30/2015 : added 'SLZ' to the 9th spot (1-alpha-beta)*SLA
   data corr / 'NOC', 'PZ', 'VWN', 'LYP', 'PW', 'WIG', 'HL', 'OBZ', &
               'OBW', 'GL' , 'KZK' /
 
   data gradx / 'NOGX', 'B88', 'GGX', 'PBX',  'RPB', 'HCTH', 'OPTX',&
                'xxxx', 'PB0X', 'B3LP','PSX', 'WCX', 'HSE', 'RW86', 'PBE', &
                'xxxx', 'C09X', 'SOX', 'xxxx', 'Q2DX', 'GAUP', 'PW86', 'B86B', &
-               'OBK8', 'OB86', 'EVX', 'B86R', 'CX13' / 
+               'OBK8', 'OB86', 'EVX', 'B86R', 'CX13', 'RSH' / 
+! Debug Zhenfei Liu 9/22/2015 : added 'RSH' to the 28th spot
 
   data gradc / 'NOGC', 'P86', 'GGC', 'BLYP', 'PBC', 'HCTH', 'NONE',&
                'B3LP', 'PSC', 'PBE', 'xxxx', 'xxxx', 'Q2DC' / 
@@ -465,6 +476,15 @@ CONTAINS
    else if ('HSE' .EQ. TRIM( dftout) ) then
     ! special case : HSE
        dft_defined = set_dft_values(1,4,12,4,0,0)
+
+! Debug Zhenfei Liu 09/21/2015
+
+   else if ('RSH' .EQ. TRIM( dftout) ) then
+    ! special case : RSH
+       dft_defined = set_dft_values(9,4,28,4,0,0)
+! changed iexch = 9
+
+! DONE Debug.
 
    else if ( 'GAUP' .EQ. TRIM(dftout) .OR. 'GAUPBE' .EQ. TRIM(dftout) ) then
     ! special case : GAUPBE
@@ -682,6 +702,17 @@ CONTAINS
     ! X3LYP
     IF ( iexch == 9 ) exx_fraction = 0.218_DP
     !
+
+! Debug Zhenfei Liu 09/21/2015
+
+    IF ( igcx ==28 ) THEN
+       exx_fraction = 0.25_DP ! this is the default, same as HSE
+       rsh_beta = 0.0_DP ! this is the default, same as HSE
+       screening_parameter = 0.106_DP ! this is the default, same as HSE
+    END IF
+
+! DONE Debug.
+
     ishybrid = ( exx_fraction /= 0.0_DP )
 
     has_finite_size_correction = ( iexch==8 .or. icorr==10)
@@ -790,7 +821,8 @@ CONTAINS
      implicit none
      real(DP):: exxf_
      exx_fraction = exxf_
-     write (stdout,'(5x,a,f6.2)') 'EXX fraction changed: ',exx_fraction
+     write (stdout,'(5x,a,f12.7)') 'EXX fraction changed: ',exx_fraction
+! Debug Zhenfei Liu, 9/22/2015: changed f6.2 to f12.7
   end subroutine set_exx_fraction
   !---------------------------------------------------------------------
   subroutine set_screening_parameter (scrparm_)
@@ -807,6 +839,22 @@ CONTAINS
      return
   end function get_screening_parameter
   !---------------------------------------------------------------------
+! Debug Zhenfei Liu 9/22/2015
+  subroutine set_rsh_beta (rshbeta_)
+     implicit none
+     real(DP):: rshbeta_
+     rsh_beta = rshbeta_
+     write (stdout,'(5x,a,f12.7)') 'RSH Beta parameter set: ', &
+          & rsh_beta
+  end subroutine set_rsh_beta
+  !----------------------------------------------------------------------
+  function get_rsh_beta ()
+     real(DP):: get_rsh_beta
+     get_rsh_beta = rsh_beta
+     return
+  end function get_rsh_beta
+  !---------------------------------------------------------------------
+! DONE Debug.
   subroutine set_gau_parameter (gauparm_)
      implicit none
      real(DP):: gauparm_
@@ -992,6 +1040,11 @@ CONTAINS
      shortname_ = 'HSE'
   else if (iexch_==1.and.icorr_==4.and.igcx_==20.and.igcc_==4) then
      shortname_ = 'GAUPBE'
+! Debug Zhenfei Liu 09/21/2015
+! changed iexch=9 on 9/30/2015
+  else if (iexch_==9.and.icorr_==4.and.igcx_==28.and.igcc_==4) then
+     shortname_ = 'RSH'
+! DONE Debug.
   else if (iexch_==1.and.icorr_==4.and.igcx_==11.and.igcc_==4) then
      shortname_ = 'WC'
   else if (iexch_==7.and.icorr_==12.and.igcx_==9.and. igcc_==7) then
@@ -1127,6 +1180,14 @@ subroutine xc (rho, ex, ec, vx, vc)
         ex = (1.0_DP - exx_fraction) * ex 
         vx = (1.0_DP - exx_fraction) * vx 
      end if
+! Debug Zhenfei Liu 9/30/2015
+  ELSEIF (iexch == 9) THEN         !  'rsh'
+     CALL slater(rs, ex, vx)
+     if (exx_started) then
+        ex = (1.0_DP - exx_fraction - rsh_beta) * ex
+        vx = (1.0_DP - exx_fraction - rsh_beta) * vx
+     end if
+! DONE Debug.
   ELSEIF (iexch == 7) THEN         !  'B3LYP'
      CALL slater(rs, ex, vx)
      if (exx_started) then
@@ -1256,6 +1317,15 @@ subroutine xc_spin (rho, zeta, ex, ec, vxup, vxdw, vcup, vcdw)
         vxup = (1.0_DP - exx_fraction) * vxup 
         vxdw = (1.0_DP - exx_fraction) * vxdw 
      end if
+! Debug Zhenfei Liu 9/30/2015
+  ELSEIF (iexch == 9) THEN  ! 'rsh'
+     call slater_spin (rho, zeta, ex, vxup, vxdw)
+     if (exx_started) then
+        ex   = (1.0_DP - exx_fraction - rsh_beta) * ex
+        vxup = (1.0_DP - exx_fraction - rsh_beta) * vxup 
+        vxdw = (1.0_DP - exx_fraction - rsh_beta) * vxdw 
+     end if
+! DONE Debug.
   ELSEIF (iexch == 7) THEN  ! 'B3LYP'
      call slater_spin (rho, zeta, ex, vxup, vxdw)
      if (exx_started) then
@@ -1354,6 +1424,13 @@ subroutine xc_spin_vec (rho, zeta, length, evx, evc)
      if (exx_started) then
         evx = (1.0_DP - exx_fraction) * evx
      end if
+! Debug Zhenfei Liu 9/30/2015
+  case(9)            ! 'rsh'
+     call slater_spin_vec (rho, zeta, evx, length)
+     if (exx_started) then
+        evx = (1.0_DP - exx_fraction - rsh_beta) * evx
+     end if
+! DONE Debug.
   case(7)            ! 'B3LYP'
      call slater_spin_vec (rho, zeta, evx, length)
      if (exx_started) then
@@ -1473,6 +1550,16 @@ subroutine gcxc (rho, grho, sx, sc, v1x, v2x, v1c, v2c)
        v1x = v1x - exx_fraction * v1xsr
        v2x = v2x - exx_fraction * v2xsr
      endif 
+! Debug Zhenfei Liu 09/23/2015
+  elseif (igcx ==28) then ! 'pbexsr'
+     call pbex (rho, grho, 1, sx, v1x, v2x)
+     if(exx_started) then
+       call pbexsr (rho, grho, sxsr, v1xsr, v2xsr, screening_parameter)
+       sx = (1.0_DP - exx_fraction - rsh_beta) * sx + rsh_beta * sxsr
+       v1x = (1.0_DP - exx_fraction - rsh_beta) * v1x + rsh_beta * v1xsr
+       v2x = (1.0_DP - exx_fraction - rsh_beta) * v2x + rsh_beta * v2xsr
+     endif 
+! DONE Debug.
   elseif (igcx ==13) then ! 'rPW86'
      call rPW86 (rho, grho, sx, v1x, v2x)
   elseif (igcx ==16) then ! 'C09x'
@@ -1633,7 +1720,10 @@ subroutine gcx_spin (rhoup, rhodw, grhoup2, grhodw2, &
      sx = 0.5_DP * (sxup + sxdw)
      v2xup = 2.0_DP * v2xup
      v2xdw = 2.0_DP * v2xdw
-  elseif (igcx == 3 .or. igcx == 4 .or. igcx == 8 .or. &
+! Debug Zhenfei Liu 09/21/2015
+!  elseif (igcx == 3 .or. igcx == 4 .or. igcx == 8 .or. &
+  elseif (igcx == 3 .or. igcx == 4 .or. igcx == 8 .or. igcx == 28 .or. &
+! DONE Debug.
           igcx == 10 .or. igcx == 12 .or. igcx == 20 .or. igcx == 25) then
      ! igcx=3: PBE, igcx=4: revised PBE, igcx=8: PBE0, igcx=10: PBEsol
      ! igcx=12: HSE,  igcx=20: gau-pbe, igcx=25: ev93
@@ -1682,6 +1772,20 @@ subroutine gcx_spin (rhoup, rhodw, grhoup2, grhodw2, &
         v2xdw = v2xdw - exx_fraction*v2xdwsr
      end if
 
+! Debug Zhenfei Liu 09/23/2015
+
+     if (igcx == 28 .and. exx_started ) then
+
+        call pbexsr_lsd (rhoup, rhodw, grhoup2, grhodw2, sxsr,  &
+                         v1xupsr, v2xupsr, v1xdwsr, v2xdwsr, &
+                         screening_parameter)
+        sx = (1.0_DP - exx_fraction - rsh_beta) * sx + rsh_beta * sxsr
+        v1xup = (1.0_DP - exx_fraction - rsh_beta) * v1xup + rsh_beta * v1xupsr
+        v2xup = (1.0_DP - exx_fraction - rsh_beta) * v2xup + rsh_beta * v2xupsr
+        v1xdw = (1.0_DP - exx_fraction - rsh_beta) * v1xdw + rsh_beta * v1xdwsr
+        v2xdw = (1.0_DP - exx_fraction - rsh_beta) * v2xdw + rsh_beta * v2xdwsr
+     end if
+! DONE Debug.
      if (igcx == 20 .and. exx_started ) then
         ! gau-pbe
         call pbexgau_lsd (rhoup, rhodw, grhoup2, grhodw2, sxsr,  &
@@ -1941,7 +2045,10 @@ subroutine gcx_spin_vec(rhoup, rhodw, grhoup2, grhodw2, &
      sx = 0.5_DP * (sxup + sxdw)
      v2xup = 2.0_DP * v2xup
      v2xdw = 2.0_DP * v2xdw
-  case(3,4,8,10,12,25)
+! Debug Zhenfei Liu 09/21/2015
+!  case(3,4,8,10,12,25)
+  case(3,4,8,10,12,25,28)
+! DONE Debug.
      ! igcx=3: PBE, igcx=4: revised PBE, igcx=8 PBE0, igcx=10: PBEsol, 
      ! igcx=25: EV93
      if (igcx == 4) then
@@ -1979,6 +2086,21 @@ subroutine gcx_spin_vec(rhoup, rhodw, grhoup2, grhodw2, &
         v2xdw(i) = v2xdw(i) - exx_fraction*v2xdwsr
         ENDDO
      end if
+! Debug Zhenfei Liu 09/21/2015
+     if (igcx == 28 .and. exx_started ) then
+        ! in this case the subroutine is not really "vector"
+        DO i = 1, length
+          call pbexsr_lsd (rhoup(i), rhodw(i), grhoup2(i), grhodw2(i), sxsr,  &
+                           v1xupsr, v2xupsr, v1xdwsr, v2xdwsr, &
+                           screening_parameter)
+        sx(i)  = (1.0_DP-exx_fraction-rsh_beta)*sx(i)+rsh_beta*sxsr
+        v1xup(i) = (1.0_DP-exx_fraction-rsh_beta)*v1xup(i)+rsh_beta*v1xupsr
+        v2xup(i) = (1.0_DP-exx_fraction-rsh_beta)*v2xup(i)+rsh_beta*v2xupsr
+        v1xdw(i) = (1.0_DP-exx_fraction-rsh_beta)*v1xdw(i)+rsh_beta*v1xdwsr
+        v2xdw(i) = (1.0_DP-exx_fraction-rsh_beta)*v2xdw(i)+rsh_beta*v2xdwsr
+        ENDDO
+     end if
+! DONE Debug.
   case(9)
      do i=1,length
         if (rhoup(i) > small .and. sqrt(abs(grhoup2(i)) ) > small) then

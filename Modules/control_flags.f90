@@ -183,6 +183,8 @@ MODULE control_flags
   LOGICAL, PUBLIC :: &
     adapt_thr       ! if .TRUE. an adaptive convergence threshold is used
                        ! for the scf cycle in an EXX calculation.
+! Debug Zhenfei Liu 10/21/2015
+  INTEGER, PUBLIC :: pert_hyb ! whether or not do perturbative Hybrid
   REAL(DP), PUBLIC  :: &
     tr2_init,         &! initial value of tr2 for adaptive thresholds
     tr2_multi          ! the dexx multiplier for adaptive thresholds

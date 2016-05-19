@@ -307,7 +307,11 @@ MODULE pw_restart
       USE mp_diag,              ONLY : nproc_ortho
       USE funct,                ONLY : get_exx_fraction, dft_is_hybrid, &
                                        get_gau_parameter, &
-                                       get_screening_parameter, exx_is_active
+! Debug Zhenfei Liu 9/22/2015
+!                                       get_screening_parameter, exx_is_active
+                                       get_screening_parameter, exx_is_active, &
+                                       get_rsh_beta
+! DONE Debug.
       USE exx,                  ONLY : x_gamma_extrapolation, nq1, nq2, nq3, &
                                        exxdiv_treatment, yukawa, ecutvcut, ecutfock
       USE cellmd,               ONLY : lmovecell, cell_factor 
@@ -616,7 +620,11 @@ MODULE pw_restart
          IF ( dft_is_hybrid() ) CALL qexml_write_exx &
                        ( x_gamma_extrapolation, nq1, nq2, nq3, &
                          exxdiv_treatment, yukawa, ecutvcut, &
-                         get_exx_fraction(), get_gau_parameter(), &
+! Debug Zhenfei Liu 9/22/2015
+!                         get_exx_fraction(), get_gau_parameter(), &
+                         get_exx_fraction(), get_rsh_beta(), &
+                         get_gau_parameter(), &
+! DONE Debug.
                          get_screening_parameter(), exx_is_active(), ecutfock )
          !
 !-------------------------------------------------------------------------------
@@ -2802,7 +2810,11 @@ MODULE pw_restart
       !
       ! ... read EXX variables
       !
+! Debug Zhenfei Liu 9/22/2015
+!      USE funct,                ONLY : set_exx_fraction, set_screening_parameter, &
       USE funct,                ONLY : set_exx_fraction, set_screening_parameter, &
+                                       set_rsh_beta, &
+! DONE Debug.
                                        set_gau_parameter, enforce_input_dft, start_exx
       USE exx,                  ONLY : x_gamma_extrapolation, nq1, nq2, nq3, &
                                        exxdiv_treatment, yukawa, ecutvcut, ecutfock
@@ -2810,12 +2822,18 @@ MODULE pw_restart
       !
       INTEGER,          INTENT(OUT) :: ierr
       REAL(DP) :: exx_fraction, screening_parameter, gau_parameter
+! Debug Zhenfei Liu 9/22/2015
+      REAL(DP) :: rsh_beta
+! DONE Debug.
       LOGICAL :: exx_is_active, found
       !
       IF ( ionode ) THEN
          CALL qexml_read_exx( X_GAMMA_EXTRAPOLATION=x_gamma_extrapolation, &
               NQX1=nq1, NQX2=nq2, NQX3=nq3, EXXDIV_TREATMENT=exxdiv_treatment, &
               YUKAWA = yukawa, ECUTVCUT=ecutvcut, EXX_FRACTION=exx_fraction, &
+! Debug Zhenfei Liu 9/22/2015
+              RSH_BETA=rsh_beta, &
+! DONE Debug.
               SCREENING_PARAMETER=screening_parameter, GAU_PARAMETER=gau_parameter, &
               EXX_IS_ACTIVE=exx_is_active, ECUTFOCK=ecutfock, FOUND=found, IERR=ierr )
          !
@@ -2836,12 +2854,18 @@ MODULE pw_restart
       CALL mp_bcast( yukawa, ionode_id, intra_image_comm )
       CALL mp_bcast( ecutvcut, ionode_id, intra_image_comm )
       CALL mp_bcast( exx_fraction, ionode_id, intra_image_comm )
+! Debug Zhenfei Liu 9/22/2015
+      CALL mp_bcast( rsh_beta, ionode_id, intra_image_comm )
+! DONE Debug.
       CALL mp_bcast( screening_parameter, ionode_id, intra_image_comm )
       CALL mp_bcast( gau_parameter, ionode_id, intra_image_comm )
       CALL mp_bcast( exx_is_active, ionode_id, intra_image_comm )
       CALL mp_bcast( ecutfock, ionode_id, intra_image_comm )
       !
       CALL set_exx_fraction(exx_fraction)
+! Debug Zhenfei Liu 9/22/2015
+      CALL set_rsh_beta(rsh_beta)
+! DONE Debug.
       CALL set_screening_parameter(screening_parameter)
       CALL set_gau_parameter(gau_parameter)
       IF (exx_is_active) CALL start_exx( ) 
