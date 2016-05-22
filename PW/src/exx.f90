@@ -135,7 +135,7 @@ MODULE exx
   END TYPE comm_packet
   TYPE(comm_packet), ALLOCATABLE :: comm_recv(:,:), comm_send(:,:)
   TYPE(comm_packet), ALLOCATABLE :: comm_recv_reverse(:,:)
-  TYPE(comm_packet), ALLOCATABLE :: comm_send_reverse(:,:)
+  TYPE(comm_packet), ALLOCATABLE :: comm_send_reverse(:,:,:)
   INTEGER, ALLOCATABLE :: lda_local(:,:)
   INTEGER, ALLOCATABLE :: lda_exx(:,:)
   INTEGER, ALLOCATABLE :: ngk_local(:), ngk_exx(:)
@@ -3656,10 +3656,10 @@ MODULE exx
     CALL update_igk(.FALSE.)
     !!!!
     
-    !CALL deconstruct_for_exact(m,hpsi_exx,hpsi)
-    !CALL deconstruct_for_exact(m,hpsi_exx,hpsi_temp)
-    !hpsi = hpsi + hpsi_temp
-    CALL deconstruct_for_exact(m,hpsi_exx,hpsi)
+    !!!!!!!!!!!
+    !hpsi = 0._DP
+    !!!!!!!!!!!
+    CALL deconstruct_for_exact2(m,hpsi_exx,hpsi)
 
     CALL stop_clock ('end_exxp')
 
@@ -3714,15 +3714,16 @@ MODULE exx
     INTEGER :: n, m
     
     INTEGER, ALLOCATABLE :: local_map(:,:), exx_map(:,:)
-    INTEGER, ALLOCATABLE :: l2e_map(:,:), e2l_map(:,:)
-    INTEGER, ALLOCATABLE :: psi_source(:), psi_source_exx(:)
+    INTEGER, ALLOCATABLE :: l2e_map(:,:), e2l_map(:,:,:)
+    INTEGER, ALLOCATABLE :: psi_source(:), psi_source_exx(:,:)
     INTEGER :: current_index
 
-    INTEGER :: i, j, k, ik, im, ig, count, iproc, prev
+    INTEGER :: i, j, k, ik, im, ig, count, iproc, prev, iegrp
     INTEGER :: total_lda(nks), prev_lda(nks)
     INTEGER :: total_lda_exx(nks), prev_lda_exx(nks)
     INTEGER :: n_local
     INTEGER :: lda_max_local, lda_max_exx
+    INTEGER :: max_lda_egrp
 
     INTEGER :: request_send(nproc_egrp), request_recv(nproc_egrp)
     INTEGER :: ierr
@@ -3951,7 +3952,8 @@ MODULE exx
 
     IF ( .not.allocated(comm_recv_reverse) ) THEN
        ALLOCATE(comm_recv_reverse(nproc_egrp,nks))
-       ALLOCATE(comm_send_reverse(nproc_egrp,nks))
+!       ALLOCATE(comm_send_reverse(nproc_egrp,nks))
+       ALLOCATE(comm_send_reverse(nproc_egrp,negrp,nks))
     END IF
 
     egrp_base = my_egrp_id*nproc_egrp
@@ -3962,19 +3964,34 @@ MODULE exx
             sum( lda_local(egrp_base+1:(egrp_base+me_egrp),ik) )
     END DO
 
-    allocate( e2l_map(maxval(total_lda_egrp),nks) )
+    max_lda_egrp = 0
+    DO j = 1, negrp
+       DO ik = 1, nks
+          !WRITE(6,*)'BBB',(j-1)*nproc_egrp+1,j*nproc_egrp,sum( lda_local(j*nproc_egrp+1:(j+1)*nproc_egrp,ik) )
+          max_lda_egrp = max(max_lda_egrp, &
+               sum( lda_local((j-1)*nproc_egrp+1:j*nproc_egrp,ik) ) )
+       END DO
+    END DO
+    WRITE(6,*)'lda_local:'
+    WRITE(6,*)lda_local
+    WRITE(6,*)'max_lda_egrp: ',max_lda_egrp
+
+    !allocate( e2l_map(maxval(total_lda_egrp),nks,negrp) )
+    allocate( e2l_map(max_lda_egrp,nks,negrp) )
     e2l_map = 0
     DO ik = 1, nks
        DO ig = 1, lda_local(me_pool+1,ik)
           DO j=1, total_lda_exx(ik)
              IF( local_map(ig+prev_lda(ik),ik).EQ.exx_map(j,ik) ) exit
           END DO
-          e2l_map(ig+prev_lda_egrp(ik),ik) = j
+          e2l_map(ig+prev_lda_egrp(ik),ik,my_egrp_id+1) = j
        END DO
     END DO
-    CALL mp_sum(e2l_map,intra_egrp_comm)
+    CALL mp_sum(e2l_map(:,:,my_egrp_id+1),intra_egrp_comm)
+    CALL mp_sum(e2l_map,inter_egrp_comm)
 
-    allocate(psi_source_exx( maxval(total_lda_egrp) ))
+    !allocate(psi_source_exx( maxval(total_lda_egrp) ))
+    allocate(psi_source_exx( max_lda_egrp, negrp ))
 
 
 
@@ -3987,19 +4004,21 @@ MODULE exx
        j = 1
        DO i = 1, nproc_egrp
           j = j + lda_exx(i,ik)
-          IF( j.gt.e2l_map(ig+prev_lda_egrp(ik),ik) ) exit
+          IF( j.gt.e2l_map(ig+prev_lda_egrp(ik),ik,my_egrp_id+1) ) exit
        END DO
-       psi_source_exx(ig+prev_lda_egrp(ik)) = i-1
+       psi_source_exx(ig+prev_lda_egrp(ik),my_egrp_id+1) = i-1
     END DO
-    CALL mp_sum(psi_source_exx,intra_egrp_comm)
+    CALL mp_sum(psi_source_exx(:,my_egrp_id+1),intra_egrp_comm)
+    CALL mp_sum(psi_source_exx,inter_egrp_comm)
 
     !allocate communication packets to recieve psi and hpsi (reverse)
+    DO iegrp=my_egrp_id+1, my_egrp_id+1
     DO iproc=0, nproc_egrp-1
        
        !determine how many values need to come from the target
        count = 0
        DO ig=1, lda_local(me_pool+1,ik)
-          IF ( psi_source_exx(ig+prev_lda_egrp(ik)).eq.iproc ) THEN
+          IF ( psi_source_exx(ig+prev_lda_egrp(ik),iegrp).eq.iproc ) THEN
              count = count + 1
           END IF
        END DO
@@ -4016,48 +4035,56 @@ MODULE exx
        !determine which values need to come from the target
        count = 0
        DO ig=1, lda_local(me_pool+1,ik)
-          IF ( psi_source_exx(ig+prev_lda_egrp(ik)).eq.iproc ) THEN
+          IF ( psi_source_exx(ig+prev_lda_egrp(ik),iegrp).eq.iproc ) THEN
              count = count + 1
              comm_recv_reverse(iproc+1,ik)%indices(count) = ig
           END IF
        END DO
 
     END DO
+    END DO
 
     !allocate communication packets to send psi and hpsi
+    !<<<<<<<
+    DO iegrp=1, negrp
+    !DO iegrp=my_egrp_id+1, my_egrp_id+1
     prev = 0
     DO iproc=0, nproc_egrp-1
 
        !determine how many values need to be sent to the target
        count = 0
-       DO ig=1, lda_local(iproc+egrp_base+1,ik)
-          IF ( psi_source_exx(ig+prev).eq.me_egrp ) THEN
+       DO ig=1, lda_local(iproc+(iegrp-1)*nproc_egrp+1,ik)
+          IF ( psi_source_exx(ig+prev,iegrp).eq.me_egrp ) THEN
              count = count + 1
           END IF
        END DO
 
        !allocate the communication packet
-       comm_send_reverse(iproc+1,ik)%size = count
+       comm_send_reverse(iproc+1,iegrp,ik)%size = count
        IF (count.gt.0) THEN
-          IF (.not.ALLOCATED(comm_send_reverse(iproc+1,ik)%msg)) THEN
-             ALLOCATE(comm_send_reverse(iproc+1,ik)%indices(count))
-             ALLOCATE(comm_send_reverse(iproc+1,ik)%msg(count,m))
+          IF (.not.ALLOCATED(comm_send_reverse(iproc+1,iegrp,ik)%msg)) THEN
+             ALLOCATE(comm_send_reverse(iproc+1,iegrp,ik)%indices(count))
+             ALLOCATE(comm_send_reverse(iproc+1,iegrp,ik)%msg(count,m))
           END IF
        END IF
           
        !determine which values need to be sent to the target
        count = 0
-       DO ig=1, lda_local(iproc+egrp_base+1,ik)
-          IF ( psi_source_exx(ig+prev).eq.me_egrp ) THEN
+       DO ig=1, lda_local(iproc+(iegrp-1)*nproc_egrp+1,ik)
+          IF ( psi_source_exx(ig+prev,iegrp).eq.me_egrp ) THEN
              count = count + 1
-             comm_send_reverse(iproc+1,ik)%indices(count) = e2l_map(ig+prev,ik)
+             comm_send_reverse(iproc+1,iegrp,ik)%indices(count) = &
+                  e2l_map(ig+prev,ik,iegrp)
+!                  e2l_map(ig+prev,ik,my_egrp_id+1)
           END IF
        END DO
 
-       prev = prev + lda_local( egrp_base+iproc+1, ik )
+       prev = prev + lda_local( (iegrp-1)*nproc_egrp+iproc+1, ik )
+    END DO
     END DO
 
     END DO
+    !>>>>>>>>>
 
     !deallocate arrays
     DEALLOCATE( local_map, exx_map )
@@ -4355,8 +4382,6 @@ MODULE exx
     !!!!!!POSSIBLE ERROR HERE: PSI REALLY NEEDS LDA (NOT N)
     COMPLEX(DP) :: psi(npwx_exx*npol,m) 
     COMPLEX(DP) :: psi_out(npwx_local*npol,m)
-    !COMPLEX(DP) :: psi(lda_exx(me_egrp+1,ik)*npol,m)
-    !COMPLEX(DP) :: psi_out(lda_local(me_pool+1,ik)*npol,m) 
 
     INTEGER :: i, j, im, iproc, ig, ik, current_ik
     INTEGER :: prev, lda_max_local, prev_lda_exx
@@ -4369,25 +4394,26 @@ MODULE exx
     INTEGER, EXTERNAL :: find_current_k
 
     current_ik = current_k
-!    current_ik=find_current_k(ik, nkstot, nks)
     prev_lda_exx = sum( lda_exx(1:me_egrp,current_ik) )
 
     !send communication packets
     DO iproc=0, nproc_egrp-1
-       IF ( comm_send_reverse(iproc+1,current_ik)%size.gt.0) THEN
-          DO i=1, comm_send_reverse(iproc+1,current_ik)%size
-             ig = comm_send_reverse(iproc+1,current_ik)%indices(i)
+       IF ( comm_send_reverse(iproc+1,my_egrp_id+1,current_ik)%size.gt.0) THEN
+          DO i=1, comm_send_reverse(iproc+1,my_egrp_id+1,current_ik)%size
+             ig = comm_send_reverse(iproc+1,my_egrp_id+1,current_ik)%indices(i)
              ig = ig - prev_lda_exx
              
              DO im=1, m
-                comm_send_reverse(iproc+1,current_ik)%msg(i,im) = psi(ig,im)
+!                comm_send_reverse(iproc+1,my_egrp_id+1,current_ik)%msg(i,im) = psi(ig,im)
+                comm_send_reverse(iproc+1,my_egrp_id+1,current_ik)%msg(i,im) = comm_send_reverse(iproc+1,my_egrp_id+1,current_ik)%indices(i)
              END DO
 
           END DO
 
           !send the message
-          CALL MPI_ISEND( comm_send_reverse(iproc+1,current_ik)%msg, &
-               comm_send_reverse(iproc+1,current_ik)%size*m, MPI_DOUBLE_COMPLEX, &
+          CALL MPI_ISEND( comm_send_reverse(iproc+1,my_egrp_id+1,current_ik)%msg, &
+               comm_send_reverse(iproc+1,my_egrp_id+1,current_ik)%size*m, &
+               MPI_DOUBLE_COMPLEX, &
                iproc, 100+iproc*nproc_egrp+me_egrp, &
                intra_egrp_comm, request_send(iproc+1), ierr )
           
@@ -4429,10 +4455,20 @@ MODULE exx
 
     !now wait for everything to finish sending
     DO iproc=0, nproc_egrp-1
-       IF ( comm_send_reverse(iproc+1,current_ik)%size.gt.0 ) THEN
+       IF ( comm_send_reverse(iproc+1,my_egrp_id+1,current_ik)%size.gt.0 ) THEN
           CALL MPI_WAIT(request_send(iproc+1), istatus, ierr)
        END IF
     END DO
+
+    WRITE(6,*)'LLL 1: '
+    DO ig=1, npwx_local
+       WRITE(6,*)psi_out(ig,1)
+    END DO
+    WRITE(6,*)'LLL 33: '
+    DO ig=1, npwx_local
+       WRITE(6,*)psi_out(ig,33)
+    END DO
+
 
   END SUBROUTINE deconstruct_for_exact
 
@@ -4877,37 +4913,197 @@ MODULE exx
     CALL start_clock ('sum3')
     DO im=iexx_istart(my_egrp_id+1), iexx_iend(my_egrp_id+1)
        IF(im.eq.0)exit
-       data_sum(:,im) = 0._dp
+       data(:,im) = 0._dp
        ibuf = im - iexx_istart(my_egrp_id+1) + 1
        DO j=1, nsending(im)
           DO i=1, n
-             data_sum(i,im) = data_sum(i,im) + recvbuf(i+n*(j-1),ibuf)
+             data(i,im) = data(i,im) + recvbuf(i+n*(j-1),ibuf)
           END DO
        END DO
     END DO
     CALL stop_clock ('sum3')
 
-    CALL start_clock ('sum4')
-    sendd = 0
-    DO iegrp=1, negrp
-       IF (iexx_istart(iegrp).eq.0) THEN
-          sendc(iegrp) = 0
-          IF(iegrp.lt.negrp) sendd(iegrp+1) = sendd(iegrp)
-       ELSE
-          sendc(iegrp) = n*(iexx_iend(iegrp) - iexx_istart(iegrp) + 1)
-          IF(iegrp.lt.negrp) sendd(iegrp+1) = sendd(iegrp) + sendc(iegrp)
-       END IF
-    END DO
-    CALL stop_clock ('sum4')
-    CALL start_clock ('sum5')
-    CALL MPI_Allgatherv(data_sum(1,max(1,iexx_istart(my_egrp_id+1))), &
-         sendc(my_egrp_id+1), &
-         MPI_DOUBLE_COMPLEX, &
-         data, sendc, sendd, &
-         MPI_DOUBLE_COMPLEX, inter_egrp_comm, ierr)
-    CALL stop_clock ('sum5')
+!    CALL start_clock ('sum4')
+!    sendd = 0
+!    DO iegrp=1, negrp
+!       IF (iexx_istart(iegrp).eq.0) THEN
+!          sendc(iegrp) = 0
+!          IF(iegrp.lt.negrp) sendd(iegrp+1) = sendd(iegrp)
+!       ELSE
+!          sendc(iegrp) = n*(iexx_iend(iegrp) - iexx_istart(iegrp) + 1)
+!          IF(iegrp.lt.negrp) sendd(iegrp+1) = sendd(iegrp) + sendc(iegrp)
+!       END IF
+!    END DO
+!    CALL stop_clock ('sum4')
+!    CALL start_clock ('sum5')
+!    CALL MPI_Allgatherv(data_sum(1,max(1,iexx_istart(my_egrp_id+1))), &
+!         sendc(my_egrp_id+1), &
+!         MPI_DOUBLE_COMPLEX, &
+!         data, sendc, sendd, &
+!         MPI_DOUBLE_COMPLEX, inter_egrp_comm, ierr)
+!    CALL stop_clock ('sum5')
+!    data = data_sum
 
   END SUBROUTINE result_sum
+
+
+
+
+
+
+
+
+
+  !-----------------------------------------------------------------------
+  SUBROUTINE deconstruct_for_exact2(m, psi, psi_out)
+  !-----------------------------------------------------------------------
+    USE mp,           ONLY : mp_sum
+    USE mp_pools,     ONLY : nproc_pool, me_pool, intra_pool_comm
+    USE mp_exx,       ONLY : intra_egrp_comm, inter_egrp_comm, &
+         nproc_egrp, me_egrp, negrp, my_egrp_id, iexx_istart, iexx_iend
+#if defined(__MPI)
+    USE parallel_include, ONLY : MPI_STATUS_SIZE, MPI_DOUBLE_COMPLEX
+#endif
+    USE klist,        ONLY : xk, wk, nkstot, nks, qnorm
+    USE wvfct,        ONLY : current_k
+    !
+    !
+    IMPLICIT NONE
+    !
+    INTEGER :: m
+    !!!!!!POSSIBLE ERROR HERE: PSI REALLY NEEDS LDA (NOT N)
+    COMPLEX(DP) :: psi(npwx_exx*npol,m) 
+    COMPLEX(DP) :: psi_out(npwx_local*npol,m)
+
+    INTEGER :: i, j, im, iproc, ig, ik, current_ik, iegrp
+    INTEGER :: prev, lda_max_local, prev_lda_exx
+    INTEGER :: my_bands, recv_bands, tag
+
+    INTEGER :: request_send(nproc_egrp,negrp), request_recv(nproc_egrp,negrp)
+    INTEGER :: ierr
+#if defined(__MPI)
+    INTEGER :: istatus(MPI_STATUS_SIZE)
+#endif
+    INTEGER, EXTERNAL :: find_current_k
+    
+    !WRITE(6,*)'start of deconstruct_for_exact2'
+    !!!!!!!!!!!!!!!!!!!
+    !psi_out = 0._DP
+    !!!!!!!!!!!!!!!!!!!
+
+    current_ik = current_k
+    prev_lda_exx = sum( lda_exx(1:me_egrp,current_ik) )
+    !WRITE(6,*)'prev_lda_exx: ',prev_lda_exx
+
+    my_bands = iexx_iend(my_egrp_id+1) - iexx_istart(my_egrp_id+1) + 1
+
+    !send communication packets
+    !WRITE(6,*)'sending comm packets'
+    DO iegrp=1, negrp
+    DO iproc=0, nproc_egrp-1
+       IF ( comm_send_reverse(iproc+1,iegrp,current_ik)%size.gt.0) THEN
+          DO i=1, comm_send_reverse(iproc+1,iegrp,current_ik)%size
+             ig = comm_send_reverse(iproc+1,iegrp,current_ik)%indices(i)
+             ig = ig - prev_lda_exx
+             
+             DO im=1, my_bands
+                comm_send_reverse(iproc+1,iegrp,current_ik)%msg(i,im) = &
+                     psi(ig,im+iexx_istart(my_egrp_id+1)-1)
+!                comm_send_reverse(iproc+1,iegrp,current_ik)%msg(i,im) = &
+!                     comm_send_reverse(iproc+1,iegrp,current_ik)%indices(i)
+             END DO
+
+          END DO
+
+          !send the message
+          tag = 100+(iproc+(iegrp-1)*nproc_egrp)*nproc_pool+me_pool
+          !WRITE(6,*)'sending: ',tag-100
+          !WRITE(6,*)'   size: ',comm_send_reverse(iproc+1,iegrp,current_ik)%size,my_bands
+          !WRITE(6,*)'   destp: ',iproc
+          !WRITE(6,*)'   destg: ',iegrp-1
+          CALL MPI_ISEND( comm_send_reverse(iproc+1,iegrp,current_ik)%msg, &
+               comm_send_reverse(iproc+1,iegrp,current_ik)%size*my_bands, &
+               MPI_DOUBLE_COMPLEX, &
+               iproc+(iegrp-1)*nproc_egrp, &
+               tag, &
+               intra_pool_comm, request_send(iproc+1,iegrp), ierr )
+          
+       END IF
+    END DO
+    END DO
+        
+    !begin recieving the communication packets
+    !WRITE(6,*)'receive comm packets'
+    DO iegrp=1, negrp
+
+       recv_bands = iexx_iend(iegrp) - iexx_istart(iegrp) + 1
+
+       DO iproc=0, nproc_egrp-1
+          IF ( comm_recv_reverse(iproc+1,current_ik)%size.gt.0) THEN
+
+             !recieve the message
+             tag = 100+me_pool*nproc_pool+iproc+(iegrp-1)*nproc_egrp
+             !WRITE(6,*)'recieving: ',tag-100
+             !WRITE(6,*)'   size: ',comm_recv_reverse(iproc+1,current_ik)%size,recv_bands
+             !WRITE(6,*)'   sendp: ',iproc
+             !WRITE(6,*)'   sendg: ',iegrp-1
+             CALL MPI_IRECV( comm_recv_reverse(iproc+1,current_ik)%msg(:,iexx_istart(iegrp)), &
+                  comm_recv_reverse(iproc+1,current_ik)%size*recv_bands, &
+                  MPI_DOUBLE_COMPLEX, &
+                  iproc+(iegrp-1)*nproc_egrp, &
+                  tag, &
+                  intra_pool_comm, request_recv(iproc+1,iegrp), ierr )
+          
+       END IF
+    END DO
+    END DO
+
+    !assign psi
+    !WRITE(6,*)'assign psi'
+    DO iproc=0, nproc_egrp-1
+       IF ( comm_recv_reverse(iproc+1,current_ik)%size.gt.0 ) THEN
+          
+          DO iegrp=1, negrp
+             !WRITE(6,*)'   wating for: ',iegrp,iproc
+             CALL MPI_WAIT(request_recv(iproc+1,iegrp), istatus, ierr)
+          END DO
+
+          DO i=1, comm_recv_reverse(iproc+1,current_ik)%size
+             ig = comm_recv_reverse(iproc+1,current_ik)%indices(i)
+
+             !set psi_out
+             DO im=1, m
+                psi_out(ig,im) = psi_out(ig,im) + &
+                     comm_recv_reverse(iproc+1,current_ik)%msg(i,im)
+             END DO
+
+          END DO
+
+       END IF
+    END DO
+
+    !now wait for everything to finish sending
+    !WRITE(6,*)'wait'
+    DO iproc=0, nproc_egrp-1
+       DO iegrp=1, negrp
+          IF ( comm_send_reverse(iproc+1,iegrp,current_ik)%size.gt.0 ) THEN
+             CALL MPI_WAIT(request_send(iproc+1,iegrp), istatus, ierr)
+          END IF
+       END DO
+    END DO
+
+    !WRITE(6,*)'end of deconstruct_for_exact2'
+
+    !WRITE(6,*)'LLL 1: '
+    !DO ig=1, npwx_local
+    !   WRITE(6,*)psi_out(ig,1)
+    !END DO
+    !WRITE(6,*)'LLL 33: '
+    !DO ig=1, npwx_local
+    !   WRITE(6,*)psi_out(ig,33)
+    !END DO
+
+  END SUBROUTINE deconstruct_for_exact2
 
 
 
