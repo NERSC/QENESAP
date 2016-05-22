@@ -3972,9 +3972,9 @@ MODULE exx
                sum( lda_local((j-1)*nproc_egrp+1:j*nproc_egrp,ik) ) )
        END DO
     END DO
-    WRITE(6,*)'lda_local:'
-    WRITE(6,*)lda_local
-    WRITE(6,*)'max_lda_egrp: ',max_lda_egrp
+    !WRITE(6,*)'lda_local:'
+    !WRITE(6,*)lda_local
+    !WRITE(6,*)'max_lda_egrp: ',max_lda_egrp
 
     !allocate( e2l_map(maxval(total_lda_egrp),nks,negrp) )
     allocate( e2l_map(max_lda_egrp,nks,negrp) )
@@ -4460,14 +4460,14 @@ MODULE exx
        END IF
     END DO
 
-    WRITE(6,*)'LLL 1: '
-    DO ig=1, npwx_local
-       WRITE(6,*)psi_out(ig,1)
-    END DO
-    WRITE(6,*)'LLL 33: '
-    DO ig=1, npwx_local
-       WRITE(6,*)psi_out(ig,33)
-    END DO
+    !WRITE(6,*)'LLL 1: '
+    !DO ig=1, npwx_local
+    !   WRITE(6,*)psi_out(ig,1)
+    !END DO
+    !WRITE(6,*)'LLL 33: '
+    !DO ig=1, npwx_local
+    !   WRITE(6,*)psi_out(ig,33)
+    !END DO
 
 
   END SUBROUTINE deconstruct_for_exact
@@ -4987,6 +4987,7 @@ MODULE exx
     INTEGER, EXTERNAL :: find_current_k
     
     !WRITE(6,*)'start of deconstruct_for_exact2'
+    !WRITE(6,*)'m: ',m
     !!!!!!!!!!!!!!!!!!!
     !psi_out = 0._DP
     !!!!!!!!!!!!!!!!!!!
@@ -4999,6 +5000,7 @@ MODULE exx
 
     !send communication packets
     !WRITE(6,*)'sending comm packets'
+    IF ( iexx_istart(my_egrp_id+1).gt.0 ) THEN
     DO iegrp=1, negrp
     DO iproc=0, nproc_egrp-1
        IF ( comm_send_reverse(iproc+1,iegrp,current_ik)%size.gt.0) THEN
@@ -5031,10 +5033,13 @@ MODULE exx
        END IF
     END DO
     END DO
+    END IF
         
     !begin recieving the communication packets
     !WRITE(6,*)'receive comm packets'
     DO iegrp=1, negrp
+
+       IF ( iexx_istart(iegrp).le.0 ) CYCLE
 
        recv_bands = iexx_iend(iegrp) - iexx_istart(iegrp) + 1
 
@@ -5064,6 +5069,7 @@ MODULE exx
        IF ( comm_recv_reverse(iproc+1,current_ik)%size.gt.0 ) THEN
           
           DO iegrp=1, negrp
+             IF ( iexx_istart(iegrp).le.0 ) CYCLE
              !WRITE(6,*)'   wating for: ',iegrp,iproc
              CALL MPI_WAIT(request_recv(iproc+1,iegrp), istatus, ierr)
           END DO
@@ -5084,6 +5090,7 @@ MODULE exx
 
     !now wait for everything to finish sending
     !WRITE(6,*)'wait'
+    IF ( iexx_istart(my_egrp_id+1) ) THEN
     DO iproc=0, nproc_egrp-1
        DO iegrp=1, negrp
           IF ( comm_send_reverse(iproc+1,iegrp,current_ik)%size.gt.0 ) THEN
@@ -5091,6 +5098,7 @@ MODULE exx
           END IF
        END DO
     END DO
+    END IF
 
     !WRITE(6,*)'end of deconstruct_for_exact2'
 
