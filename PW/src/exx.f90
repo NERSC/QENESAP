@@ -5018,7 +5018,8 @@ MODULE exx
           END DO
 
           !send the message
-          tag = 100+(iproc+(iegrp-1)*nproc_egrp)*nproc_pool+me_pool
+          tag = 0
+          !tag = 100+(iproc+(iegrp-1)*nproc_egrp)*nproc_pool+me_pool
           !WRITE(6,*)'sending: ',tag-100
           !WRITE(6,*)'   size: ',comm_send_reverse(iproc+1,iegrp,current_ik)%size,my_bands
           !WRITE(6,*)'   destp: ',iproc
@@ -5047,7 +5048,8 @@ MODULE exx
           IF ( comm_recv_reverse(iproc+1,current_ik)%size.gt.0) THEN
 
              !recieve the message
-             tag = 100+me_pool*nproc_pool+iproc+(iegrp-1)*nproc_egrp
+             tag = 0
+             !tag = 100+me_pool*nproc_pool+iproc+(iegrp-1)*nproc_egrp
              !WRITE(6,*)'recieving: ',tag-100
              !WRITE(6,*)'   size: ',comm_recv_reverse(iproc+1,current_ik)%size,recv_bands
              !WRITE(6,*)'   sendp: ',iproc
