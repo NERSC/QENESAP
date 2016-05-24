@@ -1209,6 +1209,8 @@ MODULE exx
     ! ... output:
     ! ...    hpsi  V_x*psi
     !
+    USE mp,             ONLY : mp_abort
+    USE mp_world,       ONLY : mpime, world_comm
     USE becmod,         ONLY : bec_type
     USE control_flags,  ONLY : gamma_only
     USE uspp,           ONLY : okvan
@@ -1251,6 +1253,10 @@ MODULE exx
     !
     CALL stop_clock ('vexx')
     !
+    ! EXIT THE CODE HERE
+    CALL print_clock_pw()
+    CALL mp_abort ( 1, world_comm )
+    STOP 1
     !-----------------------------------------------------------------------
   END SUBROUTINE vexx
   !-----------------------------------------------------------------------
