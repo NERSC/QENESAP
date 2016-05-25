@@ -158,8 +158,8 @@ SUBROUTINE iosys()
                             smallmem
   USE control_flags, ONLY: scf_must_converge_ => scf_must_converge
   !
-  USE wvfct,         ONLY : nbnd_ => nbnd, &
-                            ecfixed_ => ecfixed, &
+  USE wvfct,         ONLY : nbnd_ => nbnd
+  USE gvecw,         ONLY : ecfixed_ => ecfixed, &
                             qcutz_   => qcutz, &
                             q2sigma_ => q2sigma
   !
@@ -174,6 +174,7 @@ SUBROUTINE iosys()
                                report_    => report
   !
   USE spin_orb, ONLY : lspinorb_ => lspinorb,  &
+                       lforcet_ => lforcet,    &
                        starting_spin_angle_ => starting_spin_angle
 
   !
@@ -234,8 +235,9 @@ SUBROUTINE iosys()
                                B_field, fixed_magnetization, report, lspinorb,&
                                starting_spin_angle, assume_isolated,spline_ps,&
                                vdw_corr, london, london_s6, london_rcut, london_c6, &
+                               london_rvdw, &
                                ts_vdw, ts_vdw_isolated, ts_vdw_econv_thr,     &
-                               xdm, xdm_a1, xdm_a2,                           &
+                               xdm, xdm_a1, xdm_a2, lforcet,                  &
                                one_atom_occupations,                          &
                                esm_bc, esm_efield, esm_w, esm_nfit, esm_a,    &
                                lfcpopt, lfcpdyn, fcp_mu, fcp_mass, fcp_tempw, & 
@@ -282,16 +284,31 @@ SUBROUTINE iosys()
   !
   USE constraints_module,    ONLY : init_constraint
   USE read_namelists_module, ONLY : read_namelists, sm_not_set
-  USE london_module,         ONLY : init_london, lon_rcut, scal6, in_c6
+  USE london_module,         ONLY : init_london, lon_rcut, scal6, in_c6, in_rvdw
   USE xdm_module,            ONLY : init_xdm, a1i, a2i
   USE tsvdw_module,          ONLY : vdw_isolated, vdw_econv_thr
   USE us,                    ONLY : spline_ps_ => spline_ps
   !
   USE input_parameters,      ONLY : deallocate_input_parameters
   USE wyckoff,               ONLY : nattot, sup_spacegroup
+#ifdef __XSD
+  USE qexsd_module,          ONLY : input
+  USE qes_types_module,      ONLY: input_type
+  ! 
+  IMPLICIT NONE
+  !
+  INTERFACE  
+     SUBROUTINE   pw_init_qexsd_input(obj,obj_tagname)
+     IMPORT                       :: input_type
+     TYPE(input_type)             :: obj
+     CHARACTER(LEN=*),INTENT(IN)  :: obj_tagname
+     END SUBROUTINE
+  END INTERFACE
+#else
   !
   IMPLICIT NONE
   !
+#endif
   CHARACTER(LEN=256), EXTERNAL :: trimcheck
   INTEGER, EXTERNAL :: read_config_from_file
   !
@@ -753,6 +770,7 @@ SUBROUTINE iosys()
      !
   ENDIF
   !
+
   SELECT CASE( trim( restart_mode ) )
   CASE( 'from_scratch' )
      !
@@ -1105,6 +1123,7 @@ SUBROUTINE iosys()
   tot_magnetization_ = tot_magnetization
   !
   lspinorb_ = lspinorb
+  lforcet_ = lforcet
   starting_spin_angle_ = starting_spin_angle
   noncolin_ = noncolin
   angle1_   = angle1
@@ -1215,6 +1234,7 @@ SUBROUTINE iosys()
      lon_rcut    = london_rcut
      scal6       = london_s6
      in_c6(:)    = london_c6(:)
+     in_rvdw(:)  = london_rvdw(:)
   END IF
   IF ( lxdm ) THEN
      a1i = xdm_a1
@@ -1236,7 +1256,6 @@ SUBROUTINE iosys()
      IF (space_group==0) &
         CALL errore('input','The option crystal_sg requires the space group &
                                                    &number',1 )
-        
      CALL sup_spacegroup(rd_pos,sp_pos,rd_for,rd_if_pos,space_group,nat,&
               uniqueb,rhombohedral,origin_choice,ibrav_sg)
      IF (ibrav==-1) THEN
@@ -1370,16 +1389,16 @@ SUBROUTINE iosys()
      wfc_dir = tmp_dir
   ENDIF
   !
-!   IF ( lmovecell ) THEN
   at_old    = at
   omega_old = omega
-!   ENDIF
   !
   ! ... Read atomic positions and unit cell from data file, if needed,
   ! ... overwriting what has just been read before from input
   !
   ierr = 1
-  IF ( startingconfig == 'file' )   ierr = read_config_from_file(nat, at_old,omega_old, lmovecell, at, bg, omega, tau)
+  IF ( startingconfig == 'file' .AND. .NOT. lforcet ) &
+     ierr = read_config_from_file(nat, at_old, omega_old, lmovecell, &
+                                       at, bg, omega, tau)
   !
   ! ... read_config_from_file returns 0 if structure successfully read
   ! ... Atomic positions (tau) must be converted to internal units
@@ -1519,6 +1538,9 @@ SUBROUTINE iosys()
   !
   ! ... End of reading input parameters
   !
+#ifdef __XSD
+  CALL pw_init_qexsd_input(input,obj_tagname="input")
+#endif 
   CALL deallocate_input_parameters ()  
   !
   ! ... Initialize temporary directory(-ies)
@@ -1548,7 +1570,7 @@ SUBROUTINE set_cutoff ( ecutwfc_in, ecutrho_in, ecutwfc_pp, ecutrho_pp )
   USE kinds, ONLY : dp
   USE gvecs, ONLY : dual
   USE gvect, ONLY : ecutrho
-  USE wvfct, ONLY : ecutwfc
+  USE gvecw, ONLY : ecutwfc
   !
   IMPLICIT NONE
   REAL(dp), INTENT(INOUT) :: ecutwfc_in, ecutrho_in

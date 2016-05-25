@@ -7,7 +7,7 @@
 !
 !
 !-----------------------------------------------------------------------
-subroutine allocate_nlpot
+SUBROUTINE allocate_nlpot
   !-----------------------------------------------------------------------
   !
   ! This routine computes the dimension of the Hamiltonian matrix and
@@ -15,22 +15,21 @@ subroutine allocate_nlpot
   !
   ! It computes the following global quantities:
   !
-  !     ngk           !  number of plane waves (for each k point)
   !     npwx          !  maximum number of plane waves
   !     nqx           !  number of points of the interpolation table
   !     nqxq          !  as above, for q-function interpolation table
   !
   !
   USE ions_base,        ONLY : nat, nsp, ityp
-  USE cell_base,        ONLY : tpiba2
   USE cellmd,           ONLY : cell_factor
   USE gvect,            ONLY : ngm, gcutm, g
-  USE klist,            ONLY : xk, wk, ngk, nks, qnorm
+  USE klist,            ONLY : xk, wk, nks, qnorm
   USE lsda_mod,         ONLY : nspin
   USE ldaU,             ONLY : Hubbard_lmax
   USE scf,              ONLY : rho
   USE noncollin_module, ONLY : noncolin
-  USE wvfct,            ONLY : npwx, npw, igk, g2kin, ecutwfc
+  USE wvfct,            ONLY : npwx, npw, igk, g2kin
+  USE gvecw,            ONLY : gcutw, ecutwfc
   USE us,               ONLY : qrad, tab, tab_d2y, tab_at, dq, nqx, &
                                nqxq, spline_ps
   USE uspp,             ONLY : indv, nhtol, nhtolm, ijtoh, qq, dvan, deeq, &
@@ -40,82 +39,73 @@ subroutine allocate_nlpot
   USE spin_orb,         ONLY : lspinorb, fcoef
   USE control_flags,    ONLY : program_name
   USE io_global,        ONLY : stdout
-  USE exx,              ONLY : exx_n_plane_waves
   !
-  implicit none
+  IMPLICIT NONE
   !
-  !    a few local variables
-  !
-  integer :: nwfcm
-  integer,allocatable :: ngkq(:)
-  ! counters on atom type, atoms, beta functions
+  INTEGER, EXTERNAL :: n_plane_waves
+  INTEGER :: nwfcm
   !
   !   calculate number of PWs for all kpoints
   !
-  allocate (ngk( nks ))
-  !
-  call n_plane_waves (ecutwfc, tpiba2, nks, xk, g, ngm, npwx, ngk)
-  !
-  ! more plane waves are required in the exx case (only with ultrasoft)
-  call exx_n_plane_waves (ecutwfc, tpiba2, g, ngm, npwx)
+  npwx = n_plane_waves (gcutw, nks, xk, g, ngm)
   !
   !   igk relates the index of PW k+G to index in the list of G vector
   !
-  allocate (igk( npwx ), g2kin ( npwx ) )    
+  ALLOCATE (igk( npwx ), g2kin ( npwx ) )
   !
   ! Note: computation of the number of beta functions for
   ! each atomic type and the maximum number of beta functions
   ! and the number of beta functions of the solid has been
   ! moved to init_run.f90 : pre_init()
   !
-  allocate (indv( nhm, nsp))    
-  allocate (nhtol(nhm, nsp))    
-  allocate (nhtolm(nhm, nsp))    
-  allocate (nhtoj(nhm, nsp))    
-  allocate (ijtoh(nhm, nhm, nsp))
-  allocate (indv_ijkb0(nat))
-  allocate (deeq( nhm, nhm, nat, nspin))    
-  if (noncolin) then
-     allocate (deeq_nc( nhm, nhm, nat, nspin))    
-  endif
-  allocate (qq(   nhm, nhm, nsp))    
-  if (lspinorb) then
-    allocate (qq_so(nhm, nhm, 4, nsp))    
-    allocate (dvan_so( nhm, nhm, nspin, nsp))    
-    allocate (fcoef(nhm,nhm,2,2,nsp))
-  else
-    allocate (dvan( nhm, nhm, nsp))    
-  endif
+  ALLOCATE (indv( nhm, nsp))
+  ALLOCATE (nhtol(nhm, nsp))
+  ALLOCATE (nhtolm(nhm, nsp))
+  ALLOCATE (nhtoj(nhm, nsp))
+  ALLOCATE (ijtoh(nhm, nhm, nsp))
+  ALLOCATE (indv_ijkb0(nat))
+  ALLOCATE (deeq( nhm, nhm, nat, nspin))
+  IF (noncolin) THEN
+     ALLOCATE (deeq_nc( nhm, nhm, nat, nspin))
+  ENDIF
+  ALLOCATE (qq(   nhm, nhm, nsp))
+  IF (lspinorb) THEN
+    ALLOCATE (qq_so(nhm, nhm, 4, nsp))
+    ALLOCATE (dvan_so( nhm, nhm, nspin, nsp))
+    ALLOCATE (fcoef(nhm,nhm,2,2,nsp))
+  ELSE
+    ALLOCATE (dvan( nhm, nhm, nsp))
+  ENDIF
   ! GIPAW needs a slighly larger q-space interpolation for quantities calculated
   ! at k+q_gipaw
-  if (trim(program_name) == 'GIPAW') then
-    if (cell_factor == 1.d0) cell_factor = 1.1d0
-    write(stdout,"(5X,'q-space interpolation up to ',F8.2,' Rydberg')") ecutwfc*cell_factor
-  endif
+  IF (trim(program_name) == 'GIPAW') THEN
+    IF (cell_factor == 1.d0) cell_factor = 1.1d0
+    WRITE(stdout,"(5X,'q-space interpolation up to ',F8.2,' Rydberg')") ecutwfc*cell_factor
+  ENDIF
   !
   ! This routine is called also by the phonon code, in which case it should
   ! allocate an array that includes q+G vectors up to |q+G|_max <= |Gmax|+|q|
   !
-  nqxq = INT( ( (sqrt(gcutm) + qnorm) / dq + 4) * cell_factor )
+  nqxq = int( ( (sqrt(gcutm) + qnorm) / dq + 4) * cell_factor )
   lmaxq = 2*lmaxkb+1
   !
-  if (lmaxq > 0) allocate (qrad( nqxq, nbetam*(nbetam+1)/2, lmaxq, nsp))    
-  allocate (vkb( npwx,  nkb))    
-  allocate (becsum( nhm * (nhm + 1)/2, nat, nspin))    
+  IF (lmaxq > 0) ALLOCATE (qrad( nqxq, nbetam*(nbetam+1)/2, lmaxq, nsp))
+  ALLOCATE (vkb( npwx,  nkb))
+  ALLOCATE (becsum( nhm * (nhm + 1)/2, nat, nspin))
   !
   ! Calculate dimensions for array tab (including a possible factor
   ! coming from cell contraction during variable cell relaxation/MD)
   !
-  nqx = INT( (sqrt (ecutwfc) / dq + 4) * cell_factor )
+  nqx = int( (sqrt (ecutwfc) / dq + 4) * cell_factor )
 
-  allocate (tab( nqx , nbetam , nsp))
+  ALLOCATE (tab( nqx , nbetam , nsp))
 
   ! d2y is for the cubic splines
-  if (spline_ps) allocate (tab_d2y( nqx , nbetam , nsp))
+  IF (spline_ps) ALLOCATE (tab_d2y( nqx , nbetam , nsp))
 
-  nwfcm = MAXVAL ( upf(1:nsp)%nwfc )
-  allocate (tab_at( nqx , nwfcm , nsp))
+  nwfcm = maxval ( upf(1:nsp)%nwfc )
+  ALLOCATE (tab_at( nqx , nwfcm , nsp))
 
-  return
-end subroutine allocate_nlpot
+  RETURN
+END SUBROUTINE allocate_nlpot
 

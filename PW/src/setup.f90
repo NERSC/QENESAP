@@ -1,5 +1,5 @@
 !
-! Copyright (C) 2001-2011 Quantum ESPRESSO group
+! Copyright (C) 2001-2016 Quantum ESPRESSO group
 ! This file is distributed under the terms of the
 ! GNU General Public License. See the file `License'
 ! in the root directory of the present distribution,
@@ -42,6 +42,7 @@ SUBROUTINE setup()
   USE ions_base,          ONLY : nat, tau, ntyp => nsp, ityp, zv
   USE basis,              ONLY : starting_pot, natomwfc
   USE gvect,              ONLY : gcutm, ecutrho
+  USE gvecw,              ONLY : gcutw, ecutwfc
   USE fft_base,           ONLY : dfftp
   USE fft_base,           ONLY : dffts
   USE grid_subroutines,   ONLY : realspace_grid_init
@@ -59,16 +60,18 @@ SUBROUTINE setup()
   USE ktetra,             ONLY : tetra, ntetra, ltetra
   USE symm_base,          ONLY : s, t_rev, irt, nrot, nsym, invsym, nosym, &
                                  d1,d2,d3, time_reversal, sname, set_sym_bl, &
-                                 find_sym, inverse_s, no_t_rev
-  USE wvfct,              ONLY : nbnd, nbndx, ecutwfc
+                                 find_sym, inverse_s, no_t_rev, allfrac
+  USE wvfct,              ONLY : nbnd, nbndx
   USE control_flags,      ONLY : tr2, ethr, lscf, lmd, david, lecrpa,  &
-                                 isolve, niter, noinv, ts_vdw, &
-                                 lbands, use_para_diag, gamma_only
+                                 isolve, niter, noinv, ts_vdw, tqr, &
+                                 lbands, use_para_diag, gamma_only, &
+                                 restart
   USE cellmd,             ONLY : calc
   USE uspp_param,         ONLY : upf, n_atom_wfc
   USE uspp,               ONLY : okvan
   USE ldaU,               ONLY : lda_plus_u, init_lda_plus_u
-  USE bp,                 ONLY : gdir, lberry, nppstr, lelfield, lorbm, nx_el, nppstr_3d,l3dstring, efield, lcalc_z2
+  USE bp,                 ONLY : gdir, lberry, nppstr, lelfield, lorbm, nx_el,&
+                                 nppstr_3d,l3dstring, efield, lcalc_z2
   USE fixed_occ,          ONLY : f_inp, tfixed_occ, one_atom_occupations
   USE funct,              ONLY : set_dft_from_name
   USE mp_pools,           ONLY : kunit
@@ -80,7 +83,6 @@ SUBROUTINE setup()
   USE exx,                ONLY : ecutfock, exx_grid_init, exx_div_check
   USE funct,              ONLY : dft_is_meta, dft_is_hybrid, dft_is_gradient
   USE paw_variables,      ONLY : okpaw
-  USE control_flags,      ONLY : restart
   USE fcp_variables,      ONLY : lfcpopt, lfcpdyn
   !
   IMPLICIT NONE
@@ -110,6 +112,8 @@ SUBROUTINE setup()
   END IF
 
   IF ( dft_is_hybrid() ) THEN
+     IF ( allfrac ) CALL errore( 'setup ', &
+                         'option use_all_frac incompatible with hybrid XC', 1 )
      IF (.NOT. lscf) CALL errore( 'setup ', &
                          'hybrid XC not allowed in non-scf calculations', 1 )
      IF ( ANY (upf(1:ntyp)%nlcc) ) CALL infomsg( 'setup ', 'BEWARE:' // &
@@ -386,6 +390,7 @@ SUBROUTINE setup()
   IF ( doublegrid .AND. (.NOT.okvan .AND. .not.okpaw) ) &
      CALL infomsg ( 'setup', 'no reason to have ecutrho>4*ecutwfc' )
   gcutm = dual * ecutwfc / tpiba2
+  gcutw = ecutwfc / tpiba2
   !
   IF ( doublegrid ) THEN
      !

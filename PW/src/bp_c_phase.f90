@@ -157,15 +157,15 @@ SUBROUTINE c_phase
    USE io_files,             ONLY : iunwfc, nwordwfc
    USE buffers,              ONLY : get_buffer
    USE ions_base,            ONLY : nat, ntyp => nsp, ityp, tau, zv, atm
-   USE cell_base,            ONLY : at, alat, tpiba, omega, tpiba2
+   USE cell_base,            ONLY : at, alat, tpiba, omega
    USE constants,            ONLY : pi, tpi
    USE gvect,                ONLY : ngm, g, gcutm, ngm_g, ig_l2g
    USE fft_base,             ONLY : dfftp
    USE uspp,                 ONLY : nkb, vkb, okvan
    USE uspp_param,           ONLY : upf, lmaxq, nbetam, nh, nhm
    USE lsda_mod,             ONLY : nspin
-   USE klist,                ONLY : nelec, degauss, nks, xk, wk
-   USE wvfct,                ONLY : npwx, npw, nbnd, ecutwfc, wg
+   USE klist,                ONLY : nelec, degauss, nks, xk, wk, igk_k, ngk
+   USE wvfct,                ONLY : npwx, nbnd, wg
    USE wavefunctions_module, ONLY : evc
    USE bp,                   ONLY : gdir, nppstr, mapgm_global, pdl_tot
    USE becmod,               ONLY : calbec, bec_type, allocate_bec_type, &
@@ -174,7 +174,9 @@ SUBROUTINE c_phase
    USE spin_orb,             ONLY : lspinorb
    USE mp_bands,             ONLY : intra_bgrp_comm, nproc_bgrp
    USE mp,                   ONLY : mp_sum
-
+#ifdef __XSD
+   USE qexsd_module,         ONLY : qexsd_init_berryPhaseOutput, qexsd_bp_obj
+#endif
 !  --- Avoid implicit definitions ---
    IMPLICIT NONE
 
@@ -238,7 +240,6 @@ SUBROUTINE c_phase
    REAL(DP) :: el_loc
    REAL(DP) :: eps
    REAL(DP) :: fac
-   REAL(DP) :: g2kin_bp(npwx)
    REAL(DP) :: gpar(3)
    REAL(DP) :: gtr(3)
    REAL(DP) :: gvec
@@ -474,8 +475,8 @@ SUBROUTINE c_phase
             IF (kpar /= 1) THEN
 
 !              --- Dot wavefunctions and betas for PREVIOUS k-point ---
-               CALL gk_sort(xk(1,kpoint-1),ngm,g,ecutwfc/tpiba2, &
-                            npw0,igk0,g2kin_bp) 
+               npw0 = ngk(kpoint-1)
+               igk0(:) = igk_k(:,kpoint-1)
                CALL get_buffer (psi,nwordwfc,iunwfc,kpoint-1)
                if (okvan) then
                   CALL init_us_2 (npw0,igk0,xk(1,kpoint-1),vkb)
@@ -483,8 +484,8 @@ SUBROUTINE c_phase
                endif
 !              --- Dot wavefunctions and betas for CURRENT k-point ---
                IF (kpar /= nppstr) THEN
-                  CALL gk_sort(xk(1,kpoint),ngm,g,ecutwfc/tpiba2, &
-                               npw1,igk1,g2kin_bp)        
+                  npw1 = ngk(kpoint)
+                  igk1(:) = igk_k(:,kpoint)
                   CALL get_buffer(evc,nwordwfc,iunwfc,kpoint)
                   if (okvan) then
                      CALL init_us_2 (npw1,igk1,xk(1,kpoint),vkb)
@@ -492,8 +493,8 @@ SUBROUTINE c_phase
                   endif
                ELSE
                   kstart = kpoint-nppstr+1
-                  CALL gk_sort(xk(1,kstart),ngm,g,ecutwfc/tpiba2, &
-                               npw1,igk1,g2kin_bp)  
+                  npw1 = ngk(kstart)
+                  igk1(:) = igk_k(:,kstart)
                   CALL get_buffer(evc,nwordwfc,iunwfc,kstart)
                   if (okvan) then
                      CALL init_us_2 (npw1,igk1,xk(1,kstart),vkb)
@@ -955,7 +956,17 @@ SUBROUTINE c_phase
 
 !  --- End of information relative to polarization calculation ---
    WRITE( stdout,"(/,/,15X,50('=')/,/)")
-
+!------------------------------------------------------------------------------
+!                            INITIALIZE  QEXSD OUTPUT ELEMENT
+! Here we write all output information in a berry_phase_type variable to print
+! them in the XML output  P.D. april 2016
+!------------------------------------------------------------------------------
+#ifdef __XSD
+  CALL qexsd_init_berryPhaseOutput(qexsd_bp_obj, gpar, gvec, nppstr, nkort, xk, pdl_ion, mod_ion,  &
+                                  pdl_ion_tot, mod_ion_tot, nstring, pdl_elec , mod_elec, wstring, &
+                                  pdl_elec_up, mod_elec_up, pdl_elec_dw, mod_elec_dw, pdl_elec_tot,&
+                                  mod_elec_tot, pdl_tot, mod_tot, upol, rmod)
+#endif                                   
 !  -------------------------------------------------------------------------   !
 !                                  finalization                                !
 !  -------------------------------------------------------------------------   !

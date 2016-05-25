@@ -286,12 +286,6 @@ PROGRAM pw2bgw
     'with real wavefunctions are not implemented, compute them in ' // &
     'Sigma using VXC.', 7)
 
-  ! this is needed to compute igk and store in iunigk
-  ! cannot use gk_sort because for some k-points
-  ! gk_sort generates different igk on every call
-  CALL openfil ( )
-  CALL hinit0 ( )
-
   CALL openfil_pp ( )
 
   if ( ionode ) WRITE ( 6, '("")' )
@@ -419,11 +413,11 @@ SUBROUTINE write_wfng ( output_file_name, real_or_complex, symm_type, &
   USE constants, ONLY : pi, tpi, eps6
   USE fft_base, ONLY : dfftp
   USE gvect, ONLY : ngm, ngm_g, ig_l2g, g, mill, ecutrho
-  USE io_files, ONLY : iunwfc, nwordwfc, iunigk
+  USE io_files, ONLY : iunwfc, nwordwfc
   USE io_global, ONLY : ionode, ionode_id
   USE ions_base, ONLY : nat, atm, ityp, tau
   USE kinds, ONLY : DP
-  USE klist, ONLY : xk, wk, ngk, nks, nkstot
+  USE klist, ONLY : xk, wk, ngk, nks, nkstot, igk_k
   USE lsda_mod, ONLY : nspin, isk
   USE mp, ONLY : mp_sum, mp_max, mp_get, mp_bcast, mp_barrier
   USE mp_pools, ONLY : kunit, me_pool, &
@@ -433,7 +427,9 @@ SUBROUTINE write_wfng ( output_file_name, real_or_complex, symm_type, &
   USE start_k, ONLY : nk1, nk2, nk3, k1, k2, k3
   USE symm_base, ONLY : s, ftau, nsym
   USE wavefunctions_module, ONLY : evc
-  USE wvfct, ONLY : npwx, nbnd, npw, et, wg, g2kin, ecutwfc, igk
+  USE wvfct, ONLY : npwx, nbnd, npw, et, wg
+  USE gvecw, ONLY : ecutwfc
+  USE matrix_inversion
 #ifdef __MPI
   USE parallel_include, ONLY : MPI_DOUBLE_COMPLEX
 #endif
@@ -461,7 +457,7 @@ SUBROUTINE write_wfng ( output_file_name, real_or_complex, symm_type, &
   integer :: nd, ntran, nb, nk_l, nk_g, ns, ng_l, ng_g
   integer :: nkbl, nkl, nkr, ngg, npw_g, npwx_g
   integer :: local_pw, ipsour, igwx, ngkdist_g, ngkdist_l
-  real (DP) :: alat2, recvol, dr1, t1 ( 3 ), t2 ( 3 )
+  real (DP) :: alat2, recvol, t1 ( 3 ), t2 ( 3 )
   real (DP) :: r1 ( 3, 3 ), r2 ( 3, 3 ), adot ( 3, 3 )
   real (DP) :: bdot ( 3, 3 ), translation ( 3, 48 )
   integer, allocatable :: kmap ( : )
@@ -609,7 +605,7 @@ SUBROUTINE write_wfng ( output_file_name, real_or_complex, symm_type, &
         r1 ( k, j ) = dble ( s ( k, j, i ) )
       ENDDO
     ENDDO
-    CALL invmat ( 3, r1, r2, dr1 )
+    CALL invmat ( 3, r1, r2 )
     t1 ( 1 ) = dble ( ftau ( 1, i ) ) / dble ( dfftp%nr1 )
     t1 ( 2 ) = dble ( ftau ( 2, i ) ) / dble ( dfftp%nr2 )
     t1 ( 3 ) = dble ( ftau ( 3, i ) ) / dble ( dfftp%nr3 )
@@ -711,12 +707,10 @@ SUBROUTINE write_wfng ( output_file_name, real_or_complex, symm_type, &
 
   ALLOCATE ( igk_l2g ( npwx, nk_l ) )
 
-  IF ( nk_l > 1 ) REWIND ( iunigk )
   DO ik = 1, nk_l
-    IF ( nk_l > 1 ) READ ( iunigk ) igk
     npw = ngk ( ik )
     DO ig = 1, npw
-      igk_l2g ( ig, ik ) = ig_l2g ( igk ( ig ) )
+      igk_l2g ( ig, ik ) = ig_l2g ( igk_k (ig, ik) )
     ENDDO
     DO ig = npw + 1, npwx
       igk_l2g ( ig, ik ) = 0
@@ -1233,6 +1227,7 @@ SUBROUTINE write_rhog ( output_file_name, real_or_complex, symm_type, &
   USE mp_pools, ONLY : intra_pool_comm
   USE scf, ONLY : rho
   USE symm_base, ONLY : s, ftau, nsym
+  USE matrix_inversion
 
   IMPLICIT NONE
 
@@ -1246,7 +1241,7 @@ SUBROUTINE write_rhog ( output_file_name, real_or_complex, symm_type, &
   integer :: unit, id, is, ig, i, j, k, ierr
   integer :: nd, ns, ng_l, ng_g
   integer :: ntran, cell_symmetry, nrecord
-  real (DP) :: alat2, recvol, dr1, t1 ( 3 ), t2 ( 3 )
+  real (DP) :: alat2, recvol, t1 ( 3 ), t2 ( 3 )
   real (DP) :: r1 ( 3, 3 ), r2 ( 3, 3 ), adot ( 3, 3 )
   real (DP) :: bdot ( 3, 3 ), translation ( 3, 48 )
   integer, allocatable :: g_g ( :, : )
@@ -1299,7 +1294,7 @@ SUBROUTINE write_rhog ( output_file_name, real_or_complex, symm_type, &
         r1 ( k, j ) = dble ( s ( k, j, i ) )
       ENDDO
     ENDDO
-    CALL invmat ( 3, r1, r2, dr1 )
+    CALL invmat ( 3, r1, r2 )
     t1 ( 1 ) = dble ( ftau ( 1, i ) ) / dble ( dfftp%nr1 )
     t1 ( 2 ) = dble ( ftau ( 2, i ) ) / dble ( dfftp%nr2 )
     t1 ( 3 ) = dble ( ftau ( 3, i ) ) / dble ( dfftp%nr3 )
@@ -1434,8 +1429,8 @@ SUBROUTINE calc_rhog (rhog_nvmin, rhog_nvmax)
   USE fft_base, ONLY : dfftp
   USE fft_interfaces, ONLY : fwfft, invfft
   USE gvect, ONLY : ngm, g, nl
-  USE io_files, ONLY : nwordwfc, iunwfc, iunigk
-  USE klist, ONLY : xk, nkstot, ngk, nks
+  USE io_files, ONLY : nwordwfc, iunwfc
+  USE klist, ONLY : xk, nkstot, ngk, nks, igk_k
   USE lsda_mod, ONLY : nspin, isk
   USE mp, ONLY : mp_sum
   USE mp_world, ONLY : world_comm
@@ -1444,7 +1439,7 @@ SUBROUTINE calc_rhog (rhog_nvmin, rhog_nvmax)
   USE scf, ONLY : rho
   USE symme, ONLY : sym_rho, sym_rho_init
   USE wavefunctions_module, ONLY : evc, psic
-  USE wvfct, ONLY : npw, igk, wg, g2kin, ecutwfc
+  USE wvfct, ONLY : npw, wg
 
   IMPLICIT NONE
 
@@ -1466,16 +1461,14 @@ SUBROUTINE calc_rhog (rhog_nvmin, rhog_nvmax)
   rho%of_r (:, :) = 0.0D0
 
   ! take psi to R-space, compute rho in R-space
-  IF ( nks > 1 ) REWIND ( iunigk )
   DO ik = iks, ike
     is = isk (ik)
-    IF ( nks > 1 ) READ ( iunigk ) igk
     npw = ngk ( ik - iks + 1 )
     CALL davcio (evc, 2*nwordwfc, iunwfc, ik - iks + 1, -1)
     DO ib = rhog_nvmin, rhog_nvmax
       psic (:) = (0.0D0, 0.0D0)
       DO ig = 1, npw
-        psic (nl (igk (ig))) = evc (ig, ib)
+        psic (nl (igk_k (ig, ik-iks+1))) = evc (ig, ib)
       ENDDO
       CALL invfft ('Dense', psic, dfftp)
       DO ir = 1, dfftp%nnr
@@ -1522,6 +1515,7 @@ SUBROUTINE write_vxcg ( output_file_name, real_or_complex, symm_type, &
   USE scf, ONLY : rho, rho_core, rhog_core
   USE symm_base, ONLY : s, ftau, nsym
   USE wavefunctions_module, ONLY : psic
+  USE matrix_inversion
 
   IMPLICIT NONE
 
@@ -1534,7 +1528,7 @@ SUBROUTINE write_vxcg ( output_file_name, real_or_complex, symm_type, &
   integer :: unit, id, is, ir, ig, i, j, k, ierr
   integer :: nd, ns, nr, ng_l, ng_g
   integer :: ntran, cell_symmetry, nrecord
-  real (DP) :: alat2, recvol, dr1, t1 ( 3 ), t2 ( 3 )
+  real (DP) :: alat2, recvol, t1 ( 3 ), t2 ( 3 )
   real (DP) :: r1 ( 3, 3 ), r2 ( 3, 3 ), adot ( 3, 3 )
   real (DP) :: bdot ( 3, 3 ), translation ( 3, 48 )
   integer, allocatable :: g_g ( :, : )
@@ -1589,7 +1583,7 @@ SUBROUTINE write_vxcg ( output_file_name, real_or_complex, symm_type, &
         r1 ( k, j ) = dble ( s ( k, j, i ) )
       ENDDO
     ENDDO
-    CALL invmat ( 3, r1, r2, dr1 )
+    CALL invmat ( 3, r1, r2 )
     t1 ( 1 ) = dble ( ftau ( 1, i ) ) / dble ( dfftp%nr1 )
     t1 ( 2 ) = dble ( ftau ( 2, i ) ) / dble ( dfftp%nr2 )
     t1 ( 3 ) = dble ( ftau ( 3, i ) ) / dble ( dfftp%nr3 )
@@ -1817,16 +1811,16 @@ SUBROUTINE write_vxc_r (output_file_name, diag_nmin, diag_nmax, &
   USE fft_base, ONLY : dfftp
   USE fft_interfaces, ONLY : invfft
   USE gvect, ONLY : ngm, g, nl
-  USE io_files, ONLY : nwordwfc, iunwfc, iunigk
+  USE io_files, ONLY : nwordwfc, iunwfc
   USE io_global, ONLY : ionode
-  USE klist, ONLY : xk, nkstot, nks, ngk
+  USE klist, ONLY : xk, nkstot, nks, ngk, igk_k
   USE lsda_mod, ONLY : nspin, isk
   USE mp, ONLY : mp_sum
   USE mp_pools, ONLY : kunit, my_pool_id, intra_pool_comm, &
     inter_pool_comm, npool
   USE scf, ONLY : rho, rho_core, rhog_core
   USE wavefunctions_module, ONLY : evc, psic
-  USE wvfct, ONLY : npw, nbnd, igk, g2kin, ecutwfc
+  USE wvfct, ONLY : npw, nbnd
 
   IMPLICIT NONE
 
@@ -1897,16 +1891,14 @@ SUBROUTINE write_vxc_r (output_file_name, diag_nmin, diag_nmax, &
   ENDIF
   CALL v_xc (rho, rho_core, rhog_core, etxc, vtxc, vxcr)
 
-  IF ( nks > 1 ) REWIND ( iunigk )
   DO ik = iks, ike
-    IF ( nks > 1 ) READ ( iunigk ) igk
     npw = ngk ( ik - iks + 1 )
     CALL davcio (evc, 2*nwordwfc, iunwfc, ik - iks + 1, -1)
     IF (ndiag .GT. 0) THEN
       DO ib = diag_nmin, diag_nmax
         psic (:) = (0.0D0, 0.0D0)
         DO ig = 1, npw
-          psic (nl (igk (ig))) = evc (ig, ib)
+          psic (nl (igk_k (ig,ik-iks+1))) = evc (ig, ib)
         ENDDO
         CALL invfft ('Dense', psic, dfftp)
         dummyr = 0.0D0
@@ -1923,13 +1915,13 @@ SUBROUTINE write_vxc_r (output_file_name, diag_nmin, diag_nmax, &
       DO ib = offdiag_nmin, offdiag_nmax
         psic (:) = (0.0D0, 0.0D0)
         DO ig = 1, npw
-          psic (nl (igk (ig))) = evc (ig, ib)
+          psic (nl (igk_k (ig,ik-iks+1))) = evc (ig, ib)
         ENDDO
         CALL invfft ('Dense', psic, dfftp)
         DO ib2 = offdiag_nmin, offdiag_nmax
           psic2 (:) = (0.0D0, 0.0D0)
           DO ig = 1, npw
-            psic2 (nl (igk (ig))) = evc (ig, ib2)
+            psic2 (nl (igk_k (ig,ik-iks+1))) = evc (ig, ib2)
           ENDDO
           CALL invfft ('Dense', psic2, dfftp)
           dummyc = (0.0D0, 0.0D0)
@@ -2009,17 +2001,17 @@ SUBROUTINE write_vxc_g (output_file_name, diag_nmin, diag_nmax, &
   USE fft_interfaces, ONLY : fwfft, invfft
   USE funct, ONLY : exx_is_active
   USE gvect, ONLY : ngm, g, nl
-  USE io_files, ONLY : nwordwfc, iunwfc, iunigk
+  USE io_files, ONLY : nwordwfc, iunwfc
   USE io_global, ONLY : ionode
   USE kinds, ONLY : DP
-  USE klist, ONLY : xk, nkstot, nks, ngk
+  USE klist, ONLY : xk, nkstot, nks, ngk, igk_k
   USE lsda_mod, ONLY : nspin, isk
   USE mp, ONLY : mp_sum
   USE mp_pools, ONLY : kunit, my_pool_id, intra_pool_comm, &
     inter_pool_comm, npool
   USE scf, ONLY : rho, rho_core, rhog_core
   USE wavefunctions_module, ONLY : evc, psic
-  USE wvfct, ONLY : npwx, npw, nbnd, igk, g2kin, ecutwfc
+  USE wvfct, ONLY : npwx, npw, nbnd, igk
 
   IMPLICIT NONE
 
@@ -2091,10 +2083,9 @@ SUBROUTINE write_vxc_g (output_file_name, diag_nmin, diag_nmax, &
   ENDIF
   CALL v_xc (rho, rho_core, rhog_core, etxc, vtxc, vxcr)
 
-  IF ( nks > 1 ) REWIND ( iunigk )
   DO ik = iks, ike
-    IF ( nks > 1 ) READ ( iunigk ) igk
     npw = ngk ( ik - iks + 1 )
+    igk(1:npw) = igk_k(1:npw, ik - iks + 1 ) ! used by vexx
     CALL davcio (evc, 2*nwordwfc, iunwfc, ik - iks + 1, -1)
     IF (ndiag .GT. 0) THEN
       DO ib = diag_nmin, diag_nmax
@@ -2232,6 +2223,7 @@ SUBROUTINE write_vscg ( output_file_name, real_or_complex, symm_type )
   USE scf, ONLY : vltot, v
   USE symm_base, ONLY : s, ftau, nsym
   USE wavefunctions_module, ONLY : psic
+  USE matrix_inversion
 
   IMPLICIT NONE
 
@@ -2243,7 +2235,7 @@ SUBROUTINE write_vscg ( output_file_name, real_or_complex, symm_type )
   integer :: unit, id, is, ir, ig, i, j, k, ierr
   integer :: nd, ns, nr, ng_l, ng_g
   integer :: ntran, cell_symmetry, nrecord
-  real (DP) :: alat2, recvol, dr1, t1 ( 3 ), t2 ( 3 )
+  real (DP) :: alat2, recvol, t1 ( 3 ), t2 ( 3 )
   real (DP) :: r1 ( 3, 3 ), r2 ( 3, 3 ), adot ( 3, 3 )
   real (DP) :: bdot ( 3, 3 ), translation ( 3, 48 )
   integer, allocatable :: g_g ( :, : )
@@ -2300,7 +2292,7 @@ SUBROUTINE write_vscg ( output_file_name, real_or_complex, symm_type )
         r1 ( k, j ) = dble ( s ( k, j, i ) )
       ENDDO
     ENDDO
-    CALL invmat ( 3, r1, r2, dr1 )
+    CALL invmat ( 3, r1, r2 )
     t1 ( 1 ) = dble ( ftau ( 1, i ) ) / dble ( dfftp%nr1 )
     t1 ( 2 ) = dble ( ftau ( 2, i ) ) / dble ( dfftp%nr2 )
     t1 ( 3 ) = dble ( ftau ( 3, i ) ) / dble ( dfftp%nr3 )
@@ -2431,11 +2423,10 @@ SUBROUTINE write_vkbg (output_file_name, symm_type, wfng_kgrid, &
   USE constants, ONLY : pi, tpi, eps6
   USE fft_base, ONLY : dfftp
   USE gvect, ONLY : ngm, ngm_g, ig_l2g, g, mill, ecutrho
-  USE io_files, ONLY : iunigk
   USE io_global, ONLY : ionode, ionode_id
   USE ions_base, ONLY : nat, atm, ityp, tau, nsp
   USE kinds, ONLY : DP
-  USE klist, ONLY : xk, wk, ngk, nks, nkstot
+  USE klist, ONLY : xk, wk, ngk, nks, nkstot, igk_k
   USE lsda_mod, ONLY : nspin, isk
   USE mp, ONLY : mp_sum, mp_max, mp_get, mp_barrier
   USE mp_world, ONLY : mpime, nproc, world_comm
@@ -2446,7 +2437,9 @@ SUBROUTINE write_vkbg (output_file_name, symm_type, wfng_kgrid, &
   USE symm_base, ONLY : s, ftau, nsym
   USE uspp, ONLY : nkb, vkb, deeq
   USE uspp_param, ONLY : nhm, nh
-  USE wvfct, ONLY : npwx, npw, g2kin, ecutwfc, igk
+  USE wvfct, ONLY : npwx, npw
+  USE gvecw, ONLY : ecutwfc
+  USE matrix_inversion
 
   IMPLICIT NONE
 
@@ -2464,7 +2457,7 @@ SUBROUTINE write_vkbg (output_file_name, symm_type, wfng_kgrid, &
   integer :: i, j, k, ierr, ik, is, ig, ikb, iat, isp, ih, jh, &
     unit, nkbl, nkl, nkr, iks, ike, npw_g, npwx_g, ngg, ipsour, &
     igwx, local_pw, id, nd, ntran, cell_symmetry, nrecord
-  real (DP) :: alat2, recvol, dr1, t1 ( 3 ), t2 ( 3 )
+  real (DP) :: alat2, recvol, t1 ( 3 ), t2 ( 3 )
   real (DP) :: r1 ( 3, 3 ), r2 ( 3, 3 ), adot ( 3, 3 )
   real (DP) :: bdot ( 3, 3 ), translation ( 3, 48 )
   integer, allocatable :: kmap ( : )
@@ -2529,7 +2522,7 @@ SUBROUTINE write_vkbg (output_file_name, symm_type, wfng_kgrid, &
         r1 ( k, j ) = dble ( s ( k, j, i ) )
       ENDDO
     ENDDO
-    CALL invmat ( 3, r1, r2, dr1 )
+    CALL invmat ( 3, r1, r2 )
     t1 ( 1 ) = dble ( ftau ( 1, i ) ) / dble ( dfftp%nr1 )
     t1 ( 2 ) = dble ( ftau ( 2, i ) ) / dble ( dfftp%nr2 )
     t1 ( 3 ) = dble ( ftau ( 3, i ) ) / dble ( dfftp%nr3 )
@@ -2612,12 +2605,10 @@ SUBROUTINE write_vkbg (output_file_name, symm_type, wfng_kgrid, &
   ALLOCATE ( igk_l2g ( npwx, nks ) )
   ngk_g = 0
   igk_l2g = 0
-  IF ( nks > 1 ) REWIND ( iunigk )
   DO ik = 1, nks
-    IF ( nks > 1 ) READ ( iunigk ) igk
     npw = ngk ( ik )
     DO ig = 1, npw
-      igk_l2g ( ig, ik ) = ig_l2g ( igk ( ig ) )
+      igk_l2g ( ig, ik ) = ig_l2g ( igk_k ( ig, ik ) )
     ENDDO
   ENDDO
   DO ik = 1, nks
@@ -2666,7 +2657,6 @@ SUBROUTINE write_vkbg (output_file_name, symm_type, wfng_kgrid, &
 
   ALLOCATE ( igwk ( npwx_g ) )
 
-  IF ( nks > 1 ) REWIND ( iunigk )
   DO i = 1, nkstot
 
     ik = kmap ( i )
@@ -2702,9 +2692,8 @@ SUBROUTINE write_vkbg (output_file_name, symm_type, wfng_kgrid, &
 
     local_pw = 0
     IF ( ik .GE. iks .AND. ik .LE. ike ) THEN
-      IF ( nks > 1 ) READ ( iunigk ) igk
       npw = ngk ( ik - iks + 1 )
-      CALL init_us_2 ( npw, igk, xk ( 1, ik ), vkb )
+      CALL init_us_2 ( npw, igk_k(1, ik-iks+1), xk ( 1, ik ), vkb )
       local_pw = npw
     ENDIF
 

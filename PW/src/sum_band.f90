@@ -22,20 +22,20 @@ SUBROUTINE sum_band()
   USE fft_interfaces,       ONLY : fwfft, invfft
   USE gvect,                ONLY : ngm, g, nl, nlm
   USE gvecs,                ONLY : nls, nlsm, doublegrid
-  USE klist,                ONLY : nks, nkstot, wk, xk, ngk
+  USE klist,                ONLY : nks, nkstot, wk, xk, ngk, igk_k
   USE fixed_occ,            ONLY : one_atom_occupations
   USE ldaU,                 ONLY : lda_plus_U
   USE lsda_mod,             ONLY : lsda, nspin, current_spin, isk
   USE scf,                  ONLY : rho
   USE symme,                ONLY : sym_rho
-  USE io_files,             ONLY : iunwfc, nwordwfc, iunigk
+  USE io_files,             ONLY : iunwfc, nwordwfc
   USE buffers,              ONLY : get_buffer
   USE uspp,                 ONLY : nkb, vkb, becsum, nhtol, nhtoj, indv, okvan
   USE uspp_param,           ONLY : upf, nh, nhm
   USE wavefunctions_module, ONLY : evc, psic, psic_nc
   USE noncollin_module,     ONLY : noncolin, npol, nspin_mag
   USE spin_orb,             ONLY : lspinorb, domag, fcoef
-  USE wvfct,                ONLY : nbnd, npwx, npw, igk, wg, et, btype
+  USE wvfct,                ONLY : nbnd, npwx, wg, et, btype
   USE mp_pools,             ONLY : inter_pool_comm
   USE mp_bands,             ONLY : inter_bgrp_comm, intra_bgrp_comm, set_bgrp_indices, nbgrp
   USE mp,                   ONLY : mp_sum
@@ -244,7 +244,7 @@ SUBROUTINE sum_band()
        !
        REAL(DP) :: w1, w2
          ! weights
-       INTEGER  :: idx, ioff, incr, v_siz, j
+       INTEGER  :: npw, idx, ioff, incr, v_siz, j
        COMPLEX(DP), ALLOCATABLE :: tg_psi(:)
        REAL(DP),    ALLOCATABLE :: tg_rho(:)
        LOGICAL  :: use_tg
@@ -253,10 +253,9 @@ SUBROUTINE sum_band()
        ! ... here we sum for each k point the contribution
        ! ... of the wavefunctions to the charge
        !
-       IF ( nks > 1 ) REWIND( iunigk )
-       !
        use_tg = dffts%have_task_groups 
-       dffts%have_task_groups = ( dffts%have_task_groups ) .AND. ( this_bgrp_nbnd >= dffts%nogrp )
+       dffts%have_task_groups = ( dffts%have_task_groups ) .AND. &
+                                ( this_bgrp_nbnd >= dffts%nogrp )
        !
        incr = 2
        !
@@ -281,15 +280,11 @@ SUBROUTINE sum_band()
           !
           npw = ngk(ik)
           !
-          IF ( nks > 1 ) THEN
-             !
-             READ( iunigk ) igk
+          IF ( nks > 1 ) &
              CALL get_buffer ( evc, nwordwfc, iunwfc, ik )
-             !
-          END IF
           !
           IF ( nkb > 0 ) &
-             CALL init_us_2( npw, igk, xk(1,ik), vkb )
+             CALL init_us_2( npw, igk_k(1,ik), xk(1,ik), vkb )
           !
           ! ... here we compute the band energy: the sum of the eigenvalues
           !
@@ -316,15 +311,15 @@ SUBROUTINE sum_band()
                    !
                    IF( idx + ibnd - 1 < ibnd_end ) THEN
                       DO j = 1, npw
-                         tg_psi(nls (igk(j))+ioff) =       evc(j,idx+ibnd-1) +&
+                         tg_psi(nls (j)+ioff)=     evc(j,idx+ibnd-1)+&
                               (0.0d0,1.d0) * evc(j,idx+ibnd)
-                         tg_psi(nlsm(igk(j))+ioff) = CONJG(evc(j,idx+ibnd-1) -&
+                         tg_psi(nlsm(j)+ioff)=CONJG(evc(j,idx+ibnd-1) -&
                               (0.0d0,1.d0) * evc(j,idx+ibnd) )
                       END DO
                    ELSE IF( idx + ibnd - 1 == ibnd_end ) THEN
                       DO j = 1, npw
-                         tg_psi(nls (igk(j))+ioff) =        evc(j,idx+ibnd-1)
-                         tg_psi(nlsm(igk(j))+ioff) = CONJG( evc(j,idx+ibnd-1) )
+                         tg_psi(nls (j)+ioff)=       evc(j,idx+ibnd-1)
+                         tg_psi(nlsm(j)+ioff)=CONJG( evc(j,idx+ibnd-1) )
                       END DO
                    END IF
 
@@ -374,15 +369,15 @@ SUBROUTINE sum_band()
                    !
                    ! ... two ffts at the same time
                    !
-                   psic(nls(igk(1:npw)))  = evc(1:npw,ibnd) + &
+                   psic(nls(1:npw))  = evc(1:npw,ibnd) + &
                                            ( 0.D0, 1.D0 ) * evc(1:npw,ibnd+1)
-                   psic(nlsm(igk(1:npw))) = CONJG( evc(1:npw,ibnd) - &
+                   psic(nlsm(1:npw)) = CONJG( evc(1:npw,ibnd) - &
                                            ( 0.D0, 1.D0 ) * evc(1:npw,ibnd+1) )
                    !
                 ELSE
                    !
-                   psic(nls(igk(1:npw)))  = evc(1:npw,ibnd)
-                   psic(nlsm(igk(1:npw))) = CONJG( evc(1:npw,ibnd) )
+                   psic(nls (1:npw))  = evc(1:npw,ibnd)
+                   psic(nlsm(1:npw)) = CONJG( evc(1:npw,ibnd) )
                    !
                 END IF
                 !
@@ -412,20 +407,20 @@ SUBROUTINE sum_band()
                 DO j=1,3
                    psic(:) = ( 0.D0, 0.D0 )
                    !
-                   kplusg (1:npw) = (xk(j,ik)+g(j,igk(1:npw))) * tpiba
+                   kplusg (1:npw) = (xk(j,ik)+g(j,1:npw)) * tpiba
 
                    IF ( ibnd < ibnd_end ) THEN
                       ! ... two ffts at the same time
-                      psic(nls(igk(1:npw))) = CMPLX(0d0, kplusg(1:npw),kind=DP) * &
+                      psic(nls (1:npw))=CMPLX(0d0, kplusg(1:npw),kind=DP) * &
                                             ( evc(1:npw,ibnd) + &
                                             ( 0.D0, 1.D0 ) * evc(1:npw,ibnd+1) )
-                      psic(nlsm(igk(1:npw))) = CMPLX(0d0, -kplusg(1:npw),kind=DP) * &
+                      psic(nlsm(1:npw)) = CMPLX(0d0, -kplusg(1:npw),kind=DP) * &
                                        CONJG( evc(1:npw,ibnd) - &
                                             ( 0.D0, 1.D0 ) * evc(1:npw,ibnd+1) )
                    ELSE
-                      psic(nls(igk(1:npw))) = CMPLX(0d0, kplusg(1:npw),kind=DP) * &
+                      psic(nls(1:npw)) = CMPLX(0d0, kplusg(1:npw),kind=DP) * &
                                               evc(1:npw,ibnd)
-                      psic(nlsm(igk(1:npw))) = CMPLX(0d0, -kplusg(1:npw),kind=DP) * &
+                      psic(nlsm(1:npw)) = CMPLX(0d0, -kplusg(1:npw),kind=DP) * &
                                        CONJG( evc(1:npw,ibnd) )
                    END IF
                    !
@@ -502,7 +497,7 @@ SUBROUTINE sum_band()
        !
        REAL(DP) :: w1
        ! weights
-       INTEGER :: ipol, na, np
+       INTEGER :: npw, ipol, na, np
        !
        INTEGER  :: idx, ioff, incr, v_siz, j
        COMPLEX(DP), ALLOCATABLE :: tg_psi(:), tg_psi_nc(:,:)
@@ -512,11 +507,10 @@ SUBROUTINE sum_band()
        ! ... here we sum for each k point the contribution
        ! ... of the wavefunctions to the charge
        !
-       IF ( nks > 1 ) REWIND( iunigk )
-       !
        use_tg = dffts%have_task_groups
-       dffts%have_task_groups = ( dffts%have_task_groups ) .AND. &
-              ( this_bgrp_nbnd >= dffts%nogrp ) .AND. ( .NOT. (dft_is_meta() .OR. lxdm) )
+       dffts%have_task_groups = ( dffts%have_task_groups )        .AND. &
+                                ( this_bgrp_nbnd >= dffts%nogrp ) .AND. &
+                                ( .NOT. (dft_is_meta() .OR. lxdm) )
        !
        incr = 1
        !
@@ -549,15 +543,11 @@ SUBROUTINE sum_band()
           IF ( lsda ) current_spin = isk(ik)
           npw = ngk (ik)
           !
-          IF ( nks > 1 ) THEN
-             !
-             READ( iunigk ) igk
+          IF ( nks > 1 ) &
              CALL get_buffer ( evc, nwordwfc, iunwfc, ik )
-             !
-          END IF
           !
           IF ( nkb > 0 ) &
-             CALL init_us_2( npw, igk, xk(1,ik), vkb )
+             CALL init_us_2( npw, igk_k(1,ik), xk(1,ik), vkb )
           !
           ! ... here we compute the band energy: the sum of the eigenvalues
           !
@@ -589,9 +579,9 @@ SUBROUTINE sum_band()
                       !
                       IF( idx + ibnd - 1 <= ibnd_end ) THEN
                          DO j = 1, npw
-                            tg_psi_nc( nls( igk( j ) ) + ioff, 1 ) = &
+                            tg_psi_nc( nls(igk_k(j,ik) ) + ioff, 1 ) = &
                                                        evc( j, idx+ibnd-1 )
-                            tg_psi_nc( nls( igk( j ) ) + ioff, 2 ) = &
+                            tg_psi_nc( nls(igk_k(j,ik) ) + ioff, 2 ) = &
                                                        evc( j+npwx, idx+ibnd-1 )
                          END DO
                       END IF
@@ -639,8 +629,8 @@ SUBROUTINE sum_band()
 !
                    psic_nc = (0.D0,0.D0)
                    DO ig = 1, npw
-                      psic_nc(nls(igk(ig)),1)=evc(ig     ,ibnd)
-                      psic_nc(nls(igk(ig)),2)=evc(ig+npwx,ibnd)
+                      psic_nc(nls(igk_k(ig,ik)),1)=evc(ig     ,ibnd)
+                      psic_nc(nls(igk_k(ig,ik)),2)=evc(ig+npwx,ibnd)
                    END DO
                    CALL invfft ('Wave', psic_nc(:,1), dffts)
                    CALL invfft ('Wave', psic_nc(:,2), dffts)
@@ -682,7 +672,7 @@ SUBROUTINE sum_band()
                       IF( idx + ibnd - 1 <= ibnd_end ) THEN
 !$omp do
                          DO j = 1, npw
-                            tg_psi( nls( igk( j ) ) + ioff ) = evc( j, idx+ibnd-1 )
+                            tg_psi( nls(igk_k(j,ik))+ioff ) = evc(j,idx+ibnd-1)
                          END DO
 !$omp end do
                       END IF
@@ -721,7 +711,7 @@ SUBROUTINE sum_band()
                    !
                    psic(:) = ( 0.D0, 0.D0 )
                    !
-                   psic(nls(igk(1:npw))) = evc(1:npw,ibnd)
+                   psic(nls(igk_k(1:npw,ik))) = evc(1:npw,ibnd)
                    !
                    CALL invfft ('Wave', psic, dffts)
                    !
@@ -735,8 +725,8 @@ SUBROUTINE sum_band()
                    DO j=1,3
                       psic(:) = ( 0.D0, 0.D0 )
                       !
-                      kplusg (1:npw) = (xk(j,ik)+g(j,igk(1:npw))) * tpiba
-                      psic(nls(igk(1:npw))) = CMPLX(0d0, kplusg(1:npw),kind=DP) * &
+                      kplusg (1:npw) = (xk(j,ik)+g(j,igk_k(1:npw,ik))) * tpiba
+                      psic(nls(igk_k(1:npw,ik)))=CMPLX(0d0,kplusg(1:npw),kind=DP) * &
                                               evc(1:npw,ibnd)
                       !
                       CALL invfft ('Wave', psic, dffts)
@@ -916,7 +906,8 @@ SUBROUTINE sum_bec ( ik, current_spin, ibnd_start, ibnd_end, this_bgrp_nbnd )
   USE ions_base,     ONLY : nat, ntyp => nsp, ityp
   USE uspp,          ONLY : nkb, vkb, becsum, indv_ijkb0
   USE uspp_param,    ONLY : upf, nh, nhm
-  USE wvfct,         ONLY : nbnd, npw, igk, wg
+  USE wvfct,         ONLY : nbnd, wg
+  USE klist,         ONLY : ngk
   USE noncollin_module,     ONLY : noncolin, npol
   USE wavefunctions_module, ONLY : evc
   USE realus,        ONLY : real_space, invfft_orbital_gamma, initialisation_level,&
@@ -932,9 +923,10 @@ SUBROUTINE sum_bec ( ik, current_spin, ibnd_start, ibnd_end, this_bgrp_nbnd )
   COMPLEX(dp), ALLOCATABLE :: auxk1(:,:), auxk2(:,:), aux_nc(:,:)
   REAL(dp), ALLOCATABLE :: auxg(:,:), aux_gk(:,:)
   INTEGER :: ibnd, ibnd_loc, nbnd_loc  ! counters on bands
-  INTEGER :: ikb, jkb, ih, jh, ijh, na, np, is, js
+  INTEGER :: npw, ikb, jkb, ih, jh, ijh, na, np, is, js
   ! counters on beta functions, atoms, atom types, spin
   !
+  npw = ngk(ik)
   IF ( .NOT. real_space ) THEN
      ! calbec computes becp = <vkb_i|psi_j>
      CALL calbec( npw, vkb, evc, becp )

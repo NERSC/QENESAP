@@ -17,12 +17,13 @@ SUBROUTINE write_casino_wfn(gather,blip,multiplicity,binwrite,single_precision_b
    USE fft_base,  ONLY: dfftp
    USE fft_interfaces, ONLY : fwfft
    USE gvect, ONLY: ngm, gstart, g, gg, gcutm, nl, nlm, igtongl
-   USE klist , ONLY: nks, nelec, xk, wk, degauss, ngauss
+   USE klist , ONLY: nks, nelec, xk, wk, degauss, ngauss, igk_k, ngk
    USE lsda_mod, ONLY: lsda, nspin
    USE scf, ONLY: rho, rho_core, rhog_core, v
    USE ldaU, ONLY : eth
    USE vlocal, ONLY: vloc, strf
-   USE wvfct, ONLY: npw, npwx, nbnd, igk, g2kin, wg, et, ecutwfc
+   USE wvfct, ONLY: npwx, nbnd, wg, et
+   USE gvecw, ONLY: ecutwfc
    USE control_flags, ONLY : gamma_only
    USE uspp, ONLY: nkb, vkb, dvan
    USE uspp_param, ONLY: nh
@@ -46,7 +47,7 @@ SUBROUTINE write_casino_wfn(gather,blip,multiplicity,binwrite,single_precision_b
    INTEGER, PARAMETER :: n_overlap_tests = 12
    REAL(dp), PARAMETER :: eps = 1.d-10
    INTEGER, PARAMETER :: io = 77, iob = 78
-   INTEGER :: ig, ibnd, ik, ispin, nbndup, nbnddown, &
+   INTEGER :: npw, ig, ibnd, ik, ispin, nbndup, nbnddown, &
               nk, ig7, ikk, id, ip, iorb, iorb_node, inode, ierr, norb
    INTEGER :: jk(nproc_pool), jspin(nproc_pool), jbnd(nproc_pool)
    INTEGER :: jk2(nproc_pool), jspin2(nproc_pool), jbnd2(nproc_pool)
@@ -104,9 +105,7 @@ SUBROUTINE write_casino_wfn(gather,blip,multiplicity,binwrite,single_precision_b
    DO ispin = 1, nspin
       DO ik = 1, nk
          ikk = ik + nk*(ispin-1)
-         CALL gk_sort (xk (1:3, ikk), ngm, g(1:3,1:ngm), ecutwfc / tpiba2, & ! input
-                      &npw, igk, g2kin)                                      ! output
-         idx( igk(1:npw) ) = 1
+         idx( igk_k(1:ngk(ikk),ikk) ) = 1
       ENDDO
    ENDDO
 
@@ -213,14 +212,11 @@ SUBROUTINE write_casino_wfn(gather,blip,multiplicity,binwrite,single_precision_b
    DO ik = 1, nk
       DO ispin = 1, nspin
          ikk = ik + nk*(ispin-1)
-         IF( nks > 1 )THEN
-            CALL gk_sort (xk (1:3, ikk), ngm, g(1:3,1:ngm), ecutwfc / tpiba2, & ! input
-                         &npw, igk, g2kin)                                      ! output
-            CALL get_buffer(evc,nwordwfc,iunwfc,ikk)
-         ENDIF
+         npw = ngk(ikk)
+         IF( nks > 1 ) CALL get_buffer(evc,nwordwfc,iunwfc,ikk)
          DO ibnd = 1, nbnd
             evc_l(:) = (0.d0, 0d0)
-            evc_l(gtoig(igk(1:npw))) = evc(1:npw,ibnd)
+            evc_l(gtoig(igk_k(1:npw,ikk))) = evc(1:npw,ibnd)
             IF(blip)THEN
                iorb = iorb + 1
                IF(gamma_only)THEN
@@ -330,8 +326,8 @@ CONTAINS
       USE funct,  ONLY : dft_is_hybrid
 
       COMPLEX(DP), ALLOCATABLE :: aux(:)
-      INTEGER :: ibnd, j, ig, ik, ikk, ispin, na, nt, ijkb0, ikb, ih, jh, jkb
-
+      INTEGER :: npw, ibnd, j, ig, ik,ikk, ispin, na, nt, ijkb0, ikb,jkb, ih,jh
+      REAL(dp), ALLOCATABLE :: g2kin(:)
       REAL(DP) :: charge, etotefield, elocg
 
       ALLOCATE (aux(dfftp%nnr))
@@ -343,6 +339,7 @@ CONTAINS
       demet=0.d0
       fock2=0.d0
       !
+      ALLOCATE ( g2kin(npwx) )
       DO ispin = 1, nspin
          !
          !     calculate the local contribution to the total energy
@@ -363,9 +360,9 @@ CONTAINS
 
          DO ik = 1, nk
             ikk = ik + nk*(ispin-1)
-            CALL gk_sort (xk (1, ikk), ngm, g, ecutwfc / tpiba2, npw, igk, g2kin)
+            npw = ngk(ikk)
             IF( nks > 1 ) CALL get_buffer (evc, nwordwfc, iunwfc, ikk )
-            CALL init_us_2 (npw, igk, xk (1, ikk), vkb)
+            CALL init_us_2 (npw, igk_k(1,ikk), xk (1, ikk), vkb)
             CALL calbec ( npw, vkb, evc, becp )
             !
             ! -TS term for metals (if any)
@@ -379,6 +376,9 @@ CONTAINS
             !
             ! calculate the kinetic energy
             !
+            g2kin(1:npw) = ( ( xk(1,ikk) + g(1,igk_k(1:npw,ikk)) )**2 + &
+                             ( xk(2,ikk) + g(2,igk_k(1:npw,ikk)) )**2 + &
+                             ( xk(3,ikk) + g(3,igk_k(1:npw,ikk)) )**2 ) * tpiba2
             DO ibnd = 1, nbnd
                DO j = 1, npw
                   IF(gamma_only)THEN !.and.j>1)then
@@ -431,6 +431,7 @@ CONTAINS
          ENDDO
       ENDDO
 
+      DEALLOCATE ( g2kin )
 #ifdef __MPI
       CALL mp_sum( eloc,  intra_bgrp_comm )
       CALL mp_sum( ek,    intra_bgrp_comm )
@@ -439,8 +440,6 @@ CONTAINS
       CALL mp_sum( demet, inter_pool_comm )
 #endif
       eloc = eloc * omega
-      ek = ek * tpiba2
-
       !
       ! compute ewald contribution
       !
