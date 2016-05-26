@@ -7,8 +7,9 @@ if test "$xlf_flags" -ne 0
 then
         fdflags="`echo $dflags | sed 's/  */,/g'`"
 else
-        fdflags="\$(DFLAGS)"
+        # Because of the way xlf handle pre-processing, agile $(MANUAL_DFLAGS)
+        #  passed to make works only on non XLF environments... (NdFilippo)
+        fdflags="\$(DFLAGS) \$(MANUAL_DFLAGS)"
 fi
-  
   ]
 )

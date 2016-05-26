@@ -31,10 +31,10 @@ SUBROUTINE new_ns(ns)
   USE symm_base,            ONLY : d1, d2, d3
   USE lsda_mod,             ONLY : lsda, current_spin, nspin, isk
   USE symm_base,            ONLY : nsym, irt
-  USE wvfct,                ONLY : nbnd, npw, npwx, igk, wg
+  USE wvfct,                ONLY : nbnd, npwx, wg
   USE control_flags,        ONLY : gamma_only
   USE wavefunctions_module, ONLY : evc
-  USE io_files,             ONLY : iunigk, nwordwfc, iunwfc, nwordwfcU, iunhub
+  USE io_files,             ONLY : nwordwfc, iunwfc, nwordwfcU, iunhub
   USE buffers,              ONLY : get_buffer
   USE mp_pools,             ONLY : inter_pool_comm
   USE mp,                   ONLY : mp_sum
@@ -46,7 +46,7 @@ SUBROUTINE new_ns(ns)
   REAL(DP), INTENT(OUT) :: ns(2*Hubbard_lmax+1,2*Hubbard_lmax+1,nspin,nat)
   !
   TYPE (bec_type) :: proj     ! proj(nwfcU,nbnd)
-  INTEGER :: ik, ibnd, is, i, na, nb, nt, isym, m1, m2, m0, m00, ldim
+  INTEGER :: ik, ibnd, is, i, na, nb, nt, isym, m1, m2, m0, m00, ldim, npw
   ! counter on k points
   !    "    "  bands
   !    "    "  spins
@@ -67,14 +67,11 @@ SUBROUTINE new_ns(ns)
   !
   !    we start a loop on k points
   !
-  IF (nks > 1) REWIND (iunigk)
   DO ik = 1, nks
      IF (lsda) current_spin = isk(ik)
      npw = ngk (ik)
-     IF (nks > 1) THEN
-        READ (iunigk) igk
+     IF (nks > 1) &
         CALL get_buffer  (evc, nwordwfc, iunwfc, ik)
-     END IF
      !
      ! make the projection
      !
@@ -212,7 +209,7 @@ SUBROUTINE new_ns(ns)
     ! Here we compute LDA+U projections using the <beta|psi> overlaps
     !
     USE ions_base,            ONLY : ntyp => nsp
-    USE klist,                ONLY : xk
+    USE klist,                ONLY : xk, igk_k
     USE becmod,               ONLY : becp
     USE uspp,                 ONLY : nkb, vkb, indv_ijkb0
     USE uspp_param,           ONLY : nhm, nh
@@ -228,7 +225,7 @@ SUBROUTINE new_ns(ns)
     ! compute <beta|psi>
     !
     CALL allocate_bec_type (nkb, nbnd, becp)
-    CALL init_us_2 (npw,igk,xk(1,ik),vkb)
+    CALL init_us_2 (npw,igk_k(1,ik),xk(1,ik),vkb)
     CALL calbec (npw, vkb, evc, becp)
     !
     IF ( gamma_only ) THEN 
@@ -295,11 +292,11 @@ SUBROUTINE new_ns_nc(ns)
   USE lsda_mod,             ONLY : lsda, current_spin, nspin, isk
   USE noncollin_module, ONLY : noncolin, npol
   USE symm_base,            ONLY : nsym, irt, time_reversal, t_rev
-  USE wvfct,                ONLY : nbnd, npw, npwx, igk, wg
+  USE wvfct,                ONLY : nbnd, npwx, wg
   USE control_flags,        ONLY : gamma_only
   USE wavefunctions_module, ONLY : evc
   USE gvect,                ONLY : gstart
-  USE io_files,             ONLY : iunigk, nwordwfc, iunwfc, nwordwfcU, iunhub
+  USE io_files,             ONLY : nwordwfc, iunwfc, nwordwfcU, iunhub
   USE buffers,              ONLY : get_buffer
   USE mp_bands,             ONLY : intra_bgrp_comm
   USE mp_pools,             ONLY : inter_pool_comm
@@ -311,7 +308,7 @@ SUBROUTINE new_ns_nc(ns)
   !
   COMPLEX(DP) :: ns(2*Hubbard_lmax+1,2*Hubbard_lmax+1,nspin,nat)
   INTEGER :: ik, ibnd, is, js, i, j, sigmay2, na, nb, nt, isym,  &
-             m1, m2, m3, m4, is1, is2, is3, is4, m0, m00, ldim
+             m1, m2, m3, m4, is1, is2, is3, is4, m0, m00, ldim, npw
 
   COMPLEX(DP) , ALLOCATABLE :: nr (:,:,:,:,:), nr1 (:,:,:,:,:), proj(:,:) 
 
@@ -333,14 +330,12 @@ SUBROUTINE new_ns_nc(ns)
 !--
 !    loop on k points
 !
-  IF (nks > 1) REWIND (iunigk)
   DO ik = 1, nks
 
      npw = ngk (ik)
-     IF (nks > 1) THEN
-        READ (iunigk) igk
+     IF (nks > 1) &
         CALL get_buffer  (evc, nwordwfc, iunwfc, ik)
-     END IF
+ 
      CALL get_buffer (wfcU, nwordwfcU, iunhub, ik)
      !
      ! make the projection - FIXME: use ZGEMM or calbec instead

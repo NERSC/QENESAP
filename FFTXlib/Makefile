@@ -1,9 +1,9 @@
-# Makefile for Modules
+# Makefile for FFTXlib
 
 include ../make.sys
 
 # location of needed modules
-MODFLAGS= $(MOD_FLAG)../iotk/src $(MOD_FLAG).
+#MODFLAGS= $(MOD_FLAG)../iotk/src $(MOD_FLAG).
 
 FFTX = \
 scatter_mod.o  \
@@ -30,8 +30,11 @@ fft_scalar.o : fft_scalar.f90  fft_scalar.FFTW3.f90  fft_scalar.FFTW.f90  fft_sc
 
 fft_stick.o : fft_stick.c fftw.c fftw.h konst.h
 
+TEST : test.o libqefft.a
+	$(LD) $(LDFLAGS) -o fft_test.x test.o libqefft.a $(LIBS)
+
 clean :
-	- /bin/rm -f *.o *.a *.d *.i *~ *.F90 *.mod *.L 
+	- /bin/rm -f *.o *.a *.d *.i *~ *_tmp.f90 *.mod *.L 
 
 # .PHONY forces execution of a rule irrespective of the presence of an
 # updated file with the same name of the rule. In this way, the script 

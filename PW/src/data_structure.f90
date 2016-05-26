@@ -24,7 +24,7 @@ SUBROUTINE data_structure( gamma_only )
   USE gvect,      ONLY : gcutm, gvect_init, gkcut
   USE gvecs,      ONLY : gcutms, gvecs_init
   USE stick_set,  ONLY : pstickset
-  USE wvfct,      ONLY : ecutwfc
+  USE gvecw,      ONLY : gcutw, gkcut
   USE io_global,  ONLY : stdout, ionode
   !
   IMPLICIT NONE
@@ -48,7 +48,7 @@ SUBROUTINE data_structure( gamma_only )
         gkcut = max (gkcut, sqrt ( sum(xk (1:3, ik)**2) ) )
      ENDDO
   ENDIF
-  gkcut = (sqrt (ecutwfc) / tpiba + gkcut)**2
+  gkcut = (sqrt (gcutw) + gkcut)**2
   !
   ! ... find maximum value among all the processors
   !

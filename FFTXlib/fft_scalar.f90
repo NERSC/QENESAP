@@ -25,13 +25,17 @@
 
 #include "fft_scalar.DFTI.f90"
 
-#elif defined(__ESSL) || defined(__LINUX_ESSL)
+#elif defined(__LINUX_ESSL)
 
 #include "fft_scalar.ESSL.f90"
 
 #elif defined(__SX6)
 
 #include "fft_scalar.SX6.f90"
+
+#elif defined(__ARM_LIB)
+
+#include "fft_scalar.ARM_LIB.f90"
 
 #else
 

@@ -378,6 +378,7 @@ SUBROUTINE write_export (pp_file,kunit,uspp_spsi, ascii, single_file, raw)
 
   USE kinds,          ONLY : DP
   USE pwcom
+  USE gvecw,          ONLY : ecutwfc, gcutw
   USE start_k,        ONLY : nk1, nk2, nk3, k1, k2, k3
   USE control_flags,  ONLY : gamma_only
   USE global_version, ONLY : version_number
@@ -406,7 +407,6 @@ SUBROUTINE write_export (pp_file,kunit,uspp_spsi, ascii, single_file, raw)
   LOGICAL, INTENT(in) :: uspp_spsi, ascii, single_file, raw
 
   INTEGER :: i, j, k, ig, ik, ibnd, na, ngg,ig_, ierr
-  INTEGER, ALLOCATABLE :: kisort(:)
   real(DP) :: xyz(3), tmp(3)
   INTEGER :: npool, nkbl, nkl, nkr, npwx_g
   INTEGER :: ike, iks, npw_g, ispin, local_pw
@@ -501,25 +501,20 @@ SUBROUTINE write_export (pp_file,kunit,uspp_spsi, ascii, single_file, raw)
 
   ! build the G+k array indexes
   ALLOCATE ( igk_l2g ( npwx, nks ) )
-  ALLOCATE ( kisort( npwx ) )
   DO ik = 1, nks
-     kisort = 0
-     npw = npwx
-     CALL gk_sort (xk (1, ik+iks-1), ngm, g, ecutwfc / tpiba2, npw, kisort(1), g2kin)
      !
      ! mapping between local and global G vector index, for this kpoint
      !
+     npw = ngk(ik)
      DO ig = 1, npw
         !
-        igk_l2g(ig,ik) = ig_l2g( kisort(ig) )
+        igk_l2g(ig,ik) = ig_l2g( igk_k(ig,ik) )
         !
      ENDDO
      !
      igk_l2g( npw+1 : npwx, ik ) = 0
      !
-     ngk (ik) = npw
   ENDDO
-  DEALLOCATE (kisort)
 
   ! compute the global number of G+k vectors for each k point
   ALLOCATE( ngk_g( nkstot ) )
@@ -857,15 +852,15 @@ SUBROUTINE write_export (pp_file,kunit,uspp_spsi, ascii, single_file, raw)
 
            local_pw = 0
            IF( (ik >= iks) .and. (ik <= ike) ) THEN
-
-               CALL gk_sort (xk (1, ik+iks-1), ngm, g, ecutwfc / tpiba2, npw, igk, g2kin)
+ 
                CALL davcio (evc, 2*nwordwfc, iunwfc, (ik-iks+1), - 1)
 
-               CALL init_us_2(npw, igk, xk(1, ik), vkb)
-               local_pw = ngk(ik-iks+1)
+               npw = ngk(ik-iks+1)
+               local_pw = npw
+	       CALL init_us_2(npw, igk_k(1,ik-iks-1), xk(1, ik), vkb)
 
                IF ( gamma_only ) THEN
-                  CALL calbec ( ngk_g(ik), vkb, evc, becp )
+                  CALL calbec ( npw, vkb, evc, becp )
                   WRITE(0,*) 'Gamma only PW_EXPORT not yet tested'
                ELSE
                   CALL calbec ( npw, vkb, evc, becp )

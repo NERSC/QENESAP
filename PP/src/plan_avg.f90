@@ -13,16 +13,17 @@ PROGRAM plan_avg
   ! calculate planar averages of each wavefunction
   !
   USE kinds,     ONLY : DP
-  USE run_info, ONLY: title
+  USE run_info,  ONLY: title
   USE cell_base, ONLY : ibrav, celldm, at
   USE fft_base,  ONLY : dfftp
   USE gvect,     ONLY : gcutm
-  USE gvecs,   ONLY : dual
+  USE gvecs,     ONLY : dual
   USE klist,     ONLY : nkstot, xk
   USE ions_base, ONLY : nat, ntyp=>nsp, ityp, tau, atm, zv
   USE io_files,  ONLY : tmp_dir, prefix
   USE io_global, ONLY : ionode, ionode_id
-  USE wvfct,     ONLY : nbnd, ecutwfc
+  USE wvfct,     ONLY : nbnd
+  USE gvecw,     ONLY : ecutwfc
   USE mp,        ONLY : mp_bcast
   USE mp_world,  ONLY : world_comm
   USE mp_global, ONLY : mp_startup
@@ -153,13 +154,13 @@ SUBROUTINE do_plan_avg (averag, plan, ninter)
   !    evaluated and given as output. The number of planes is
   !    computed starting from the atomic positions
   !
-  USE cell_base, ONLY: celldm, omega, alat, tpiba2
+  USE cell_base, ONLY: celldm, omega, alat
   USE ions_base, ONLY: nat, ntyp=>nsp, ityp, tau
   USE gvect
-  USE klist, ONLY: nks, nkstot, xk
+  USE klist, ONLY: nks, nkstot, xk, ngk, igk_k
   USE lsda_mod, ONLY: lsda, current_spin, isk
   USE uspp, ONLY: vkb, nkb
-  USE wvfct, ONLY: npw, npwx, nbnd, wg, igk, g2kin
+  USE wvfct, ONLY: npwx, nbnd, wg
   USE wavefunctions_module,  ONLY: evc
   USE noncollin_module, ONLY : noncolin, npol
   USE io_files, ONLY: iunwfc, nwordwfc
@@ -174,7 +175,7 @@ SUBROUTINE do_plan_avg (averag, plan, ninter)
   !
   !      Local variables
   !
-  INTEGER :: ik, ibnd, iin, na, ir, ij, ind, i1 (nat), ntau (nat + 1)
+  INTEGER :: ik, ibnd, iin, na, ir, ij, ind, i1 (nat), ntau (nat + 1), npw
   ! counter on k points
   ! counter on bands
   ! counter on planes
@@ -252,12 +253,11 @@ SUBROUTINE do_plan_avg (averag, plan, ninter)
   averag(:,:,:) = 0.d0
   plan(:,:,:) = 0.d0
   CALL allocate_bec_type ( nkb, nbnd, becp )
-!  CALL init_us_1 ( )
   DO ik = 1, nks
      IF (lsda) current_spin = isk (ik)
-     CALL gk_sort (xk (1, ik), ngm, g, ecutwfc / tpiba2, npw, igk, g2kin)
+     npw = ngk(ik)
      CALL davcio (evc, 2*nwordwfc, iunwfc, ik, - 1)
-     CALL init_us_2 (npw, igk, xk (1, ik), vkb)
+     CALL init_us_2 (npw, igk_k(1,ik), xk (1, ik), vkb)
 
      CALL calbec ( npw, vkb, evc, becp)
 

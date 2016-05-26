@@ -347,7 +347,6 @@ SUBROUTINE davcio( vect, nword, unit, nrec, io )
   ! ... direct-access vector input/output
   ! ... read/write nword words starting from the address specified by vect
   !
-  USE io_global, ONLY : stdout
   USE kinds,     ONLY : DP
   !
   IMPLICIT NONE
