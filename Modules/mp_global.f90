@@ -82,7 +82,12 @@ CONTAINS
     do_diag_in_band = .FALSE.
     IF ( PRESENT(diag_in_band_group) ) do_diag_in_band = diag_in_band_group
     !
-    IF( do_diag_in_band ) THEN
+    IF( negrp.gt.1 ) THEN
+       ! if using exact groups from mp_exx, revert to the old diag method
+       num_groups = npool_*nimage_
+       group_id = my_pool_id + my_image_id * npool_
+       my_comm = intra_bgrp_comm
+    ELSE IF( do_diag_in_band ) THEN
        ! used to be one diag group per bgrp
        ! with strict hierarchy: POOL > BAND > DIAG
        num_groups = npool_* nimage_ * nband_

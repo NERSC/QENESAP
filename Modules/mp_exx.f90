@@ -11,7 +11,7 @@ MODULE mp_exx
   !
   USE mp, ONLY : mp_barrier, mp_bcast, mp_size, mp_rank, mp_comm_split
   USE mp_bands, ONLY : nbgrp, nproc_bgrp, me_bgrp, root_bgrp, my_bgrp_id, &
-       inter_bgrp_comm, intra_bgrp_comm, tbgrp
+       inter_bgrp_comm, intra_bgrp_comm
   USE parallel_include
   !
   IMPLICIT NONE 
@@ -27,7 +27,6 @@ MODULE mp_exx
   INTEGER :: my_egrp_id  = 0  ! index of my band group
   INTEGER :: inter_egrp_comm  = 0  ! inter band group communicator
   INTEGER :: intra_egrp_comm  = 0  ! intra band group communicator  
-  LOGICAL :: tegrp       = .FALSE. ! logical flag. .TRUE. when negrp > 1
   !
   ! ... "task" groups (for band parallelization of FFT)
   !
@@ -92,10 +91,6 @@ CONTAINS
                           'invalid number of band groups, out of range', 1 )
     IF ( MOD( parent_nproc, negrp ) /= 0 ) CALL errore( 'mp_start_bands', &
         'n. of band groups  must be divisor of parent_nproc', 1 )
-    !
-    ! set the logical flag tegrp 
-    !
-    tegrp = ( negrp > 1 )
     ! 
     ! ... Set number of processors per band group
     !
@@ -135,7 +130,7 @@ CONTAINS
        my_bgrp_id = my_egrp_id
        inter_bgrp_comm = inter_egrp_comm
        intra_bgrp_comm = intra_egrp_comm
-       tbgrp = tegrp
+       negrp = 1
     END IF
 #endif
     RETURN

@@ -21,7 +21,7 @@ SUBROUTINE data_structure( gamma_only )
   USE fft_base,   ONLY : dfftp, dffts
   USE cell_base,  ONLY : bg, tpiba
   USE klist,      ONLY : xk, nks
-  USE gvect,      ONLY : gcutm, gvect_init, gkcut
+  USE gvect,      ONLY : gcutm, gvect_init
   USE gvecs,      ONLY : gcutms, gvecs_init
   USE stick_set,  ONLY : pstickset
   USE gvecw,      ONLY : gcutw, gkcut
