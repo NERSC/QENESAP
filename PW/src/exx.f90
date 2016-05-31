@@ -3613,22 +3613,26 @@ MODULE exx
                         lda_max_local*(ibands(im,iegrp)-1)
                 END DO
              END IF
+#if defined(__MPI)
              CALL MPI_GATHERV( psi_gather(:, ibands(im,iegrp) ), &
                   lda_max_local, MPI_DOUBLE_COMPLEX, &
                   psi_work, &
                   recvcount, displs, MPI_DOUBLE_COMPLEX, &
                   iegrp-1, &
                   inter_egrp_comm, ierr )
+#endif
           END DO
        END DO
 
     ELSE
        
+#if defined(__MPI)
        CALL MPI_ALLGATHER( psi_gather, &
             lda_max_local*m, MPI_DOUBLE_COMPLEX, &
             psi_work, &
             lda_max_local*m, MPI_DOUBLE_COMPLEX, &
             inter_egrp_comm, ierr )
+#endif
        
     END IF
     CALL stop_clock ('comm2')
@@ -3679,6 +3683,7 @@ MODULE exx
           !
           ! send the message
           !
+#if defined(__MPI)
           IF ( type.eq.0 ) THEN !psi or hpsi
              CALL MPI_ISEND( comm_send(iproc+1,current_ik)%msg, &
                   comm_send(iproc+1,current_ik)%size*nibands(my_egrp_id+1), &
@@ -3696,6 +3701,7 @@ MODULE exx
                   iproc, 100+iproc*nproc_egrp+me_egrp, &
                   intra_egrp_comm, request_send(iproc+1), ierr )
           END IF
+#endif
           !
        END IF
     END DO
@@ -3707,6 +3713,7 @@ MODULE exx
           !
           ! recieve the message
           !
+#if defined(__MPI)
           IF (type.eq.0) THEN !psi or hpsi
              CALL MPI_IRECV( comm_recv(iproc+1,current_ik)%msg, &
                   comm_recv(iproc+1,current_ik)%size*nibands(my_egrp_id+1), &
@@ -3724,6 +3731,7 @@ MODULE exx
                   iproc, 100+me_egrp*nproc_egrp+iproc, &
                   intra_egrp_comm, request_recv(iproc+1), ierr )
           END IF
+#endif
           !
        END IF
     END DO
@@ -3735,7 +3743,9 @@ MODULE exx
           !
           ! wait for the message to be received
           !
+#if defined(__MPI)
           CALL MPI_WAIT(request_recv(iproc+1), istatus, ierr)
+#endif
           !
           DO i=1, comm_recv(iproc+1,current_ik)%size
              ig = comm_recv(iproc+1,current_ik)%indices(i)
@@ -3764,11 +3774,13 @@ MODULE exx
     !
     ! wait for everything to finish sending
     !
+#if defined(__MPI)
     DO iproc=0, nproc_egrp-1
        IF ( comm_send(iproc+1,current_ik)%size.gt.0 ) THEN
           CALL MPI_WAIT(request_send(iproc+1), istatus, ierr)
        END IF
     END DO
+#endif
     !
     ! deallocate arrays
     !
@@ -4136,18 +4148,22 @@ MODULE exx
           END DO
        END IF
        !
+#if defined(__MPI)
        CALL MPI_IGATHERV(data(:,im), sendcount, MPI_DOUBLE_COMPLEX, &
             recvbuf(:,ibuf), contrib_this(:,im), &
             displs(:,im), MPI_DOUBLE_COMPLEX, &
             root, inter_egrp_comm, request(im), ierr)
+#endif
        !
     END DO
     CALL stop_clock ('sum1')
     !
     CALL start_clock ('sum2')
+#if defined(__MPI)
     DO im=1, m
        CALL MPI_WAIT(request(im), istatus, ierr)
     END DO
+#endif
     CALL stop_clock ('sum2')
     !
     ! perform the sum
@@ -4225,12 +4241,14 @@ MODULE exx
                 ! send the message
                 !
                 tag = 0
+#if defined(__MPI)
                 CALL MPI_ISEND( comm_send_reverse(iproc+1,iegrp,current_ik)%msg, &
                      comm_send_reverse(iproc+1,iegrp,current_ik)%size*my_bands, &
                      MPI_DOUBLE_COMPLEX, &
                      iproc+(iegrp-1)*nproc_egrp, &
                      tag, &
                      intra_pool_comm, request_send(iproc+1,iegrp), ierr )
+#endif
                 !
              END IF
           END DO
@@ -4251,12 +4269,14 @@ MODULE exx
              !recieve the message
              !
              tag = 0
+#if defined(__MPI)
              CALL MPI_IRECV( comm_recv_reverse(iproc+1,current_ik)%msg(:,iexx_istart(iegrp)), &
                   comm_recv_reverse(iproc+1,current_ik)%size*recv_bands, &
                   MPI_DOUBLE_COMPLEX, &
                   iproc+(iegrp-1)*nproc_egrp, &
                   tag, &
                   intra_pool_comm, request_recv(iproc+1,iegrp), ierr )
+#endif
              !
           END IF
        END DO
@@ -4267,10 +4287,12 @@ MODULE exx
     DO iproc=0, nproc_egrp-1
        IF ( comm_recv_reverse(iproc+1,current_ik)%size.gt.0 ) THEN
           !
+#if defined(__MPI)
           DO iegrp=1, negrp
              IF ( iexx_istart(iegrp).le.0 ) CYCLE
              CALL MPI_WAIT(request_recv(iproc+1,iegrp), istatus, ierr)
           END DO
+#endif
           !
           DO i=1, comm_recv_reverse(iproc+1,current_ik)%size
              ig = comm_recv_reverse(iproc+1,current_ik)%indices(i)
@@ -4289,6 +4311,7 @@ MODULE exx
     !
     ! wait for everything to finish sending
     !
+#if defined(__MPI)
     IF ( iexx_istart(my_egrp_id+1) ) THEN
        DO iproc=0, nproc_egrp-1
           DO iegrp=1, negrp
@@ -4298,6 +4321,7 @@ MODULE exx
           END DO
        END DO
     END IF
+#endif
     !
     !-----------------------------------------------------------------------
   END SUBROUTINE transform_to_local
