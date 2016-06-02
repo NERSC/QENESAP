@@ -180,7 +180,7 @@ MODULE exx
     USE cell_base,    ONLY : at, bg, tpiba2
     USE fft_custom,   ONLY : set_custom_grid, ggent
     USE mp_exx,       ONLY : use_old_exx
-    USE exx_old,      ONLY : ecutfock_old
+    USE exx_old,      ONLY : ecutfock_old, nq1_old, nq2_old, nq3_old
     USE grid_subroutines,   ONLY : realspace_grid_init
 
     IMPLICIT NONE
@@ -188,6 +188,9 @@ MODULE exx
     IF (use_old_exx) THEN
        ! use the old band group parallelization
        ecutfock_old = ecutfock
+       nq1_old = nq1
+       nq2_old = nq2
+       nq3_old = nq3
        CALL exx_fft_create_old()
        RETURN
     END IF
@@ -276,6 +279,7 @@ MODULE exx
     USE start_k,    ONLY : nk1,nk2,nk3
     USE mp_pools,   ONLY : npool
     USE mp_exx,     ONLY : use_old_exx
+    USE exx_old,    ONLY : ecutfock_old, nq1_old, nq2_old, nq3_old
     !
     IMPLICIT NONE
     !
@@ -291,6 +295,10 @@ MODULE exx
     !
     IF (use_old_exx) THEN
        ! use the old band group parallelization
+       ecutfock_old = ecutfock
+       nq1_old = nq1
+       nq2_old = nq2
+       nq3_old = nq3
        CALL exx_grid_init_old()
        RETURN
     END IF
@@ -688,7 +696,7 @@ MODULE exx
     USE us_exx,               ONLY : becxx
     USE paw_variables,        ONLY : okpaw
     USE paw_exx,              ONLY : PAW_init_keeq
-    USE exx_old,              ONLY : ecutfock_old
+    USE exx_old,              ONLY : ecutfock_old, nq1_old, nq2_old, nq3_old
 
     IMPLICIT NONE
     INTEGER :: ik,ibnd, i, j, k, ir, isym, ikq, ig
@@ -710,6 +718,9 @@ MODULE exx
     IF (use_old_exx) THEN
        ! use the old band group parallelization
        ecutfock_old = ecutfock
+       nq1_old = nq1
+       nq2_old = nq2
+       nq3_old = nq3
        CALL exxinit_old()
        RETURN
     END IF
@@ -3969,7 +3980,7 @@ MODULE exx
     USE io_global,      ONLY : stdout
     INTEGER, intent(in)      :: ipair
     INTEGER                  :: nrxxs
-    INTEGER, intent(out)     :: request_send, request_recv
+    INTEGER                  :: request_send, request_recv
     INTEGER                  :: dest, sender, ierr, jnext, jnext_dest
 #if defined(__MPI)
     INTEGER :: istatus(MPI_STATUS_SIZE)

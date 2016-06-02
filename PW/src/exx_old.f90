@@ -28,7 +28,7 @@ MODULE exx_old
   ! variables defining the auxiliary k-point grid 
   ! used in X BZ integration
   !
-  INTEGER :: nq1=1, nq2=1, nq3=1         ! integers defining the X integration mesh
+  INTEGER :: nq1_old=1, nq2_old=1, nq3_old=1  ! integers defining the X integration mesh
   INTEGER :: nqs=1                       ! number of points in the q-grid
   INTEGER :: nkqs                        ! total number of different k+q
   !
@@ -215,14 +215,14 @@ MODULE exx_old
     !
     CALL start_clock ('exx_grid')
     !
-    IF(nq1<=0) nq1 = nk1
-    IF(nq2<=0) nq2 = nk2
-    IF(nq3<=0) nq3 = nk3
+    IF(nq1_old<=0) nq1_old = nk1
+    IF(nq2_old<=0) nq2_old = nk2
+    IF(nq3_old<=0) nq3_old = nk3
     IF(nkstot==nspin_lsda) THEN
-      nq1=1; nq2=1; nq3=1
+      nq1_old=1; nq2_old=1; nq3_old=1
     ENDIF
      
-    IF(ANY((/nq1,nq2,nq3/)<=0)) CALL errore('exx_grid_init',"wrong EXX q grid", 1)
+    IF(ANY((/nq1_old,nq2_old,nq3_old/)<=0)) CALL errore('exx_grid_init',"wrong EXX q grid", 1)
     !
     IF(exx_grid_initialized) CALL errore('exx_grid_init', "grid already initialized",1)
     exx_grid_initialized = .true.
@@ -233,7 +233,7 @@ MODULE exx_old
     IF (x_gamma_extrapolation) &
         grid_factor = 8.d0/7.d0
     !
-    nqs = nq1 * nq2 * nq3
+    nqs = nq1_old * nq2_old * nq3_old
     !
     ! all processors on all pools need to have access to all k+q points
     !
@@ -301,9 +301,9 @@ MODULE exx_old
     !
     ! define the q-mesh step-sizes
     !
-    dq1= 1._dp/DBLE(nq1)
-    dq2= 1._dp/DBLE(nq2)
-    dq3= 1._dp/DBLE(nq3)
+    dq1= 1._dp/DBLE(nq1_old)
+    dq2= 1._dp/DBLE(nq2_old)
+    dq3= 1._dp/DBLE(nq3_old)
     !
     ! allocate and fill the array index_xkq(nkstot,nqs)
     !
@@ -317,11 +317,11 @@ MODULE exx_old
       CALL cryst_to_cart(1, xk_cryst, at, -1)
       !
       iq = 0
-      DO iq1=1, nq1
+      DO iq1=1, nq1_old
         sxk(1) = xk_cryst(1) + (iq1-1) * dq1
-        DO iq2 =1, nq2
+        DO iq2 =1, nq2_old
           sxk(2) = xk_cryst(2) + (iq2-1) * dq2
-          DO iq3 =1, nq3
+          DO iq3 =1, nq3_old
               sxk(3) = xk_cryst(3) + (iq3-1) * dq3
               iq = iq + 1
 
@@ -468,9 +468,9 @@ MODULE exx_old
         !
         atws = alat * at
         !
-        atws(:,1) = atws(:,1) * nq1
-        atws(:,2) = atws(:,2) * nq2
-        atws(:,3) = atws(:,3) * nq3
+        atws(:,1) = atws(:,1) * nq1_old
+        atws(:,2) = atws(:,2) * nq2_old
+        atws(:,3) = atws(:,3) * nq3_old
         !
         CALL vcut_init( vcut, atws, ecutvcut )
         !
@@ -496,20 +496,20 @@ MODULE exx_old
     REAL(DP) :: sxk(3), dxk(3), xk_cryst(3), xkk_cryst(3)
     INTEGER :: iq1, iq2, iq3, isym, ik, ikk, ikq, iq
     REAL(DP) :: dq1, dq2, dq3
-    dq1= 1._dp/DBLE(nq1)
-    dq2= 1._dp/DBLE(nq2)
-    dq3= 1._dp/DBLE(nq3)
+    dq1= 1._dp/DBLE(nq1_old)
+    dq2= 1._dp/DBLE(nq2_old)
+    dq3= 1._dp/DBLE(nq3_old)
 
     DO ik =1, nkstot
       xk_cryst(:) = xk_collect(:,ik)
       CALL cryst_to_cart(1, xk_cryst, at, -1)
       !
       iq = 0
-      DO iq1=1, nq1
+      DO iq1=1, nq1_old
         sxk(1) = xk_cryst(1) + (iq1-1) * dq1
-        DO iq2 =1, nq2
+        DO iq2 =1, nq2_old
           sxk(2) = xk_cryst(2) + (iq2-1) * dq2
-          DO iq3 =1, nq3
+          DO iq3 =1, nq3_old
               sxk(3) = xk_cryst(3) + (iq3-1) * dq3
               iq = iq + 1
               
@@ -1699,7 +1699,7 @@ MODULE exx_old
     !
     ! Now the Coulomb potential that are computed on the fly
     !
-    nqhalf_dble(1:3) = (/ DBLE(nq1)*0.5_DP, DBLE(nq2)*0.5_DP, DBLE(nq3)*0.5_DP /) 
+    nqhalf_dble(1:3) = (/ DBLE(nq1_old)*0.5_DP, DBLE(nq2_old)*0.5_DP, DBLE(nq3_old)*0.5_DP /) 
     !
     ! Set the grid_factor_track and qq_track
     !
@@ -2367,14 +2367,14 @@ MODULE exx_old
         RETURN
      END IF
 
-     dq1= 1._dp/DBLE(nq1)
-     dq2= 1._dp/DBLE(nq2) 
-     dq3= 1._dp/DBLE(nq3) 
+     dq1= 1._dp/DBLE(nq1_old)
+     dq2= 1._dp/DBLE(nq2_old) 
+     dq3= 1._dp/DBLE(nq3_old) 
 
      div = 0._dp
-     DO iq1=1,nq1
-        DO iq2=1,nq2
-           DO iq3=1,nq3
+     DO iq1=1,nq1_old
+        DO iq2=1,nq2_old
+           DO iq3=1,nq3_old
               xq(:) = bg(:,1) * (iq1-1) * dq1 + &
                       bg(:,2) * (iq2-1) * dq2 + &
                       bg(:,3) * (iq3-1) * dq3 
@@ -2385,11 +2385,11 @@ MODULE exx_old
                  qq = ( q(1)**2 + q(2)**2 + q(3)**2 ) 
                  IF (x_gamma_extrapolation) THEN
                     on_double_grid = .true.
-                    x= 0.5d0*(q(1)*at(1,1)+q(2)*at(2,1)+q(3)*at(3,1))*nq1
+                    x= 0.5d0*(q(1)*at(1,1)+q(2)*at(2,1)+q(3)*at(3,1))*nq1_old
                     on_double_grid = on_double_grid .and. (abs(x-nint(x))<eps)
-                    x= 0.5d0*(q(1)*at(1,2)+q(2)*at(2,2)+q(3)*at(3,2))*nq2
+                    x= 0.5d0*(q(1)*at(1,2)+q(2)*at(2,2)+q(3)*at(3,2))*nq2_old
                     on_double_grid = on_double_grid .and. (abs(x-nint(x))<eps)
-                    x= 0.5d0*(q(1)*at(1,3)+q(2)*at(2,3)+q(3)*at(3,3))*nq3
+                    x= 0.5d0*(q(1)*at(1,3)+q(2)*at(2,3)+q(3)*at(3,3))*nq3_old
                     on_double_grid = on_double_grid .and. (abs(x-nint(x))<eps)
                  ENDIF
                  IF (.not.on_double_grid) THEN
@@ -2577,11 +2577,11 @@ MODULE exx_old
 
                   IF (x_gamma_extrapolation) THEN
                       on_double_grid = .true.
-                      x= 0.5d0/tpiba*(q(1)*at(1,1)+q(2)*at(2,1)+q(3)*at(3,1))*nq1
+                      x= 0.5d0/tpiba*(q(1)*at(1,1)+q(2)*at(2,1)+q(3)*at(3,1))*nq1_old
                       on_double_grid = on_double_grid .and. (abs(x-nint(x))<eps)
-                      x= 0.5d0/tpiba*(q(1)*at(1,2)+q(2)*at(2,2)+q(3)*at(3,2))*nq2
+                      x= 0.5d0/tpiba*(q(1)*at(1,2)+q(2)*at(2,2)+q(3)*at(3,2))*nq2_old
                       on_double_grid = on_double_grid .and. (abs(x-nint(x))<eps)
-                      x= 0.5d0/tpiba*(q(1)*at(1,3)+q(2)*at(2,3)+q(3)*at(3,3))*nq3
+                      x= 0.5d0/tpiba*(q(1)*at(1,3)+q(2)*at(2,3)+q(3)*at(3,3))*nq3_old
                       on_double_grid = on_double_grid .and. (abs(x-nint(x))<eps)
                   ELSE
                       on_double_grid = .FALSE.
