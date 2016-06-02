@@ -73,11 +73,14 @@ CONTAINS
     !
     INTEGER :: parent_nproc = 1, parent_mype = 0
     !
-#if defined (__MPI)
-    !
-    IF(.FALSE.) THEN
+    IF(.TRUE.) THEN
+       !
+       ! revert to the old embedding method
+       !
        use_old_exx = .TRUE.
     END IF
+    !
+#if defined (__MPI)
     !
     parent_nproc = mp_size( parent_comm )
     parent_mype  = mp_rank( parent_comm )

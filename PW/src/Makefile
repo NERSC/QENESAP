@@ -58,6 +58,7 @@ coset.o \
 d_matrix.o \
 data_structure.o \
 data_structure_custom.o \
+data_structure_custom_old.o \
 deriv_drhoc.o \
 divide_class.o \
 divide_class_so.o \

@@ -19,7 +19,9 @@ MODULE exx
   USE fft_types,            ONLY : fft_dlay_descriptor
   USE exx_old,              ONLY : exx_restart_old, exxinit_old, vexx_old, &
                                    exxenergy_old, exxenergy2_old, &
-                                   exx_divergence_old, exx_stress_old
+                                   exx_divergence_old, exx_stress_old, &
+                                   deallocate_exx_old, exx_grid_init_old, &
+                                   exx_fft_create_old
   !
   IMPLICIT NONE
   SAVE
@@ -177,9 +179,18 @@ MODULE exx
     USE klist,        ONLY : qnorm
     USE cell_base,    ONLY : at, bg, tpiba2
     USE fft_custom,   ONLY : set_custom_grid, ggent
+    USE mp_exx,       ONLY : use_old_exx
+    USE exx_old,      ONLY : ecutfock_old
     USE grid_subroutines,   ONLY : realspace_grid_init
 
     IMPLICIT NONE
+
+    IF (use_old_exx) THEN
+       ! use the old band group parallelization
+       ecutfock_old = ecutfock
+       CALL exx_fft_create_old()
+       RETURN
+    END IF
 
     IF( exx_fft%initialized) RETURN
 
@@ -214,10 +225,16 @@ MODULE exx
     USE becmod, ONLY : deallocate_bec_type, is_allocated_bec_type, bec_type
     USE us_exx, ONLY : becxx
     USE fft_custom,  ONLY : deallocate_fft_custom
+    USE mp_exx, ONLY : use_old_exx
     !
     IMPLICIT NONE
     INTEGER :: ikq
     !
+    IF (use_old_exx) THEN
+       ! use the old band group parallelization
+       CALL deallocate_exx_old()
+       RETURN
+    END IF
     IF ( ALLOCATED(index_xkq) ) DEALLOCATE(index_xkq)
     IF ( ALLOCATED(index_xk ) ) DEALLOCATE(index_xk )
     IF ( ALLOCATED(index_sym) ) DEALLOCATE(index_sym)
@@ -258,6 +275,7 @@ MODULE exx
     USE io_global,  ONLY : stdout
     USE start_k,    ONLY : nk1,nk2,nk3
     USE mp_pools,   ONLY : npool
+    USE mp_exx,     ONLY : use_old_exx
     !
     IMPLICIT NONE
     !
@@ -270,6 +288,12 @@ MODULE exx
     REAL(DP)     :: sxk(3), dxk(3), xk_cryst(3)
     REAL(DP)     :: dq1, dq2, dq3
     CHARACTER (LEN=6), EXTERNAL :: int_to_char
+    !
+    IF (use_old_exx) THEN
+       ! use the old band group parallelization
+       CALL exx_grid_init_old()
+       RETURN
+    END IF
     !
     CALL start_clock ('exx_grid')
     !
@@ -664,6 +688,7 @@ MODULE exx
     USE us_exx,               ONLY : becxx
     USE paw_variables,        ONLY : okpaw
     USE paw_exx,              ONLY : PAW_init_keeq
+    USE exx_old,              ONLY : ecutfock_old
 
     IMPLICIT NONE
     INTEGER :: ik,ibnd, i, j, k, ir, isym, ikq, ig
@@ -684,6 +709,7 @@ MODULE exx
     INTEGER :: ibnd_exx
     IF (use_old_exx) THEN
        ! use the old band group parallelization
+       ecutfock_old = ecutfock
        CALL exxinit_old()
        RETURN
     END IF

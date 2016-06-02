@@ -107,13 +107,13 @@ MODULE exx_old
   ! custom fft grids
   !
   TYPE(fft_cus) exx_fft         ! Custom grid for Vx*psi calculation
-  REAL(DP)  :: ecutfock         ! energy cutoff for custom grid
+  REAL(DP)  :: ecutfock_old         ! energy cutoff for custom grid
  CONTAINS
 #define _CX(A)  CMPLX(A,0._dp,kind=DP)
 #define _CY(A)  CMPLX(0._dp,-A,kind=DP)
   !
   !------------------------------------------------------------------------
-  SUBROUTINE exx_fft_create ()
+  SUBROUTINE exx_fft_create_old ()
     USE gvecw,        ONLY : ecutwfc
     USE gvect,        ONLY : ecutrho, ig_l2g
     USE control_flags,ONLY : gamma_only
@@ -133,24 +133,24 @@ MODULE exx_old
     ! with k-points the following instructions guarantees that the sphere in 
     ! G space contains k+G points - needed if ecutfock \simeq ecutwfc
     IF ( gamma_only ) THEN
-       exx_fft%dual_t = ecutfock/ecutwfc
+       exx_fft%dual_t = ecutfock_old/ecutwfc
     ELSE
-       exx_fft%dual_t = MAX(ecutfock,(sqrt(ecutwfc)+qnorm)**2)/ecutwfc
+       exx_fft%dual_t = MAX(ecutfock_old,(sqrt(ecutwfc)+qnorm)**2)/ecutwfc
     END IF
     !
     exx_fft%gcutmt = exx_fft%dual_t*exx_fft%ecutt / tpiba2
     CALL realspace_grid_init(exx_fft%dfftt, at, bg, exx_fft%gcutmt)
-    CALL data_structure_custom(exx_fft, gamma_only)
+    CALL data_structure_custom_old(exx_fft, gamma_only)
     CALL ggent(exx_fft)
     exx_fft%initialized = .true.
     !
     RETURN
     !------------------------------------------------------------------------
-  END SUBROUTINE exx_fft_create
+  END SUBROUTINE exx_fft_create_old
   !------------------------------------------------------------------------
   !
   !------------------------------------------------------------------------
-  SUBROUTINE deallocate_exx ()
+  SUBROUTINE deallocate_exx_old ()
     !------------------------------------------------------------------------
     !
     USE becmod, ONLY : deallocate_bec_type, is_allocated_bec_type, bec_type
@@ -178,17 +178,17 @@ MODULE exx_old
     CALL deallocate_fft_custom(exx_fft)
     !
     !------------------------------------------------------------------------
-  END SUBROUTINE deallocate_exx
+  END SUBROUTINE deallocate_exx_old
   !------------------------------------------------------------------------
   !
   SUBROUTINE exx_grid_reinit()
     IMPLICIT NONE
     DEALLOCATE(xkq_collect,index_xk,index_sym)
     exx_grid_initialized = .false.
-    CALL exx_grid_init()
+    CALL exx_grid_init_old()
   END SUBROUTINE exx_grid_reinit
   !------------------------------------------------------------------------
-  SUBROUTINE exx_grid_init()
+  SUBROUTINE exx_grid_init_old()
     !------------------------------------------------------------------------
     !
     USE symm_base,  ONLY : nsym, s
@@ -414,7 +414,7 @@ MODULE exx_old
     !
     RETURN
     !------------------------------------------------------------------------
-  END SUBROUTINE exx_grid_init
+  END SUBROUTINE exx_grid_init_old
   !------------------------------------------------------------------------
   !
   !------------------------------------------------------------------------
@@ -623,7 +623,7 @@ MODULE exx_old
        ENDDO
     ENDIF
 
-    CALL exx_fft_create()
+    CALL exx_fft_create_old()
 
     ! Note that nxxs is not the same as nrxxs in parallel case
     nxxs = exx_fft%dfftt%nr1x *exx_fft%dfftt%nr2x *exx_fft%dfftt%nr3x 
