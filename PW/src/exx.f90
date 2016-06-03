@@ -1817,9 +1817,9 @@ MODULE exx
     REAL(DP) :: nqhalf_dble(3)
     LOGICAL :: odg(3)
     ! Check if coulomb_fac has been allocated
-    IF( .NOT.ALLOCATED( coulomb_fac ) ) ALLOCATE( coulomb_fac(ngm,nqs,nks) )
+    IF( .NOT.ALLOCATED( coulomb_fac ) ) ALLOCATE( coulomb_fac(ngm,nqs,nqs) )
     IF( .NOT.ALLOCATED( coulomb_done) ) THEN
-       ALLOCATE( coulomb_done(nqs,nks) )
+       ALLOCATE( coulomb_done(nqs,nqs) )
        coulomb_done = .FALSE.
     END IF
     IF ( coulomb_done(iq,current_k) ) RETURN
