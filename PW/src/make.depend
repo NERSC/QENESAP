@@ -349,6 +349,15 @@ data_structure_custom.o : ../../Modules/mp.o
 data_structure_custom.o : ../../Modules/mp_bands.o
 data_structure_custom.o : ../../Modules/recvec.o
 data_structure_custom.o : pwcom.o
+data_structure_custom_old.o : ../../FFTXlib/stick_set.o
+data_structure_custom_old.o : ../../Modules/cell_base.o
+data_structure_custom_old.o : ../../Modules/fft_base.o
+data_structure_custom_old.o : ../../Modules/fft_custom.o
+data_structure_custom_old.o : ../../Modules/kind.o
+data_structure_custom_old.o : ../../Modules/mp.o
+data_structure_custom_old.o : ../../Modules/mp_bands.o
+data_structure_custom_old.o : ../../Modules/recvec.o
+data_structure_custom_old.o : pwcom.o
 deriv_drhoc.o : ../../Modules/constants.o
 deriv_drhoc.o : ../../Modules/kind.o
 divide.o : ../../Modules/mp.o

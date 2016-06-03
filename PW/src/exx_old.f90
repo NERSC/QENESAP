@@ -398,7 +398,7 @@ MODULE exx_old
     DEALLOCATE(temp_index_xk, temp_index_sym, temp_index_ikq, new_ikq, temp_xkq)
     !
     ! check that everything is what it should be
-    CALL exx_grid_check ( xk_collect(:,:) ) 
+    CALL exx_grid_check_old ( xk_collect(:,:) ) 
     DEALLOCATE( xk_collect )
     !
     ! qnorm = max |k+q|, useful for reduced-cutoff calculations with k-points 
@@ -418,7 +418,7 @@ MODULE exx_old
   !------------------------------------------------------------------------
   !
   !------------------------------------------------------------------------
-  SUBROUTINE exx_div_check()
+  SUBROUTINE exx_div_check_old()
     !------------------------------------------------------------------------
     !
     USE cell_base,  ONLY : at, alat
@@ -479,12 +479,12 @@ MODULE exx_old
     ENDIF
     RETURN
   !------------------------------------------------------------------------
-  END SUBROUTINE exx_div_check 
+  END SUBROUTINE exx_div_check_old
   !------------------------------------------------------------------------
 
 
   !------------------------------------------------------------------------
-  SUBROUTINE exx_grid_check ( xk_collect )
+  SUBROUTINE exx_grid_check_old ( xk_collect )
     !------------------------------------------------------------------------
     USE symm_base,  ONLY : s
     USE cell_base,  ONLY : at
@@ -543,7 +543,7 @@ MODULE exx_old
     return
 
     !------------------------------------------------------------------------
-  END SUBROUTINE exx_grid_check
+  END SUBROUTINE exx_grid_check_old
   !------------------------------------------------------------------------
   !
   !------------------------------------------------------------------------
@@ -652,7 +652,7 @@ MODULE exx_old
        CALL start_exx()
     ENDIF
 
-    IF ( .NOT. gamma_only ) CALL exx_set_symm ( )
+    IF ( .NOT. gamma_only ) CALL exx_set_symm_old ( )
 
     ! set occupations of wavefunctions used in the calculation of exchange term
 
@@ -847,7 +847,7 @@ MODULE exx_old
     ENDIF
     ! compute <beta_I|psi_j,k+q> for the entire de-symmetrized k+q grid
     !
-    CALL compute_becxx()
+    CALL compute_becxx_old()
     !
     ! Initialize 4-wavefunctions one-center Fock integrals
     !    \int \psi_a(r)\phi_a(r)\phi_b(r')\psi_b(r')/|r-r'|
@@ -861,7 +861,7 @@ MODULE exx_old
   !-----------------------------------------------------------------------
   !
   !-----------------------------------------------------------------------
-  SUBROUTINE exx_set_symm ( )
+  SUBROUTINE exx_set_symm_old ( )
     !-----------------------------------------------------------------------
     !
     ! Uses nkqs and index_sym from module exx, computes rir
@@ -914,10 +914,10 @@ MODULE exx_old
 
        ENDIF
     ENDDO
-  END SUBROUTINE exx_set_symm
+  END SUBROUTINE exx_set_symm_old
   !
   !-----------------------------------------------------------------------
-  SUBROUTINE compute_becxx ( )
+  SUBROUTINE compute_becxx_old ( )
     !-----------------------------------------------------------------------
     !
     ! prepare the necessary quantities, then call calbec to compute
@@ -1033,7 +1033,7 @@ MODULE exx_old
     !
     CALL stop_clock('becxx')
     !-----------------------------------------------------------------------
-  END SUBROUTINE compute_becxx
+  END SUBROUTINE compute_becxx_old
   !-----------------------------------------------------------------------
   !
   !-----------------------------------------------------------------------
@@ -1070,9 +1070,9 @@ MODULE exx_old
     CALL start_clock ('vexx')
     !
     IF(gamma_only) THEN
-       CALL vexx_gamma(lda, n, m, psi, hpsi, becpsi) 
+       CALL vexx_gamma_old(lda, n, m, psi, hpsi, becpsi) 
     ELSE
-       CALL vexx_k(lda, n, m, psi, hpsi, becpsi) 
+       CALL vexx_k_old(lda, n, m, psi, hpsi, becpsi) 
     ENDIF
     !
     CALL stop_clock ('vexx')
@@ -1082,7 +1082,7 @@ MODULE exx_old
   !-----------------------------------------------------------------------
   !
   !-----------------------------------------------------------------------
-  SUBROUTINE vexx_gamma(lda, n, m, psi, hpsi, becpsi)
+  SUBROUTINE vexx_gamma_old(lda, n, m, psi, hpsi, becpsi)
   !-----------------------------------------------------------------------
     !
     ! ... Gamma-specific version of vexx
@@ -1163,7 +1163,7 @@ MODULE exx_old
        xkq  = xkq_collect(:,ikq)
        !
        ! calculate the 1/|r-r'| (actually, k+q+g) factor and place it in fac
-       CALL g2_convolution(exx_fft%ngmt, exx_fft%gt, xkp, xkq, fac) 
+       CALL g2_convolution_old(exx_fft%ngmt, exx_fft%gt, xkp, xkq, fac) 
        IF ( okvan .AND..NOT.tqr ) CALL qvan_init (exx_fft%ngmt, xkq, xkp)
        !
        LOOP_ON_PSI_BANDS : &
@@ -1359,11 +1359,11 @@ MODULE exx_old
     IF(okvan) DEALLOCATE( deexx )
     !
     !-----------------------------------------------------------------------
-  END SUBROUTINE vexx_gamma
+  END SUBROUTINE vexx_gamma_old
   !-----------------------------------------------------------------------
   !
   !-----------------------------------------------------------------------
-  SUBROUTINE vexx_k(lda, n, m, psi, hpsi, becpsi)
+  SUBROUTINE vexx_k_old(lda, n, m, psi, hpsi, becpsi)
   !-----------------------------------------------------------------------
     !
     ! ... generic, k-point version of vexx
@@ -1489,7 +1489,7 @@ MODULE exx_old
           xkq  = xkq_collect(:,ikq)
           !
           ! calculate the 1/|r-r'| (actually, k+q+g) factor and place it in fac
-          CALL g2_convolution(exx_fft%ngmt, exx_fft%gt, xkp, xkq, fac)
+          CALL g2_convolution_old(exx_fft%ngmt, exx_fft%gt, xkp, xkq, fac)
           IF ( okvan .AND..NOT.tqr ) CALL qvan_init (exx_fft%ngmt, xkq, xkp)
           !
           IBND_LOOP_K : &
@@ -1650,11 +1650,11 @@ MODULE exx_old
     IF(okvan) DEALLOCATE( deexx)
     !
     !-----------------------------------------------------------------------
-  END SUBROUTINE vexx_k
+  END SUBROUTINE vexx_k_old
   !-----------------------------------------------------------------------
   !
   !-----------------------------------------------------------------------
-  SUBROUTINE g2_convolution(ngm, g, xk, xkq, fac)
+  SUBROUTINE g2_convolution_old(ngm, g, xk, xkq, fac)
   !-----------------------------------------------------------------------
     ! This routine calculates the 1/|r-r'| part of the exact exchange 
     ! expression in reciprocal space (the G^-2 factor).
@@ -1762,7 +1762,7 @@ MODULE exx_old
       !
     ENDDO
 !$omp end parallel do
-  END SUBROUTINE g2_convolution
+  END SUBROUTINE g2_convolution_old
   !-----------------------------------------------------------------------
   !
 
@@ -1869,9 +1869,9 @@ MODULE exx_old
     CALL start_clock ('exxenergy')
     !
     IF( gamma_only ) THEN 
-       exxenergy2_old = exxenergy2_gamma() 
+       exxenergy2_old = exxenergy2_gamma_old() 
     ELSE
-       exxenergy2_old = exxenergy2_k() 
+       exxenergy2_old = exxenergy2_k_old() 
     ENDIF
     !
     CALL stop_clock ('exxenergy')
@@ -1881,7 +1881,7 @@ MODULE exx_old
   !-----------------------------------------------------------------------
   !
   !-----------------------------------------------------------------------
-  FUNCTION exxenergy2_gamma()
+  FUNCTION exxenergy2_gamma_old()
     !-----------------------------------------------------------------------
     !
     USE constants,               ONLY : fpi, e2, pi
@@ -1910,7 +1910,7 @@ MODULE exx_old
     !
     IMPLICIT NONE
     !
-    REAL(DP)   :: exxenergy2_gamma
+    REAL(DP)   :: exxenergy2_gamma_old
     !
     ! local variables
     REAL(DP) :: energy 
@@ -1966,7 +1966,7 @@ MODULE exx_old
           !
           xkq = xkq_collect(:,ikq)
           !
-          CALL g2_convolution(exx_fft%ngmt, exx_fft%gt, xkp, xkq, fac) 
+          CALL g2_convolution_old(exx_fft%ngmt, exx_fft%gt, xkp, xkq, fac) 
           fac(exx_fft%gstart_t:) = 2 * fac(exx_fft%gstart_t:)
           IF ( okvan .AND..NOT.tqr ) CALL qvan_init (exx_fft%ngmt, xkq, xkp)
           !
@@ -2124,14 +2124,14 @@ MODULE exx_old
     CALL mp_sum( energy, intra_bgrp_comm )
     CALL mp_sum( energy, inter_pool_comm )
     !
-    exxenergy2_gamma = energy
+    exxenergy2_gamma_old = energy
     !
     !-----------------------------------------------------------------------
-  END FUNCTION  exxenergy2_gamma
+  END FUNCTION  exxenergy2_gamma_old
   !-----------------------------------------------------------------------
   !
   !-----------------------------------------------------------------------
-  FUNCTION exxenergy2_k()
+  FUNCTION exxenergy2_k_old()
     !-----------------------------------------------------------------------
     !
     USE constants,               ONLY : fpi, e2, pi
@@ -2160,7 +2160,7 @@ MODULE exx_old
     !
     IMPLICIT NONE
     !
-    REAL(DP)   :: exxenergy2_k
+    REAL(DP)   :: exxenergy2_k_old
     !
     ! local variables
     REAL(DP) :: energy 
@@ -2254,7 +2254,7 @@ MODULE exx_old
              !
              xkq = xkq_collect(:,ikq)
              !
-             CALL g2_convolution(exx_fft%ngmt, exx_fft%gt, xkp, xkq, fac)
+             CALL g2_convolution_old(exx_fft%ngmt, exx_fft%gt, xkp, xkq, fac)
              IF ( okvan .AND..NOT.tqr ) CALL qvan_init (exx_fft%ngmt, xkq, xkp)
              !
              IBND_LOOP_K : &
@@ -2328,10 +2328,10 @@ MODULE exx_old
     CALL mp_sum( energy, intra_bgrp_comm )
     CALL mp_sum( energy, inter_pool_comm )
     !
-    exxenergy2_k = energy
+    exxenergy2_k_old = energy
     !
     !-----------------------------------------------------------------------
-  END FUNCTION  exxenergy2_k
+  END FUNCTION  exxenergy2_k_old
   !-----------------------------------------------------------------------
   !
   !-----------------------------------------------------------------------
