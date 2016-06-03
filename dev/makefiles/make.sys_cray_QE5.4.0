@@ -1,0 +1,50 @@
+.SUFFIXES :
+.SUFFIXES : .o .c .f .f90
+
+.f90.o:
+	$(CPP) $(CPPFLAGS) $< -o $*.F90 ; \
+	$(MPIF90) $(F90FLAGS) -c $*.F90 -o $*.o
+.f.o:
+	$(F77) $(FFLAGS) -c $<
+.c.o:
+	$(CC) $(CFLAGS)  -c $<
+
+TOPDIR = 
+
+# -D__USE_3D_FFT
+MANUAL_DFLAGS  =
+DFLAGS         =  -D__FFT_CLOCKS -D__CRAY -D__FFTW3 -D__OPENMP $(MANUAL_DFLAGS) -D__MPI -D__SCALAPACK -D__PARA 
+FDFLAGS        = $(DFLAGS) $(MANUAL_DFLAGS)
+IFLAGS         = -I$(FFTW_INC) -I../include
+MOD_FLAG      = -I
+MPIF90         = ftn
+#F90           = ftn
+CC             = cc
+F77            = ftn
+CPP            = cpp -nostdinc 
+CPPFLAGS       = -P -C -traditional $(DFLAGS) $(IFLAGS)
+CFLAGS         = -O3 $(DFLAGS) $(IFLAGS)
+F90FLAGS       = -O3,fp3 -f free -homp -rm $(FDFLAGS) $(IFLAGS) $(MODFLAGS)
+FFLAGS         = -O2 -homp 
+FFLAGS_NOOPT   = -O0
+FFLAGS_NOMAIN   =
+LD             = ftn
+LDFLAGS        = -v -homp
+LD_LIBS        =
+BLAS_LIBS      =
+BLAS_LIBS_SWITCH = external
+LAPACK_LIBS    =
+LAPACK_LIBS_SWITCH = external
+ELPA_LIBS_SWITCH = disabled
+SCALAPACK_LIBS =
+FFT_LIBS       = -L$(FFTW_DIR) -lfftw3_threads -lfftw3 -lpthread -lm
+MPI_LIBS       =
+MASS_LIBS      =
+AR             = ar
+ARFLAGS        = ruv
+RANLIB         = ranlib
+FLIB_TARGETS   = all
+LIBOBJS        = ../flib/ptools.a ../flib/flib.a ../clib/clib.a ../iotk/src/libiotk.a
+LIBS           = $(SCALAPACK_LIBS) $(LAPACK_LIBS) $(FFT_LIBS) $(BLAS_LIBS) $(MPI_LIBS) $(MASS_LIBS) $(LD_LIBS)
+WGET = wget -O
+PREFIX = $(INSTALLDIR)
