@@ -73,7 +73,7 @@ CONTAINS
     !
     INTEGER :: parent_nproc = 1, parent_mype = 0
     !
-    IF(.TRUE.) THEN
+    IF(nband_.le.1) THEN
        !
        ! revert to the old embedding method
        !
