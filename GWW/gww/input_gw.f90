@@ -153,11 +153,7 @@
     USE io_global,            ONLY : stdout, ionode, ionode_id
     USE mp,                   ONLY : mp_bcast
     USE mp_world,             ONLY : world_comm
-<<<<<<< HEAD
-    USE io_files,             ONLY :  tmp_dir,outdir,prefix
-=======
     USE io_files,             ONLY :  tmp_dir,prefix
->>>>>>> main-dev
    
     implicit none
 
@@ -180,12 +176,7 @@
        read(*, NML=inputgww)
 !OBM: file handling in a more QE manner
      IF ( TRIM( ggwin%outdir ) == ' ' ) ggwin%outdir = './'
-<<<<<<< HEAD
-     outdir = trimcheck(ggwin%outdir)
-     tmp_dir = outdir
-=======
      tmp_dir = trimcheck(ggwin%outdir)
->>>>>>> main-dev
      prefix = trim(ggwin%prefix)
 !set up parameter for calculation with Lanczos scheme
      
@@ -291,10 +282,6 @@
         if(ggwin%l_scissor) write(stdout,*) 'USE SCISSOR:', ggwin%scissor
      endif
 #ifdef __MPI
-<<<<<<< HEAD
-    CALL mp_bcast( outdir,ionode_id, world_comm )
-=======
->>>>>>> main-dev
     CALL mp_bcast( tmp_dir,ionode_id, world_comm )
     CALL mp_bcast( prefix,ionode_id, world_comm )
     call mp_bcast(ggwin%n,ionode_id,world_comm)

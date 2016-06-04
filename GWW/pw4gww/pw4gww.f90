@@ -59,11 +59,7 @@ program gwl_punch
   USE constants,            ONLY : rytoev
   use io_global, ONLY : stdout, ionode, ionode_id
   use io_files,  ONLY : psfile, pseudo_dir
-<<<<<<< HEAD
-  use io_files,  ONLY : prefix, tmp_dir, outdir
-=======
   use io_files,  ONLY : prefix, tmp_dir
->>>>>>> main-dev
   use ions_base, ONLY : ntype => nsp
   use iotk_module
   use mp_pools, ONLY : kunit
@@ -167,10 +163,7 @@ program gwl_punch
   logical :: found, uspp_spsi, ascii, single_file, raw
 !  INTEGER(i4b), EXTERNAL :: C_MKDIR
  CHARACTER(LEN=256), EXTERNAL :: trimcheck
-<<<<<<< HEAD
-=======
  CHARACTER(LEN=256) :: outdir
->>>>>>> main-dev
 
   NAMELIST /inputpw4gww/ prefix, outdir, pp_file, uspp_spsi, ascii, single_file, raw, &
                      psfile, pseudo_dir, &
@@ -324,10 +317,6 @@ program gwl_punch
   ! ... Broadcasting variables
 !------------------------------------------------------------------------
   tmp_dir = trimcheck( outdir )
-<<<<<<< HEAD
-  CALL mp_bcast( outdir, ionode_id, world_comm )
-=======
->>>>>>> main-dev
   CALL mp_bcast( tmp_dir, ionode_id, world_comm )
   CALL mp_bcast( prefix, ionode_id, world_comm )
   CALL mp_bcast( pp_file, ionode_id, world_comm )
@@ -537,11 +526,7 @@ subroutine read_export (pp_file,kunit,uspp_spsi, ascii, single_file, raw)
 ! occhio sname is in symme which is now outside pwcom
   use  uspp,          ONLY : nkb, vkb
   use wavefunctions_module,  ONLY : evc
-<<<<<<< HEAD
-  use io_files,       ONLY : nd_nmbr, outdir, prefix, iunwfc, nwordwfc, iunsat, nwordatwfc
-=======
   use io_files,       ONLY : nd_nmbr, prefix, iunwfc, nwordwfc, iunsat, nwordatwfc
->>>>>>> main-dev
   use io_files,       ONLY : pseudo_dir, psfile
   use io_global,      ONLY : ionode, stdout
   USE ions_base,      ONLY : atm, nat, ityp, tau, nsp
