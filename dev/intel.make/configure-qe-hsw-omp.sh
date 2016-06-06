@@ -55,8 +55,16 @@ sed -i -e "s/\$(MOD_FLAG)\.\.\/ELPA\/src//" Modules/Makefile
 
 # patch source code files
 patch -N PW/src/setup.f90 configure-qe-setup_pw.patch
-patch -N Modules/dspev_drv.f90 configure-qe-dspev_drv.patch
-patch -N Modules/zhpev_drv.f90 configure-qe-zhpev_drv.patch
+if [ -e LAXlib/dspev_drv.f90 ]; then
+  patch -N LAXlib/dspev_drv.f90 configure-qe-dspev_drv.patch
+else
+  patch -N Modules/dspev_drv.f90 configure-qe-dspev_drv.patch
+fi
+if [ -e LAXlib/zhpev_drv.f90 ]; then
+  patch -N LAXlib/zhpev_drv.f90 configure-qe-zhpev_drv.patch
+else
+  patch -N Modules/zhpev_drv.f90 configure-qe-zhpev_drv.patch
+fi
 #patch -N Modules/wavefunctions.f90 configure-qe-wavefunctions.patch
 #patch -N FFTXlib/fft_parallel.f90 configure-qe-fft_parallel.patch
 patch -N FFTXlib/fftw.c configure-qe-fftw.patch
