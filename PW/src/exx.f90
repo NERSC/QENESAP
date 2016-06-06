@@ -1551,6 +1551,8 @@ MODULE exx
     COMPLEX(DP), ALLOCATABLE :: big_result(:,:)
     INTEGER :: ir_out, ipair, jbnd, old_ibnd
     !
+    CALL start_clock ('vexx_init')
+    !
     ALLOCATE( fac(exx_fft%ngmt) )
     nrxxs= exx_fft%dfftt%nnr
     !
@@ -1572,6 +1574,8 @@ MODULE exx
     big_result = 0.0_DP
     old_ibnd = 0
     !
+    CALL stop_clock ('vexx_init')
+    !
     DO ipair=1, max_pairs
        !
        ibnd = egrp_pairs(1,ipair,my_egrp_id+1)
@@ -1580,6 +1584,8 @@ MODULE exx
        IF (ibnd.eq.0.or.ibnd.gt.m) CYCLE
        !
        IF (ibnd.ne.old_ibnd) THEN
+          !
+          CALL start_clock ('vexx_out1')
           !
           IF(okvan) deexx = 0.0_DP
           !
@@ -1623,6 +1629,8 @@ MODULE exx
           !
           old_ibnd = ibnd
           !
+          CALL stop_clock ('vexx_out1')
+          !
        END IF
        
        
@@ -1637,8 +1645,10 @@ MODULE exx
           xkq  = xkq_collect(:,ikq)
           !
           ! calculate the 1/|r-r'| (actually, k+q+g) factor and place it in fac
+          CALL start_clock ('vexx_g2')
           CALL g2_convolution(exx_fft%ngmt, exx_fft%gt, xkp, &
                xkq, iq, current_k)
+          CALL stop_clock ('vexx_g2')
           IF ( okvan .AND..NOT.tqr ) CALL qvan_init (exx_fft%ngmt, xkq, xkp)
           !
           !
@@ -1646,6 +1656,7 @@ MODULE exx
           !
           !loads the phi from file
           !
+          CALL start_clock ('vexx_rho')
           IF (noncolin) THEN
 !$omp parallel do default(shared), private(ir)
              DO ir = 1, nrxxs
@@ -1660,22 +1671,30 @@ MODULE exx
              ENDDO
 !$omp end parallel do
           ENDIF
+          CALL stop_clock ('vexx_rho')
 
           !   >>>> add augmentation in REAL space HERE
+          CALL start_clock ('vexx_augr')
           IF(okvan .AND. tqr) THEN ! augment the "charge" in real space
              CALL addusxx_r(rhoc, becxx(ikq)%k(:,jbnd), becpsi%k(:,im))
           ENDIF
+          CALL stop_clock ('vexx_augr')
           !
           !   >>>> brings it to G-space
+          CALL start_clock ('vexx_ffft')
           CALL fwfft('Custom', rhoc, exx_fft%dfftt, is_exx=.TRUE.)
+          CALL stop_clock ('vexx_ffft')
           !
           !   >>>> add augmentation in G space HERE
+          CALL start_clock ('vexx_augg')
           IF(okvan .AND. .NOT. tqr) THEN
              CALL addusxx_g(exx_fft, rhoc, xkq, xkp, 'c', &
                   becphi_c=becxx(ikq)%k(:,jbnd),becpsi_c=becpsi%k(:,im))
           ENDIF
+          CALL stop_clock ('vexx_augg')
           !   >>>> charge done
           !
+          CALL start_clock ('vexx_vc')
           vc = 0._DP
           !
 !$omp parallel do default(shared), private(ig)
@@ -1684,28 +1703,38 @@ MODULE exx
                   rhoc(exx_fft%nlt(ig)) * x_occupation(jbnd,ik) / nqs
           ENDDO
 !$omp end parallel do
+          CALL stop_clock ('vexx_vc')
           !
           ! Add ultrasoft contribution (RECIPROCAL SPACE)
           ! compute alpha_I,j,k+q = \sum_J \int <beta_J|phi_j,k+q> V_i,j,k,q Q_I,J(r) d3r
+          CALL start_clock ('vexx_ultr')
           IF(okvan .AND. .NOT. tqr) THEN
              CALL newdxx_g(exx_fft, vc, xkq, xkp, 'c', deexx, &
                   becphi_c=becxx(ikq)%k(:,jbnd))
           ENDIF
+          CALL stop_clock ('vexx_ultr')
           !
           !brings back v in real space
+          CALL start_clock ('vexx_ifft')
           CALL invfft ('Custom', vc, exx_fft%dfftt, is_exx=.TRUE.)
+          CALL stop_clock ('vexx_ifft')
           !
           ! Add ultrasoft contribution (REAL SPACE)
+          CALL start_clock ('vexx_ultg')
           IF(okvan .AND. tqr) CALL newdxx_r(vc, becxx(ikq)%k(:,jbnd),deexx)
+          CALL stop_clock ('vexx_ultg')
           !
           ! Add PAW one-center contribution
+          CALL start_clock ('vexx_paw')
           IF(okpaw) THEN
              CALL PAW_newdxx(x_occupation(jbnd,ik)/nqs, becxx(ikq)%k(:,jbnd), &
                   becpsi%k(:,im), deexx)
           ENDIF
+          CALL stop_clock ('vexx_paw')
           !
           !accumulates over bands and k points
           !
+          CALL start_clock ('vexx_res')
           IF (noncolin) THEN
 !$omp parallel do default(shared), private(ir)
              DO ir = 1, nrxxs
@@ -1724,8 +1753,11 @@ MODULE exx
              ENDDO
 !$omp end parallel do
           ENDIF
+          CALL stop_clock ('vexx_res')
           !
+          CALL start_clock ('vexx_qcln')
           IF ( okvan .AND..NOT.tqr ) CALL qvan_clean ()
+          CALL stop_clock ('vexx_qcln')
           !
        END DO
        !----------------------------------------------------------------------!
@@ -1735,6 +1767,7 @@ MODULE exx
 
 
        IF (ipair.eq.max_pairs.or.egrp_pairs(1,min(ipair+1,max_pairs),my_egrp_id+1).ne.ibnd) THEN
+          CALL start_clock ('vexx_out2')
           !
           IF(okvan) THEN
              CALL mp_sum(deexx,intra_egrp_comm)
@@ -1754,24 +1787,32 @@ MODULE exx
                 big_result(ig,ibnd) = big_result(ig,ibnd) + result(exx_fft%nlt(igk_exx(ig,current_k)))
              ENDDO
           ENDIF
+          CALL stop_clock ('vexx_out2')
        END IF
 
 
     END DO
 
     !sum result
+    CALL start_clock ('vexx_sum')
     CALL result_sum(n, m, big_result)
+    CALL stop_clock ('vexx_sum')
     DO im=1, m
+       CALL start_clock ('vexx_hpsi')
 !$omp parallel do default(shared), private(ig)
        DO ig = 1, n
           hpsi(ig,im)=hpsi(ig,im) - exxalfa*big_result(ig,im)
        ENDDO
 !$omp end parallel do
+       CALL stop_clock ('vexx_hpsi')
        ! add non-local \sum_I |beta_I> \alpha_Ii (the sum on i is outside)
+       CALL start_clock ('vexx_nloc')
        IF(okvan) CALL add_nlxx_pot (lda, hpsi(:,im), xkp, n, &
             igk_exx(1,current_k), deexx, eps_occ, exxalfa)
+       CALL stop_clock ('vexx_nloc')
     END DO
     !
+    CALL start_clock ('vexx_deal')
     IF (noncolin) THEN
        DEALLOCATE(temppsic_nc, result_nc)
        DEALLOCATE(result_nc_g)
@@ -1784,6 +1825,7 @@ MODULE exx
     DEALLOCATE(rhoc, vc, fac )
     !
     IF(okvan) DEALLOCATE( deexx)
+    CALL stop_clock ('vexx_deal')
     !
     !------------------------------------------------------------------------
   END SUBROUTINE vexx_k
@@ -2944,6 +2986,7 @@ MODULE exx
     !
     INTEGER :: lda, n, ik
     LOGICAL :: exst_mem, exst_file
+    CALL start_clock ('conv_evc')
     !
     !
     IF (negrp.eq.1) THEN
@@ -2977,6 +3020,7 @@ MODULE exx
        iunwfc_exx = iunwfc
        nwordwfc_exx = nwordwfc
        !
+       CALL stop_clock ('conv_evc')
        RETURN
        !
     END IF
@@ -3046,6 +3090,7 @@ MODULE exx
        !
        IF ( nks > 1 ) CALL save_buffer ( evc_exx, nwordwfc_exx, iunwfc_exx, ik )
     END DO
+    CALL stop_clock ('conv_evc')
     !
     !-----------------------------------------------------------------------
   END SUBROUTINE transform_evc_to_exx
@@ -3063,6 +3108,7 @@ MODULE exx
     INTEGER, INTENT(in) :: m
     INTEGER, INTENT(inout) :: n
     COMPLEX(DP), INTENT(in) :: psi(lda*npol,m) 
+    CALL start_clock ('start_exxp')
     !
     ! change to the EXX data strucutre
     !
@@ -3093,6 +3139,7 @@ MODULE exx
     ! zero hpsi_exx
     !
     hpsi_exx = 0.d0
+    CALL stop_clock ('start_exxp')
     !
     !-----------------------------------------------------------------------
   END SUBROUTINE transform_psi_to_exx
@@ -3108,6 +3155,7 @@ MODULE exx
     INTEGER, INTENT(in) :: m
     INTEGER, INTENT(inout) :: n
     COMPLEX(DP), INTENT(out) :: hpsi(lda_original*npol,m)
+    CALL start_clock ('end_exxp')
     !
     ! change to the local data structure
     !
@@ -3121,6 +3169,7 @@ MODULE exx
     ! transform hpsi_exx to the local data structure
     !
     CALL transform_to_local(m,hpsi_exx,hpsi)
+    CALL stop_clock ('end_exxp')
     !
     !-----------------------------------------------------------------------
   END SUBROUTINE transform_hpsi_to_local
@@ -3160,6 +3209,7 @@ MODULE exx
     INTEGER :: ierr
     INTEGER :: egrp_base, total_lda_egrp(nks), prev_lda_egrp(nks)
     INTEGER :: igk_loc(npwx)
+    CALL start_clock ('init_exxp')
     !
     ! allocate bookeeping arrays
     !
@@ -3491,6 +3541,7 @@ MODULE exx
     DEALLOCATE( local_map, exx_map )
     DEALLOCATE( l2e_map, e2l_map )
     DEALLOCATE( psi_source, psi_source_exx )
+    CALL stop_clock ('init_exxp')
     !
     !-----------------------------------------------------------------------
   END SUBROUTINE initialize_local_to_exact_map
@@ -3534,6 +3585,7 @@ MODULE exx
     INTEGER :: istatus(MPI_STATUS_SIZE)
 #endif
     !
+    CALL start_clock ('comm1')
     lda_max_local = maxval(lda_local)
     current_ik = ik
     !
@@ -3546,6 +3598,8 @@ MODULE exx
     DO im=1, m
        psi_gather(1:lda_local(me_pool+1,current_ik),im) = psi(:,im)
     END DO
+    CALL stop_clock ('comm1')
+    CALL start_clock ('comm2')
     IF ( type.eq.0 ) THEN
 
        recvcount = lda_max_local
@@ -3582,6 +3636,8 @@ MODULE exx
 #endif
        
     END IF
+    CALL stop_clock ('comm2')
+    CALL start_clock ('comm3')
     !
     !-------------------------------------------------------!
     !Communication Part 2
@@ -3730,6 +3786,7 @@ MODULE exx
     ! deallocate arrays
     !
     DEALLOCATE( psi_work, psi_gather )
+    CALL stop_clock ('comm3')
     !
     !-----------------------------------------------------------------------
   END SUBROUTINE transform_to_exx
@@ -3772,6 +3829,7 @@ MODULE exx
     LOGICAL exst
     !
     IF (negrp.eq.1) RETURN
+    CALL start_clock ('cds')
     !
     IF (first_data_structure_change) THEN
        allocate( ig_l2g_loc(ngm), g_loc(3,ngm), gg_loc(ngm) )
@@ -3904,6 +3962,7 @@ MODULE exx
     ! generate ngl and igtongl
     !
     CALL gshells( lmovecell )
+    CALL stop_clock ('cds')
     !
     !-----------------------------------------------------------------------
   END SUBROUTINE change_data_structure
@@ -4034,6 +4093,7 @@ MODULE exx
     !
     ! gather data onto the correct nodes
     !
+    CALL start_clock ('sum1')
     displs = 0
     ibuf = 0
     nsending = 0
@@ -4082,9 +4142,11 @@ MODULE exx
        CALL MPI_WAIT(request(im), istatus, ierr)
     END DO
 #endif
+    CALL stop_clock ('sum1')
     !
     ! perform the sum
     !
+    CALL start_clock ('sum2')
     DO im=iexx_istart(my_egrp_id+1), iexx_iend(my_egrp_id+1)
        IF(im.eq.0)exit
        data(:,im) = 0._dp
@@ -4095,6 +4157,7 @@ MODULE exx
           END DO
        END DO
     END DO
+    CALL stop_clock ('sum2')
     !
     !-----------------------------------------------------------------------
   END SUBROUTINE result_sum
