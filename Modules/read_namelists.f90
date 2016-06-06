@@ -130,7 +130,7 @@ MODULE read_namelists_module
        !
        CALL get_environment_variable( 'QEXML', input_xml_schema_file )
        IF ( TRIM(input_xml_schema_file) == ' ') &
-          input_xml_schema_file='./qes.xsd'
+          input_xml_schema_file='./qes.xml'
        !
        RETURN
        !
@@ -225,6 +225,7 @@ MODULE read_namelists_module
        ! ... non collinear program variables
        !
        lspinorb = .FALSE.
+       lforcet = .FALSE.
        starting_spin_angle=.FALSE.
        noncolin = .FALSE.
        lambda = 1.0_DP
@@ -252,6 +253,7 @@ MODULE read_namelists_module
        london_s6   = 0.75_DP
        london_rcut = 200.00_DP
        london_c6   = -1.0_DP
+       london_rvdw = -1.0_DP
        ts_vdw          = .FALSE.
        ts_vdw_isolated = .FALSE.
        ts_vdw_econv_thr = 1.E-6_DP
@@ -817,6 +819,7 @@ MODULE read_namelists_module
        ! ... non collinear broadcast
        !
        CALL mp_bcast( lspinorb,                  ionode_id, intra_image_comm )
+       CALL mp_bcast( lforcet,                   ionode_id, intra_image_comm )
        CALL mp_bcast( starting_spin_angle,       ionode_id, intra_image_comm )
        CALL mp_bcast( noncolin,                  ionode_id, intra_image_comm )
        CALL mp_bcast( angle1,                    ionode_id, intra_image_comm )
@@ -839,6 +842,7 @@ MODULE read_namelists_module
        CALL mp_bcast( london_s6,                 ionode_id, intra_image_comm )
        CALL mp_bcast( london_rcut,               ionode_id, intra_image_comm )
        CALL mp_bcast( london_c6,                 ionode_id, intra_image_comm )
+       CALL mp_bcast( london_rvdw,               ionode_id, intra_image_comm )
        CALL mp_bcast( xdm,                       ionode_id, intra_image_comm )
        CALL mp_bcast( xdm_a1,                    ionode_id, intra_image_comm )
        CALL mp_bcast( xdm_a2,                    ionode_id, intra_image_comm )

@@ -3,7 +3,7 @@
 include ../../make.sys
 
 # location of needed modules and included files (if any)
-MODFLAGS= $(MOD_FLAG)../../iotk/src $(MOD_FLAG)../../Modules $(MOD_FLAG)../../FFTXlib
+MODFLAGS= $(MOD_FLAG)../../iotk/src $(MOD_FLAG)../../Modules $(MOD_FLAG)../../FFTXlib $(MOD_FLAG)../../LAXlib
 IFLAGS=
 
 PWOBJS = \
@@ -58,6 +58,7 @@ coset.o \
 d_matrix.o \
 data_structure.o \
 data_structure_custom.o \
+data_structure_custom_old.o \
 deriv_drhoc.o \
 divide_class.o \
 divide_class_so.o \
@@ -77,7 +78,6 @@ esm_cft.o \
 ewald.o \
 ewald_dipole.o \
 exx.o \
-exx_old.o \
 fcp.o \
 find_group.o \
 forces_bp_efield.o \
@@ -163,6 +163,8 @@ print_clock_pw.o \
 print_ks_energies.o \
 punch.o \
 pw_restart.o \
+add_qexsd_step.o \
+pw_init_qexsd_input.o \
 pwcom.o \
 pw2blip.o \
 pw2casino.o \
@@ -247,11 +249,11 @@ wannier_occ.o \
 wannier_enrg.o \
 wyckoff.o       
 
-QEMODS=../../Modules/libqemod.a ../../FFTXlib/libqefft.a
+QEMODS=../../Modules/libqemod.a ../../FFTXlib/libqefft.a ../../LAXlib/libqela.a
 
 TLDEPS=bindir mods libs liblapack libblas
 
-LIBOBJS	= ../../flib/ptools.a ../../flib/flib.a ../../clib/clib.a ../../iotk/src/libiotk.a
+LIBOBJS	= ../../clib/clib.a ../../iotk/src/libiotk.a
 
 all : tldeps pw.x manypw.x generate_vdW_kernel_table.x generate_rVV10_kernel_table.x
 
@@ -274,7 +276,7 @@ tldeps :
 	( cd ../.. ; $(MAKE) $(TLDEPS) || exit 1 ) ; fi
 
 clean :
-	- /bin/rm -f *.x *.o *.a *~ *.F90 *.d *.mod *.i *.L
+	- /bin/rm -f *.x *.o *.a *~ *_tmp.f90 *.d *.mod *.i *.L
 
 generate_vdW_kernel_table.x : libpw.a generate_vdW_kernel_table.o
 	$(LD) $(LDFLAGS) -o $@ \

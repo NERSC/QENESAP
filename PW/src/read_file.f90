@@ -16,7 +16,6 @@ SUBROUTINE read_file()
   USE buffers,              ONLY : open_buffer, close_buffer
   USE wvfct,                ONLY : nbnd, npwx
   USE noncollin_module,     ONLY : npol
-  USE klist,                ONLY : nks
   USE paw_variables,        ONLY : okpaw, ddd_PAW
   USE paw_onecenter,        ONLY : paw_potential
   USE uspp,                 ONLY : becsum
@@ -27,6 +26,9 @@ SUBROUTINE read_file()
   USE ldaU,                 ONLY : lda_plus_u, U_projection
   USE pw_restart,           ONLY : pw_readfile
   USE control_flags,        ONLY : io_level
+  USE klist,                ONLY : init_igk
+  USE gvect,                ONLY : ngm, g
+  USE gvecw,                ONLY : gcutw
   !
   IMPLICIT NONE 
   INTEGER :: ierr
@@ -47,6 +49,11 @@ SUBROUTINE read_file()
   nwordwfc = nbnd*npwx*npol
   io_level = 1
   CALL open_buffer ( iunwfc, 'wfc', nwordwfc, io_level, exst )
+  !
+  ! ... Allocate and compute k+G indices and number of plane waves
+  ! ... FIXME: should be read from file, not re-computed
+  !
+  CALL init_igk ( npwx, ngm, g, gcutw ) 
   !
   ! ... Read orbitals, write them in 'distributed' form to iunwfc
   !
@@ -100,7 +107,7 @@ SUBROUTINE read_xml_file_internal(withbs)
   USE force_mod,            ONLY : force
   USE klist,                ONLY : nkstot, nks, xk, wk
   USE lsda_mod,             ONLY : lsda, nspin, current_spin, isk
-  USE wvfct,                ONLY : nbnd, nbndx, et, wg, ecutwfc
+  USE wvfct,                ONLY : nbnd, nbndx, et, wg
   USE symm_base,            ONLY : irt, d1, d2, d3, checkallsym
   USE ktetra,               ONLY : tetra, ntetra 
   USE extfield,             ONLY : forcefield, tefield
@@ -120,6 +127,7 @@ SUBROUTINE read_xml_file_internal(withbs)
   USE io_files,             ONLY : tmp_dir, prefix, iunpun, nwordwfc, iunwfc
   USE noncollin_module,     ONLY : noncolin, npol, nspin_lsda, nspin_mag, nspin_gga
   USE pw_restart,           ONLY : pw_readfile
+  USE io_rho_xml,           ONLY : read_rho
   USE read_pseudo_mod,      ONLY : readpp
   USE xml_io_base,          ONLY : pp_check_file
   USE uspp,                 ONLY : becsum
@@ -301,7 +309,7 @@ SUBROUTINE read_xml_file_internal(withbs)
   !
   ! ... read the charge density
   !
-  CALL pw_readfile( 'rho', ierr )
+  CALL read_rho( rho, nspin )
   !
   ! ... re-calculate the local part of the pseudopotential vltot
   ! ... and the core correction charge (if any) - This is done here
@@ -343,8 +351,8 @@ SUBROUTINE read_xml_file_internal(withbs)
       USE constants, ONLY : pi
       USE cell_base, ONLY : alat, tpiba, tpiba2
       USE gvect,     ONLY : ecutrho, gcutm
-      USE wvfct,     ONLY : ecutwfc
       USE gvecs,     ONLY : gcutms, dual, doublegrid
+      USE gvecw,     ONLY : gcutw, ecutwfc
       !
       !
       ! ... Set the units in real and reciprocal space
@@ -354,6 +362,7 @@ SUBROUTINE read_xml_file_internal(withbs)
       !
       ! ... Compute the cut-off of the G vectors
       !
+      gcutw =        ecutwfc / tpiba2
       gcutm = dual * ecutwfc / tpiba2
       ecutrho=dual * ecutwfc
       !

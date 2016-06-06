@@ -68,7 +68,7 @@
 PROGRAM bgw2pw
 
   USE environment, ONLY : environment_start, environment_end
-  USE io_files, ONLY : prefix, tmp_dir, outdir
+  USE io_files, ONLY : prefix, tmp_dir
   USE io_global, ONLY : ionode, ionode_id
   USE kinds, ONLY : DP
   USE mp, ONLY : mp_bcast
@@ -85,6 +85,7 @@ PROGRAM bgw2pw
   integer :: wfng_nband
   logical :: rhog_flag
   character ( len = 256 ) :: rhog_file
+  character ( len = 256 ) :: outdir
 
   NAMELIST / input_bgw2pw / prefix, outdir, &
     real_or_complex, wfng_flag, wfng_file, wfng_nband, &
@@ -122,7 +123,6 @@ PROGRAM bgw2pw
   ENDIF
 
   tmp_dir = trimcheck ( outdir )
-  CALL mp_bcast ( outdir, ionode_id, world_comm )
   CALL mp_bcast ( tmp_dir, ionode_id, world_comm )
   CALL mp_bcast ( prefix, ionode_id, world_comm )
   CALL mp_bcast ( real_or_complex, ionode_id, world_comm )
@@ -134,17 +134,11 @@ PROGRAM bgw2pw
 
   CALL read_file ( )
 
-  ! this is needed to compute igk and store in iunigk
-  ! cannot use gk_sort because for some k-points
-  ! gk_sort generates different igk on every call
-  CALL openfil ( )
-  CALL hinit0 ( )
-
   CALL openfil_pp ( )
 
   IF ( wfng_flag ) THEN
-    input_file_name = TRIM ( outdir ) // '/' // TRIM ( wfng_file )
-    output_dir_name = TRIM ( outdir ) // '/' // TRIM ( prefix ) // '.save'
+    input_file_name = TRIM ( tmp_dir ) // '/' // TRIM ( wfng_file )
+    output_dir_name = TRIM ( tmp_dir ) // '/' // TRIM ( prefix ) // '.save'
     IF ( ionode ) WRITE ( 6, '(5x,"call write_evc")' )
     CALL start_clock ( 'write_evc' )
     CALL write_evc ( input_file_name, real_or_complex, wfng_nband, &
@@ -154,8 +148,8 @@ PROGRAM bgw2pw
   ENDIF
 
   IF ( rhog_flag ) THEN
-    input_file_name = TRIM ( outdir ) // '/' // TRIM ( rhog_file )
-    output_dir_name = TRIM ( outdir ) // '/' // TRIM ( prefix ) // '.save'
+    input_file_name = TRIM ( tmp_dir ) // '/' // TRIM ( rhog_file )
+    output_dir_name = TRIM ( tmp_dir ) // '/' // TRIM ( prefix ) // '.save'
     IF ( ionode ) WRITE ( 6, '(5x,"call write_cd")' )
     CALL start_clock ( 'write_cd' )
     CALL write_cd ( input_file_name, real_or_complex, output_dir_name )
@@ -187,14 +181,13 @@ SUBROUTINE write_evc ( input_file_name, real_or_complex, &
   USE constants, ONLY : eps6
   USE fft_base, ONLY : dfftp
   USE gvect, ONLY : ngm, ngm_g, ig_l2g, mill, g
-  USE io_files, ONLY : iunigk
   USE io_global, ONLY : ionode, ionode_id
   USE ions_base, ONLY : nat
   USE iotk_module, ONLY : iotk_attlenx, iotk_free_unit, iotk_open_write, &
     iotk_write_begin, iotk_write_attr, iotk_write_empty, iotk_write_dat, &
     iotk_write_end, iotk_close_write, iotk_index
   USE kinds, ONLY : DP
-  USE klist, ONLY : xk, nks, nkstot, ngk
+  USE klist, ONLY : xk, nks, nkstot, ngk, igk_k
   USE lsda_mod, ONLY : nspin
   USE mp, ONLY : mp_bcast, mp_sum, mp_max, mp_barrier
   USE mp_world, ONLY : world_comm, nproc
@@ -205,7 +198,7 @@ SUBROUTINE write_evc ( input_file_name, real_or_complex, &
 #ifdef __MPI
   USE parallel_include, ONLY : MPI_INTEGER, MPI_DOUBLE_COMPLEX
 #endif
-  USE wvfct, ONLY : npwx, g2kin, ecutwfc, igk
+  USE wvfct, ONLY : npwx
 
   IMPLICIT NONE
 
@@ -514,12 +507,10 @@ SUBROUTINE write_evc ( input_file_name, real_or_complex, &
   ike = iks + nkl - 1
 
   npw_g = 0
-  IF ( nks > 1 ) REWIND ( iunigk )
   DO ik = 1, nks
-    IF ( nks > 1 ) READ ( iunigk ) igk
     npw = ngk ( ik )
     DO ig = 1, npw
-      igk_l2g = ig_l2g ( igk ( ig ) )
+      igk_l2g = ig_l2g ( igk_k (ig, ik) )
       IF ( igk_l2g .GT. npw_g ) npw_g = igk_l2g
     ENDDO
   ENDDO

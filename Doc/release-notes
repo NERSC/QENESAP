@@ -1,8 +1,92 @@
+New in 6.0 version:
+
+  * New XML data file according to the XML Schema
+  * Non-collinear magnetism implemented in epsilon.x, code restructuring
+   (Andrea Ferretti, Tae-Yun Kim Cheol-Hwan Park)
+
+Fixed in 6.0 version:
+
+  * TDDFPT, PWCOND, GWW: redirection to /dev/null broke Windows executable
+    (commit 12357)
+  * PDOS in the noncolinear case was broken by recent changes in indexing 
+    (courtesy Mitsuaki Kawamura) (commit (12366)
+  * Incorrect format (old version) of the dynamical matrix if ibrav=0 in PHCG
+    (commit 12367,12369) and incorrect format if more than 99 atoms
+    (commit 12393) (courtesy Shaofeng Wang)
+  * disk_io='high' crashing in MD runs (courtesy David Strubbe)
+    (commit 12388)
+  * Fix for NEB+hybrid functionals (courtesy Davide Colleoni)
+    (commit 12391)
+  * Incorrect Wyckoff site labels for group #138, origin_choice=2
+    (courtesy Marton Voros) (commit 12426)
+
+Incompatible changes in 6.0 version:
+
+  * Support for AIX removed
+  * The hamiltonian h_psi no longer needs "npw" and "igk" to be initialized
+    via module "wvfct", but it needs "current_k" to be set to the index of
+    the current k-point
+
+                               * * * * *
+
+New in 5.4 version:
+
+  * Calculation of the Magnetic anisotropy energy is implemented (in the limit 
+    of small spin-orbit coupling) using the Force theorem (A. Smogunov)
+  * Support for FFT with ARM Performance Library (-D__ARM_LIB) added (F. Spiga)
+  * Non-blocking FFT communications (-D__NON_BLOCKING_SCATTER) (C. Cavazzoni)
+  * Bethe-Salpeter equation added to GWL (P. Umari)
+  * Support for QM-MM using MPI (C. Cavazzoni and M. Ippolito)
+  * Phonons with vdw-DF (S. de Gironcoli and R. Sabatini) and with DFT-D2
+    (P. Giannozzi and F. Masullo) 
+  * Addition of EPW to compute electron-phonon properties using Wannier 
+    interpolations (S. Poncé, E. R. Margine, C. Verdi, and F. Giustino).
+
+Fixed in 5.4 version:
+
+  * New configure wasn't working properly for some Macintosh due to a
+    missing line (commit 11976) and on BG (commit 12333)
+  * Possible conflict between FFTW in MKL and in Modules/fftw.c solved 
+    (commit 11980)
+  * Incorrect printout from bands.x for nspin=2 (commit 12064)
+  * parallel make broken by missing dependency (commit 12076)
+  * generate_vdW_kernel was crashing in parallel on more than 210 processors
+    (210 = default number of different q_i and q_j pairs) (commit 12077)
+  * Incorrect normalization in epsilon.f90 for nspin=2, some inaccuracy
+    for 'mv' and 'mp' smearing (courtesy of Tae Yun Kim and Cheol-Hwan Park,
+    Seoul National University) (commit 12082)
+  * Incorrect sum over pools in epsilon.f90 for nspin=2 (courtesy of Mariella
+    Ippolito, CINECA) (commit 12218)
+  * Hybrid functionals with USPP and k-point parallelization now work 
+    (commit 12242)
+  * Raman with no symmetry wasn't working properly due to bad logic of
+    routines symmatrix3 and symtensor3 (courtesy of Marc Blanchard and
+    Michele Lazzeri, IMPMC) (commit 12334)
+
+Incompatible changes in 5.4 version:
+
+  * Directories PW/tests/ and CPV/tests/ deleted, superseded by "testcode"
+    tests in test-suite/
+  * k+G indices "igk" no longer written to and read from file (PW only, 
+    will be extended to all codes)
+  * Matrix inversion routines merged into "invmat" in module matrix_inversion
+  * Module "gvecw", in Modules/gvecw.f90, includes previous CP module "gvecw"
+    and several PW variables taken out from module "wvfct":
+    qcutz, ecfixed, q2sigm, ecutwfc
+    New variable gcutw=ecutwfc/tpiba2 used also in PW every time "gk_sort"
+    is called - gcutw is initialized at startup or when data files are read
+  * Common modules for linear-response codes moved to new directory LR_Modules/
+  * Routines for subspace diagonalization moved to LAXlib/
+  * flib/ directory deleted, routines in flib/ moved to Modules/
+
+                               * * * * *
+
 New in 5.3.0 version:
 
   * projwfc.x: PDOS with PAW projectors and all-electron basis functions
   * X3LYP hybrid functional (using VWN_1_RPA)
   * B3LYP hybrid functional (using VWN) and B3LYP-V1R (using VWN_1_RPA)
+  * New modular configure
 
 Fixed in 5.3.0 version:
 

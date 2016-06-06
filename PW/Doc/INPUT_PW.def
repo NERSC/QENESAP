@@ -561,7 +561,8 @@ input_description -distribution {Quantum Espresso} -package PWscf -program pw.x 
 	var nat -type INTEGER {
 	    status { REQUIRED }
 	    info {
-		number of atoms in the unit cell
+		number of atoms in the unit cell (ALL atoms, except if 
+                space_group is set, in which case, INEQUIVALENT atoms)
 	    }
 	}
 	
@@ -704,12 +705,15 @@ input_description -distribution {Quantum Espresso} -package PWscf -program pw.x 
 	var nosym -type LOGICAL { 
 	    default { .FALSE. }
 	    info {
-		if (.TRUE.) symmetry is not used. Note that
-		- if the k-point grid is provided in input, it is used "as is"
-		  and symmetry-inequivalent k-points are not generated;
-		- if the k-point grid is automatically generated, it will
-		  contain only points in the irreducible BZ for the bravais
-		  lattice, irrespective of the actual crystal symmetry.
+		if (.TRUE.) symmetry is not used, which means that:
+		- if a list of k points is provided in input, it is used
+                  "as is": symmetry-inequivalent k-points are not generated,
+                  and the charge density is not symmetrized;
+		- if a uniform (Monkhorst-Pack) k-point grid is provided in 
+                  input, it is expanded to cover the entire Brillouin Zone,
+                  irrespective of the crystal symmetry. 
+                  Time reversal symmetry is assumed so k and -k are considered
+                  as equivalent unless noinv=.true. is specified.
 		A careful usage of this option can be advantageous 
 		- in low-symmetry large cells, if you cannot afford a k-point
 		  grid with the correct symmetry
@@ -721,15 +725,18 @@ input_description -distribution {Quantum Espresso} -package PWscf -program pw.x 
 	var nosym_evc -type LOGICAL { 
 	    default { .FALSE. }
 	    info {
-		if(.TRUE.) symmetry is not used but the k-points are 
+		if(.TRUE.) symmetry is not used, and k points are 
                 forced to have the symmetry of the Bravais lattice; 
-                an automatically generated k-point grid will contain
-                all the k-points of the grid and the points rotated by
-                the symmetries of the Bravais lattice which are not in the 
-                original grid. If available, time reversal is
-                used to reduce the k-points (and the q => -q symmetry
-                is used in the phonon code). To disable also this symmetry set
-                noinv=.TRUE..
+                an automatically generated Monkhorst-Pack grid will contain
+                all points of the grid over the entire Brillouin Zone,
+                plus the points rotated by the symmetries of the Bravais 
+                lattice which were not in the original grid. The same 
+                applies if a k-point list is provided in input instead
+                of a Monkhorst-Pack grid. Time reversal symmetry is assumed
+                so k and -k are equivalent unless noinv=.true. is specified.
+                This option differs from "nosym" because it forces k-points
+                in all cases to have the full symmetry of the Bravais lattice
+                (not all uniform grids have such property!)
 	    }
 	}
 
@@ -764,8 +771,9 @@ input_description -distribution {Quantum Espresso} -package PWscf -program pw.x 
                associated fractionary translation that does not send the
                real-space FFT grid into itself. These operations are 
                incompatible with real-space symmetrization but not with the
-               new G-space symmetrization. BEWARE: do not use for phonons!
-               The phonon code still uses real-space symmetrization.
+               new G-space symmetrization. BEWARE: do not use for phonons
+               and for hybrid functionals! Both still use symmetrization
+               in real space.
           }
       }
 
@@ -1359,7 +1367,7 @@ input_description -distribution {Quantum Espresso} -package PWscf -program pw.x 
                 Type of Van der Waals correction. Allowed values:
 
                    'grimme-d2', 'Grimme-D2', 'DFT-D', 'dft-d': semiempirical Grimme's DFT-D2.
-                    Optional variables: "london_s6", "london_rcut", "london_c6"
+                    Optional variables: "london_s6", "london_rcut", "london_c6", "london_rvdw",
                     S. Grimme, J. Comp. Chem. 27, 1787 (2006),
                     V. Barone et al., J. Comp. Chem. 30, 934 (2009). 
 
@@ -1393,6 +1401,15 @@ input_description -distribution {Quantum Espresso} -package PWscf -program pw.x 
            default { standard Grimme-D2 values }
            info {
 	       atomic C6 coefficient of each atom type
+
+	       ( if not specified default values from S. Grimme, J. Comp. Chem. 27, 1787 (2006) are used;
+		 see file Modules/mm_dispersion.f90 )
+           }
+         }
+         dimension london_rvdw -type REAL -start 1 -end ntyp {
+           default { standard Grimme-D2 values }
+           info {
+	       atomic vdw radii of each atom type
 
 	       ( if not specified default values from S. Grimme, J. Comp. Chem. 27, 1787 (2006) are used;
 		 see file Modules/mm_dispersion.f90 )
@@ -2218,20 +2235,21 @@ input_description -distribution {Quantum Espresso} -package PWscf -program pw.x 
                                         Please note that this feature is NOT supported by XCrysDen (which will
                                         display a wrong structure, or nothing at all).	       
                                         When atomic positions are of type crystal_sg coordinates can be given 
-                                        in the following three forms (Wyckoff positions):
+                                        in the following four forms (Wyckoff positions):
                                         C  1a 
                                         C  8g   x 
                                         C  24m  x y 
+                                        C  48n  x y z
                                         The first form must be used when the Wyckoff letter determines uniquely 
-                                        all three coordinates, the second form when the Wyckoff letter 
-                                        and one coordinate are needed, the third form when one letter and two 
-                                        coordinates are needed.
+                                        all three coordinates, forms 2,3,4 when the Wyckoff letter 
+                                        and 1,2,3 coordinates respectively are needed
                                         The forms:
                                         C 8g  x  x  x
                                         C 24m x  x  y 
                                         are not allowed, but
                                         C x x x
                                         C x x y
+                                        C x y z
                                         are correct.
 				}
 				col x

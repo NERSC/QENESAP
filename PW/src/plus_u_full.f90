@@ -139,6 +139,7 @@ subroutine aainit_1(n2l, nl, ap)
     ! The routine is similar to aainit in Modules/uspp.f90 
     !
     USE kinds,     ONLY : DP
+    USE matrix_inversion
 
     implicit none
     !
@@ -151,7 +152,7 @@ subroutine aainit_1(n2l, nl, ap)
     !
     integer :: li, lj, l, ir
     real(DP) , allocatable :: r(:,:), rr(:), ylm(:,:), mly(:,:)
-    real(DP) :: ap(n2l, nl, nl), compute_ap_1, dum
+    real(DP) :: ap(n2l, nl, nl), compute_ap_1
 
     allocate (r( 3, n2l ))    
     allocate (rr( n2l ))    
@@ -173,7 +174,7 @@ subroutine aainit_1(n2l, nl, ap)
 
     !-  store the inverse of ylm(ir,lm) in mly(lm,ir)
 
-    call invmat(n2l, ylm, mly, dum)
+    call invmat(n2l, ylm, mly)
 
     !-  for each l,li,lj compute ap(l,li,lj) 
     do li = 1, nl
@@ -286,8 +287,8 @@ SUBROUTINE atomic_wfc_nc_updown (ik, wfcatom)
   USE ions_base,  ONLY : nat, ntyp => nsp, ityp, tau
   USE basis,      ONLY : natomwfc
   USE gvect,      ONLY : mill, eigts1, eigts2, eigts3, g
-  USE klist,      ONLY : xk
-  USE wvfct,      ONLY : npwx, npw, nbnd, igk
+  USE klist,      ONLY : xk, ngk, igk_k
+  USE wvfct,      ONLY : npwx, nbnd
   USE us,         ONLY : tab_at, dq
   USE uspp_param, ONLY : upf
   USE noncollin_module, ONLY : noncolin, npol, angle1, angle2
@@ -300,7 +301,7 @@ SUBROUTINE atomic_wfc_nc_updown (ik, wfcatom)
   complex(DP), intent(out) :: wfcatom (npwx, npol, natomwfc)
   !
   integer :: n_starting_wfc, lmax_wfc, nt, l, nb, na, m, lm, ig, iig, &
-             i0, i1, i2, i3, nwfcm
+             i0, i1, i2, i3, nwfcm, npw
   real(DP), allocatable :: qg(:), ylm (:,:), chiq (:,:,:), gk (:,:)
   complex(DP), allocatable :: sk (:), aux(:)
   complex(DP) :: kphase
@@ -315,14 +316,15 @@ SUBROUTINE atomic_wfc_nc_updown (ik, wfcatom)
   enddo
   !
   nwfcm = MAXVAL ( upf(1:ntyp)%nwfc )
-  !
+  npw = ngk(ik)
   allocate ( ylm (npw,(lmax_wfc+1)**2), chiq(npw,nwfcm,ntyp), &
              sk(npw), gk(3,npw), qg(npw) )
   !
   do ig = 1, npw
-     gk (1,ig) = xk(1, ik) + g(1, igk(ig) )
-     gk (2,ig) = xk(2, ik) + g(2, igk(ig) )
-     gk (3,ig) = xk(3, ik) + g(3, igk(ig) )
+     iig = igk_k(ig,ik)
+     gk (1,ig) = xk(1, ik) + g(1,iig)
+     gk (2,ig) = xk(2, ik) + g(2,iig)
+     gk (3,ig) = xk(3, ik) + g(3,iig)
      qg(ig) = gk(1, ig)**2 +  gk(2, ig)**2 + gk(3, ig)**2
   enddo
   !
@@ -374,7 +376,7 @@ SUBROUTINE atomic_wfc_nc_updown (ik, wfcatom)
      !     sk is the structure factor
      !
      do ig = 1, npw
-        iig = igk (ig)
+        iig = igk_k(ig,ik)
         sk (ig) = kphase * eigts1 (mill (1,iig), na) * &
                            eigts2 (mill (2,iig), na) * &
                            eigts3 (mill (3,iig), na)

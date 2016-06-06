@@ -29,7 +29,6 @@ MODULE io_files
   ! ... location of PP files after a restart from file
   CHARACTER(len=256) :: pseudo_dir_cur = ' '
   CHARACTER(len=256) :: psfile( ntypx ) = 'UPF'
-  CHARACTER(len=256) :: outdir  = './'
   !
   CHARACTER(len=256) :: qexml_version = ' '       ! the format of the current qexml datafile 
   LOGICAL            :: qexml_version_init = .FALSE.  ! whether the fmt has been read or not
@@ -68,7 +67,6 @@ MODULE io_files
   INTEGER :: iunmix      = 15 ! unit for saving mixing information
   INTEGER :: iunigk      = 16 ! unit for saving indices
   INTEGER :: iunwfc_exx  = 17 ! unit with exx wavefunctions
-  INTEGER :: iunigk_exx  = 18 ! unit for saving exx indices
   !
   INTEGER :: iunexit     = 26 ! unit for a soft exit  
   INTEGER :: iunupdate   = 27 ! unit for saving old positions (extrapolation)
@@ -347,7 +345,6 @@ SUBROUTINE davcio( vect, nword, unit, nrec, io )
   ! ... direct-access vector input/output
   ! ... read/write nword words starting from the address specified by vect
   !
-  USE io_global, ONLY : stdout
   USE kinds,     ONLY : DP
   !
   IMPLICIT NONE
