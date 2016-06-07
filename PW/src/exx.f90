@@ -2385,6 +2385,9 @@ MODULE exx
     !
     TYPE(bec_type) :: becpsi
     COMPLEX(DP), ALLOCATABLE :: psi_t(:), prod_tot(:)
+    !
+    CALL start_clock ('energy_init')
+    !
     CALL transform_evc_to_exx()
     !
     nrxxs = exx_fft%dfftt%nnr
@@ -2401,8 +2404,13 @@ MODULE exx
     !
     CALL allocate_bec_type( nkb, nbnd, becpsi)
     !
+    CALL stop_clock ('energy_init')
+    !
     IKK_LOOP : &
     DO ikk=1,nks
+       !
+       CALL start_clock ('energy_ikk1')
+       !
        current_ik=find_current_k(ikk,nkstot,nks)
        xkp = xk(:,ikk)
        !
@@ -2416,8 +2424,12 @@ MODULE exx
        ! compute <beta_I|psi_j> at this k+q point, for all band and all projectors
        CALL calbec(npw, vkb_exx, evc_exx, becpsi, nbnd)
        !
+       CALL stop_clock ('energy_ikk1')
+       !
+       CALL start_clock ('energy_j')
+       !
        JBND_LOOP : &
-       DO jbnd = 1, nbnd     !for each band of psi (the k cycle is outside band)
+       DO jbnd = ibnd_start, ibnd_end !for each band of psi (the k cycle is outside band)
           !
           IF ( ABS(wg(jbnd,ikk)) < eps_occ) CYCLE
           !
@@ -2467,7 +2479,7 @@ MODULE exx
              IF ( okvan .AND..NOT.tqr ) CALL qvan_init (exx_fft%ngmt, xkq, xkp)
              !
              IBND_LOOP_K : &
-             DO ibnd = ibnd_start, ibnd_end
+             DO ibnd = 1, nbnd
                 !
                 IF ( ABS(x_occupation(ibnd,ik)) < eps_occ) CYCLE
                 !
@@ -2521,8 +2533,13 @@ MODULE exx
           IQ_LOOP
        ENDDO &
        JBND_LOOP
+       !
+       CALL stop_clock ('energy_j')
+       !
     ENDDO &
     IKK_LOOP
+    !
+    CALL start_clock ('energy_deal')
     !
     IF (noncolin) THEN
        DEALLOCATE(temppsic_nc) 
@@ -2539,6 +2556,8 @@ MODULE exx
     !
     exxenergy2_k = energy
     CALL change_data_structure(.FALSE.)
+    !
+    CALL stop_clock ('energy_deal')
     !
     !-----------------------------------------------------------------------
   END FUNCTION  exxenergy2_k
