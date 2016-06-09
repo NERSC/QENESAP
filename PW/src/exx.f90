@@ -167,9 +167,9 @@ MODULE exx
   !gcutms
 
   !the coulomb factor is reused between iterations
-  REAL(DP), ALLOCATABLE :: coulomb_fac(:,:,:)
+  !REAL(DP), ALLOCATABLE :: coulomb_fac(:,:,:)
   !list of which coulomb factors have been calculated already
-  LOGICAL, ALLOCATABLE :: coulomb_done(:,:)
+  !LOGICAL, ALLOCATABLE :: coulomb_done(:,:)
 
   TYPE(fft_dlay_descriptor) :: dfftp_loc, dffts_loc
   TYPE(fft_dlay_descriptor) :: dfftp_exx, dffts_exx
@@ -1363,7 +1363,7 @@ MODULE exx
        xkq  = xkq_collect(:,ikq)
        !
        ! calculate the 1/|r-r'| (actually, k+q+g) factor and place it in fac
-       CALL g2_convolution(exx_fft%ngmt, exx_fft%gt, xk(:,current_k), xkq, iq, current_k) 
+       CALL g2_convolution(exx_fft%ngmt, exx_fft%gt, xk(:,current_k), xkq, fac) 
        IF ( okvan .AND..NOT.tqr ) CALL qvan_init (xkq, xkp)
        !
        LOOP_ON_PSI_BANDS : &
@@ -1479,8 +1479,8 @@ MODULE exx
 !$omp parallel do default(shared), private(ig)
              DO ig = 1, exx_fft%ngmt
                 ! 
-                vc(exx_fft%nlt(ig))  = coulomb_fac(ig,iq,current_k) * rhoc(exx_fft%nlt(ig)) 
-                vc(exx_fft%nltm(ig)) = coulomb_fac(ig,iq,current_k) * rhoc(exx_fft%nltm(ig)) 
+                vc(exx_fft%nlt(ig))  = fac(ig) * rhoc(exx_fft%nlt(ig)) 
+                vc(exx_fft%nltm(ig)) = fac(ig) * rhoc(exx_fft%nltm(ig)) 
                 !                 
              ENDDO
 !$omp end parallel do
@@ -1729,8 +1729,7 @@ MODULE exx
           !
           ! calculate the 1/|r-r'| (actually, k+q+g) factor and place it in fac
           CALL start_clock ('vexx_g2')
-          CALL g2_convolution(exx_fft%ngmt, exx_fft%gt, xk(:,current_k), &
-               xkq, iq, current_k)
+          CALL g2_convolution(exx_fft%ngmt, exx_fft%gt, xk(:,current_k), xkq, fac)
           CALL stop_clock ('vexx_g2')
           IF ( okvan .AND..NOT.tqr ) CALL qvan_init (xkq, xkp)
           !
@@ -1782,7 +1781,7 @@ MODULE exx
           !
 !$omp parallel do default(shared), private(ig)
           DO ig = 1, exx_fft%ngmt
-             vc(exx_fft%nlt(ig)) = coulomb_fac(ig,iq,current_k) * &
+             vc(exx_fft%nlt(ig)) = fac(ig) * &
                   rhoc(exx_fft%nlt(ig)) * x_occupation(jbnd,ik) / nqs
           ENDDO
 !$omp end parallel do
@@ -2062,7 +2061,7 @@ MODULE exx
           xkq  = xkq_collect(:,ikq)
           !
           ! calculate the 1/|r-r'| (actually, k+q+g) factor and place it in fac
-          CALL g2_convolution(exx_fft%ngmt, exx_fft%gt, xk(:,current_k), xkq, iq, current_k)
+          CALL g2_convolution(exx_fft%ngmt, exx_fft%gt, xk(:,current_k), xkq, fac)
           IF ( okvan .AND..NOT.tqr ) CALL qvan_init (xkq, xkp)
           !
           IBND_LOOP_K : &
@@ -2111,7 +2110,7 @@ MODULE exx
              !
 !$omp parallel do default(shared), private(ig)
              DO ig = 1, exx_fft%ngmt
-                vc(exx_fft%nlt(ig)) = coulomb_fac(ig,iq,current_k) * &
+                vc(exx_fft%nlt(ig)) = fac(ig) * &
                      rhoc(exx_fft%nlt(ig)) * x_occupation(ibnd,ik) / nqs
              ENDDO
 !$omp end parallel do
@@ -2233,10 +2232,7 @@ MODULE exx
   !-----------------------------------------------------------------------
   !
   !-----------------------------------------------------------------------
-  !<<<
-  !SUBROUTINE g2_convolution(ngm, g, xk, xkq, fac)
-  SUBROUTINE g2_convolution(ngm, g, xk, xkq, iq, current_k)
-  !>>>
+  SUBROUTINE g2_convolution(ngm, g, xk, xkq, fac)
   !-----------------------------------------------------------------------
     ! This routine calculates the 1/|r-r'| part of the exact exchange 
     ! expression in reciprocal space (the G^-2 factor).
@@ -2252,10 +2248,7 @@ MODULE exx
     REAL(DP), INTENT(IN)    :: xk(3) ! current k vector
     REAL(DP), INTENT(IN)    :: xkq(3) ! current q vector
     !
-    !<<<
-    !REAL(DP), INTENT(INOUT) :: fac(ngm) ! Calculated convolution
-    INTEGER, INTENT(IN) :: current_k, iq
-    !>>>
+    REAL(DP), INTENT(INOUT) :: fac(ngm) ! Calculated convolution
     !
     !Local variables
     INTEGER :: ig !Counters 
@@ -2263,22 +2256,13 @@ MODULE exx
     REAL(DP) :: grid_factor_track(ngm), qq_track(ngm)
     REAL(DP) :: nqhalf_dble(3)
     LOGICAL :: odg(3)
-    !<<<
-    ! Check if coulomb_fac has been allocated
-    IF( .NOT.ALLOCATED( coulomb_fac ) ) ALLOCATE( coulomb_fac(ngm,nqs,nqs) )
-    IF( .NOT.ALLOCATED( coulomb_done) ) THEN
-       ALLOCATE( coulomb_done(nqs,nqs) )
-       coulomb_done = .FALSE.
-    END IF
-    IF ( coulomb_done(iq,current_k) ) RETURN
-    !>>>
     !
     ! First the types of Coulomb potential that need q(3) and an external call
     !
     IF( use_coulomb_vcut_ws ) THEN 
        DO ig = 1, ngm 
           q(:)= ( xk(:) - xkq(:) + g(:,ig) ) * tpiba
-          coulomb_fac(ig,iq,current_k) = vcut_get(vcut,q)
+          fac(ig) = vcut_get(vcut,q)
        ENDDO
        RETURN
     ENDIF
@@ -2286,7 +2270,7 @@ MODULE exx
     IF ( use_coulomb_vcut_spheric ) THEN
        DO ig = 1, ngm 
           q(:)= ( xk(:) - xkq(:) + g(:,ig) ) * tpiba
-          coulomb_fac(ig,iq,current_k) = vcut_spheric_get(vcut,q)
+          fac(ig) = vcut_spheric_get(vcut,q)
        ENDDO
        RETURN
     ENDIF
@@ -2333,40 +2317,29 @@ MODULE exx
       qq = qq_track(ig) 
       !
       IF(gau_scrlen > 0) THEN
-         coulomb_fac(ig,iq,current_k)=e2*((pi/gau_scrlen)**(1.5_DP))*EXP(-qq/4._DP/gau_scrlen) * grid_factor_track(ig)
+         fac(ig)=e2*((pi/gau_scrlen)**(1.5_DP))*EXP(-qq/4._DP/gau_scrlen) * grid_factor_track(ig)
          !
       ELSE IF (qq > eps_qdiv) THEN
          !
-! Debug Zhenfei Liu 9/26/2015
-! this equals: (alpha+beta)*1 - beta*(1-[])
-        coulomb_fac(ig,iq,current_k)= e2*fpi/qq * grid_factor_track(ig) &
-                  *(exxalfa + beta_in_rsh * EXP(-qq/4._DP/erfc_scrlen**2))  
-!         IF ( erfc_scrlen > 0  ) THEN
-!            fac(ig)=e2*fpi/qq*(1._DP-EXP(-qq/4._DP/erfc_scrlen**2)) * grid_factor_track(ig)
-!         ELSEIF( erf_scrlen > 0 ) THEN
-!            fac(ig)=e2*fpi/qq*(EXP(-qq/4._DP/erf_scrlen**2)) * grid_factor_track(ig)
-!         ELSE
-!            fac(ig)=e2*fpi/( qq + yukawa ) * grid_factor_track(ig) ! as HARTREE
-!         ENDIF
-! DONE Debug.
+         IF ( erfc_scrlen > 0  ) THEN
+            fac(ig)=e2*fpi/qq*(1._DP-EXP(-qq/4._DP/erfc_scrlen**2)) * grid_factor_track(ig)
+         ELSEIF( erf_scrlen > 0 ) THEN
+            fac(ig)=e2*fpi/qq*(EXP(-qq/4._DP/erf_scrlen**2)) * grid_factor_track(ig)
+         ELSE
+            fac(ig)=e2*fpi/( qq + yukawa ) * grid_factor_track(ig) ! as HARTREE
+         ENDIF
          !
       ELSE
          !
-         coulomb_fac(ig,iq,current_k)= - exxdiv ! or rather something ELSE (see F.Gygi)
+         fac(ig)= - exxdiv ! or rather something ELSE (see F.Gygi)
          !
-         IF ( yukawa > 0._DP.AND. .NOT. x_gamma_extrapolation ) &
-              coulomb_fac(ig,iq,current_k) = coulomb_fac(ig,iq,current_k) + e2*fpi/( qq + yukawa )
-         IF( erfc_scrlen > 0._DP.AND. .NOT. x_gamma_extrapolation ) &
-              coulomb_fac(ig,iq,current_k) = coulomb_fac(ig,iq,current_k) + e2*pi/(erfc_scrlen**2)
-! Debug Zhenfei Liu: 9/26/2015 will enforce x_gamma_extrapolation (default)
+         IF ( yukawa > 0._DP.AND. .NOT. x_gamma_extrapolation ) fac(ig) = fac(ig) + e2*fpi/( qq + yukawa )
+         IF( erfc_scrlen > 0._DP.AND. .NOT. x_gamma_extrapolation ) fac(ig) = fac(ig) + e2*pi/(erfc_scrlen**2)
          !
       ENDIF
       !
     ENDDO
 !$omp end parallel do
-    !<<<
-    coulomb_done(iq,current_k) = .TRUE.
-    !>>>
   END SUBROUTINE g2_convolution
   !-----------------------------------------------------------------------
   !
@@ -2605,9 +2578,8 @@ MODULE exx
           !
           xkq = xkq_collect(:,ikq)
           !
-          CALL g2_convolution(exx_fft%ngmt, exx_fft%gt, xk(:,current_ik), xkq, iq, current_ik)
-          fac = coulomb_fac(:,iq,current_ik)
-          fac(exx_fft%gstart_t:) = 2 * coulomb_fac(exx_fft%gstart_t:,iq,current_ik)
+          CALL g2_convolution(exx_fft%ngmt, exx_fft%gt, xk(:,current_ik), xkq, fac) 
+          fac(exx_fft%gstart_t:) = 2 * fac(exx_fft%gstart_t:)
           IF ( okvan .AND..NOT.tqr ) CALL qvan_init (xkq, xkp)
           !
           jmax = nbnd 
@@ -2931,7 +2903,7 @@ MODULE exx
              !
              xkq = xkq_collect(:,ikq)
              !
-             CALL g2_convolution(exx_fft%ngmt, exx_fft%gt, xk(:,current_ik), xkq, iq, current_ik)
+             CALL g2_convolution(exx_fft%ngmt, exx_fft%gt, xk(:,current_ik), xkq, fac)
              IF ( okvan .AND..NOT.tqr ) CALL qvan_init (xkq, xkp)
              !
              IBND_LOOP_K : &
@@ -2969,7 +2941,7 @@ MODULE exx
                 vc = 0.0_DP
 !$omp parallel do  default(shared), private(ig), reduction(+:vc)
                 DO ig=1,exx_fft%ngmt
-                   vc = vc + coulomb_fac(ig,iq,current_ik) * DBLE(rhoc(exx_fft%nlt(ig)) * &
+                   vc = vc + fac(ig) * DBLE(rhoc(exx_fft%nlt(ig)) * &
                                       CONJG(rhoc(exx_fft%nlt(ig))))
                 ENDDO
 !$omp end parallel do
