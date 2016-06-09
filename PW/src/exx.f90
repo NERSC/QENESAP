@@ -2321,13 +2321,18 @@ MODULE exx
          !
       ELSE IF (qq > eps_qdiv) THEN
          !
-         IF ( erfc_scrlen > 0  ) THEN
-            fac(ig)=e2*fpi/qq*(1._DP-EXP(-qq/4._DP/erfc_scrlen**2)) * grid_factor_track(ig)
-         ELSEIF( erf_scrlen > 0 ) THEN
-            fac(ig)=e2*fpi/qq*(EXP(-qq/4._DP/erf_scrlen**2)) * grid_factor_track(ig)
-         ELSE
-            fac(ig)=e2*fpi/( qq + yukawa ) * grid_factor_track(ig) ! as HARTREE
-         ENDIF
+! Debug Zhenfei Liu 9/26/2015
+! this equals: (alpha+beta)*1 - beta*(1-[])
+        fac(ig)= e2*fpi/qq * grid_factor_track(ig) &
+                  *(exxalfa + beta_in_rsh * EXP(-qq/4._DP/erfc_scrlen**2))  
+!         IF ( erfc_scrlen > 0  ) THEN
+!            fac(ig)=e2*fpi/qq*(1._DP-EXP(-qq/4._DP/erfc_scrlen**2)) * grid_factor_track(ig)
+!         ELSEIF( erf_scrlen > 0 ) THEN
+!            fac(ig)=e2*fpi/qq*(EXP(-qq/4._DP/erf_scrlen**2)) * grid_factor_track(ig)
+!         ELSE
+!            fac(ig)=e2*fpi/( qq + yukawa ) * grid_factor_track(ig) ! as HARTREE
+!         ENDIF
+! DONE Debug.
          !
       ELSE
          !
@@ -2335,6 +2340,7 @@ MODULE exx
          !
          IF ( yukawa > 0._DP.AND. .NOT. x_gamma_extrapolation ) fac(ig) = fac(ig) + e2*fpi/( qq + yukawa )
          IF( erfc_scrlen > 0._DP.AND. .NOT. x_gamma_extrapolation ) fac(ig) = fac(ig) + e2*pi/(erfc_scrlen**2)
+! Debug Zhenfei Liu: 9/26/2015 will enforce x_gamma_extrapolation (default)
          !
       ENDIF
       !
