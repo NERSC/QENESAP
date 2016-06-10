@@ -26,7 +26,7 @@ export BLAS_LIBS="-Wl,--start-group \
   -Wl,--end-group"
 export LAPACK_LIBS="${BLAS_LIBS}"
 export SCALAPACK_LIBS="${MKLROOT}/lib/intel64/libmkl_scalapack_lp64.a"
-#export SCALAPACK_LIBS="${HOME}/scalapack-1.8.0/libscalapack.a"
+#export SCALAPACK_LIBS="${HOME}/scalapack-2.0.2/libscalapack.a"
 export FFT_LIBS="${BLAS_LIBS}"
 
 ./configure ${OPENMP} --with-elpa=${ELPAROOT} --with-scalapack=intel $*

@@ -10,6 +10,6 @@ Building NETLIB's ScaLAPACK
   The above should simply show the matched symbol rather than an error
   message about unknown object file formats
 * Adjust QE's recipe, edit configure-qe-*:29:
-  #export SCALAPACK_LIBS="${HOME}/scalapack-1.8.0/libscalapack.a" ->
-  export SCALAPACK_LIBS="${HOME}/scalapack-1.8.0/libscalapack.a"
+  #export SCALAPACK_LIBS="${HOME}/scalapack-2.0.2/libscalapack.a" ->
+  export SCALAPACK_LIBS="${HOME}/scalapack-2.0.2/libscalapack.a"
 * Configure QE, and rebuild.
