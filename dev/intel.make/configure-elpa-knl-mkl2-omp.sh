@@ -20,7 +20,7 @@ export FLAGS="-O2 ${TARGET} -I${MKLROOT}/include -ipo-separate"
 export LDFLAGS="-L${MKLROOT}/lib/intel64"
 export CFLAGS="${FLAGS} -fno-alias -ansi-alias"
 export CXXFLAGS="${CFLAGS}"
-export FCFLAGS="${FLAGS} -I${MKLROOT}/include/intel64/lp64 -align array64byte"
+export FCFLAGS="${FLAGS} -I${MKLROOT}/include/intel64/lp64 -align array64byte -threads -heap-arrays 4096"
 export LIBS="-lmkl_intel_lp64 -lmkl_core -lmkl_${MKLRTL} -Wl,--as-needed -liomp5 -Wl,--no-as-needed"
 export SCALAPACK_LDFLAGS="-lmkl_scalapack_lp64 -lmkl_blacs_intelmpi_lp64"
 
