@@ -14,17 +14,20 @@ export MKLRTL="sequential"
 #export OPENMP="--enable-openmp"
 export LD_LIBS="-Wl,--as-needed -liomp5 -Wl,--no-as-needed"
 export MPIF90=mpiifort
+export CC=mpiicc
 export AR=xiar
+export dir=none
 
 export BLAS_LIBS="-Wl,--start-group \
-    \$(MKLROOT)/lib/intel64/libmkl_intel_lp64.a \
-    \$(MKLROOT)/lib/intel64/libmkl_core.a \
-    \$(MKLROOT)/lib/intel64/libmkl_${MKLRTL}.a \
-    \$(MKLROOT)/lib/intel64/libmkl_blacs_intelmpi_lp64.a \
+    ${MKLROOT}/lib/intel64/libmkl_intel_lp64.a \
+    ${MKLROOT}/lib/intel64/libmkl_core.a \
+    ${MKLROOT}/lib/intel64/libmkl_${MKLRTL}.a \
+    ${MKLROOT}/lib/intel64/libmkl_blacs_intelmpi_lp64.a \
   -Wl,--end-group"
-export LAPACK_LIBS="\$(BLAS_LIBS)"
-export SCALAPACK_LIBS="\$(MKLROOT)/lib/intel64/libmkl_scalapack_lp64.a"
-export FFT_LIBS="\$(BLAS_LIBS)"
+export LAPACK_LIBS="${BLAS_LIBS}"
+export SCALAPACK_LIBS="${MKLROOT}/lib/intel64/libmkl_scalapack_lp64.a"
+#export SCALAPACK_LIBS="${HOME}/scalapack-1.8.0/libscalapack.a"
+export FFT_LIBS="${BLAS_LIBS}"
 
 ./configure ${OPENMP} --with-elpa=${ELPAROOT} --with-scalapack=intel $*
 
@@ -38,7 +41,7 @@ sed -i \
   -e "s/-D__FFTW/-D__DFTI/" -e "s/-D__ELPA/-D__ELPA3/" \
   -e "s/IFLAGS         = -I\.\.\/include/IFLAGS         = -I\.\.\/include -I\$(MKLROOT)\/include\/fftw/" \
   -e "s/-O3/${OPTC} ${IPO} ${TARGET} -fno-alias -ansi-alias/" \
-  -e "s/-O2 -assume byterecl -g -traceback/${OPTF} -align array64byte ${IPO} ${TARGET} -assume byterecl/" \
+  -e "s/-O2 -assume byterecl -g -traceback/${OPTF} -align array64byte -threads -heap-arrays 4096 ${IPO} ${TARGET} -assume byterecl/" \
   -e "s/LDFLAGS        =/LDFLAGS        = -static-intel -static-libgcc -static-libstdc++/" \
   -e "s/-openmp/${OMPFLAG}/" \
   make.sys
