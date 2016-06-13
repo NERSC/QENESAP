@@ -7,6 +7,9 @@ OPTC=-O3
 OPTF=-O2
 PRFX=2017-
 
+# consider more accurate -fp-model (C/C++: precise, Fortran: source)
+#FPFLAGS="-fp-model fast=2 -fast-transcendentals -fimf-domain-exclusion=1 -complex-limited-range"
+
 HERE=$(cd $(dirname $0); pwd -P)
 export ELPAROOT="${HERE}/../elpa/${PRFX}host"
 #export MKLRTL="sequential"
@@ -41,8 +44,8 @@ sed -i \
 sed -i \
   -e "s/-D__FFTW/-D__DFTI/" -e "s/-D__ELPA/-D__ELPA3/" \
   -e "s/IFLAGS         = -I\.\.\/include/IFLAGS         = -I\.\.\/include -I\$(MKLROOT)\/include\/fftw/" \
-  -e "s/-O3/${OPTC} ${IPO} ${TARGET} -fno-alias -ansi-alias/" \
-  -e "s/-O2 -assume byterecl -g -traceback/${OPTF} -align array64byte -threads -heap-arrays 4096 ${IPO} ${TARGET} -assume byterecl/" \
+  -e "s/-O3/${OPTC} ${IPO} ${TARGET} ${FPFLAGS} -fno-alias -ansi-alias/" \
+  -e "s/-O2 -assume byterecl -g -traceback/${OPTF} -align array64byte -threads -heap-arrays 4096 ${IPO} ${TARGET} ${FPFLAGS} -assume byterecl/" \
   -e "s/LDFLAGS        =/LDFLAGS        = -static-intel -static-libgcc -static-libstdc++/" \
   -e "s/-openmp/${OMPFLAG}/" \
   make.sys

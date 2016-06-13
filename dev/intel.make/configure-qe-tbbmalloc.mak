@@ -11,7 +11,8 @@ ifneq (0,$(TBBMALLOC))
       GCC_VERSION_MAJOR = $(shell echo "$(GCC_VERSION_STRING)" | cut -d"." -f1)
       GCC_VERSION_MINOR = $(shell echo "$(GCC_VERSION_STRING)" | cut -d"." -f2)
       GCC_VERSION_PATCH = $(shell echo "$(GCC_VERSION_STRING)" | cut -d"." -f3)
-      TBBMALLOCLIB = $(wildcard $(TBBROOT)/lib/intel64/gcc$(GCC_VERSION_MAJOR).$(GCC_VERSION_MINOR)/libtbbmalloc_proxy.so)
+      TBBLIBDIR = $(TBBROOT)/lib/intel64/gcc$(GCC_VERSION_MAJOR).$(GCC_VERSION_MINOR)
+      TBBMALLOCLIB = $(wildcard $(TBBLIBDIR)/libtbbmalloc_proxy.so)
     endif
     ifeq (,$(TBBMALLOCLIB))
       ifneq (0,$(TBBGCC_OLD))
@@ -19,10 +20,11 @@ ifneq (0,$(TBBMALLOC))
       else
         TBBGCCDIR = $(shell ls -1 "$(TBBROOT)/lib/intel64" | tr "\n" " " | rev | cut -d" " -f2 | rev)
       endif
-      TBBMALLOCLIB = $(wildcard $(TBBROOT)/lib/intel64/$(TBBGCCDIR)/libtbbmalloc_proxy.so)
+      TBBLIBDIR = $(TBBROOT)/lib/intel64/$(TBBGCCDIR)
+      TBBMALLOCLIB = $(wildcard $(TBBLIBDIR)/libtbbmalloc_proxy.so)
     endif
     ifneq (,$(TBBMALLOCLIB))
-      LIBS += $(TBBMALLOCLIB)
+      LIBS += $(TBBMALLOCLIB) $(TBBLIBDIR)/libtbbmalloc.so
       ifneq (1,$(TBBMALLOC)) # TBBMALLOC=2
         FCFLAGS += -heap-arrays
       endif
