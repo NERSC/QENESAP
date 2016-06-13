@@ -2,7 +2,7 @@ Building NETLIB's ScaLAPACK
 * Download from http://www.netlib.org/scalapack/#_scalapack_version_2_0_2
 * Copy SLmake.inc into ScaLAPACK's root directory (scalapack-2.0.2)
 * Edit line #32 and #33, adjust -xMIC-AVX512 as needed
-* Invoke the build process: make ("make scalapacklib" is not sufficient!)
+* Invoke the build process: make lib ("make scalapacklib" is not sufficient!)
 * Perhaps avoid building in parallel (-j), or check the ScaLAPACK library
   for corruption due to parallel build: nm libscalapack.a | grep pdpotrf
   The above should simply show the matched symbol rather than any error
