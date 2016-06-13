@@ -13,13 +13,13 @@ export ELPAROOT="${HERE}/../elpa/${PRFX}host"
 export MKLRTL="intel_thread"
 export OPENMP="--enable-openmp"
 export LD_LIBS="-Wl,--as-needed -liomp5 -Wl,--no-as-needed"
-#export LD_LIBS="${LD_LIBS} -Wl,--wrap=sgemm_,--wrap=dgemm_ ${HOME}/libxsmm/lib/libxsmmext.a ${HOME}/libxsmm/lib/libxsmm.a"
 export MPIF90=mpiifort
 export CC=mpiicc
 export AR=xiar
 export dir=none
 
-export BLAS_LIBS="-Wl,--start-group \
+#LIBXSMM="-Wl,--wrap=sgemm_,--wrap=dgemm_ ${HOME}/libxsmm/lib/libxsmmext.a ${HOME}/libxsmm/lib/libxsmm.a"
+export BLAS_LIBS="${LIBXSMM} -Wl,--start-group \
     ${MKLROOT}/lib/intel64/libmkl_intel_lp64.a \
     ${MKLROOT}/lib/intel64/libmkl_core.a \
     ${MKLROOT}/lib/intel64/libmkl_${MKLRTL}.a \
