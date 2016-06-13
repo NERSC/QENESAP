@@ -2,7 +2,7 @@
 
 PRFX=2017-
 HERE=$(cd $(dirname $0); pwd -P)
-DEST=${HERE}/../elpa/${PRFX}host-mkl2
+DEST=${HERE}/../elpa/${PRFX}hsw
 
 if [ "${HERE}" = "${DEST}" ]; then
   echo "Warning: ELPA source directory equals installation folder!"
@@ -14,7 +14,7 @@ fi
 
 #CONFOPTS="--enable-openmp"
 MKLRTL="intel_thread"
-TARGET="-xHost"
+TARGET="-xCORE-AVX2"
 
 export FLAGS="-O2 ${TARGET} -I${MKLROOT}/include -ipo-separate"
 export LDFLAGS="-L${MKLROOT}/lib/intel64"

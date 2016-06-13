@@ -2,7 +2,7 @@
 
 PRFX=2017-
 HERE=$(cd $(dirname $0); pwd -P)
-DEST=${HERE}/../elpa/${PRFX}skx-mkl1
+DEST=${HERE}/../elpa/${PRFX}knl-omp
 
 if [ "${HERE}" = "${DEST}" ]; then
   echo "Warning: ELPA source directory equals installation folder!"
@@ -12,9 +12,9 @@ if [ "${HERE}" = "${DEST}" ]; then
   fi
 fi
 
-#CONFOPTS="--enable-openmp"
-MKLRTL="sequential"
-TARGET="-xCORE-AVX512"
+CONFOPTS="--enable-openmp"
+MKLRTL="intel_thread"
+TARGET="-xMIC-AVX512"
 
 export FLAGS="-O2 ${TARGET} -I${MKLROOT}/include -ipo-separate"
 export LDFLAGS="-L${MKLROOT}/lib/intel64"

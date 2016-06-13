@@ -2,7 +2,7 @@
 
 PRFX=2017-
 HERE=$(cd $(dirname $0); pwd -P)
-DEST=${HERE}/../elpa/${PRFX}knl-mkl2
+DEST=${HERE}/../elpa/${PRFX}host
 
 if [ "${HERE}" = "${DEST}" ]; then
   echo "Warning: ELPA source directory equals installation folder!"
@@ -14,7 +14,7 @@ fi
 
 #CONFOPTS="--enable-openmp"
 MKLRTL="intel_thread"
-TARGET="-xMIC-AVX512"
+TARGET="-xHost"
 
 export FLAGS="-O2 ${TARGET} -I${MKLROOT}/include -ipo-separate"
 export LDFLAGS="-L${MKLROOT}/lib/intel64"
@@ -29,7 +29,7 @@ export FC="mpiifort"
 export CC="mpiicc"
 export CXX="mpiicpc"
 
-./configure --host=x86_64-unknown-linux-gnu --prefix=${DEST} ${CONFOPTS} $*
+./configure --prefix=${DEST} ${CONFOPTS} $*
 
 sed -i \
   -e "s/-openmp/-qopenmp -qoverride_limits/" \
