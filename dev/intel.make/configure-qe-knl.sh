@@ -13,6 +13,7 @@ export MKLRTL="sequential"
 #export MKLRTL="intel_thread"
 #export OPENMP="--enable-openmp"
 export LD_LIBS="-Wl,--as-needed -liomp5 -Wl,--no-as-needed"
+#export LD_LIBS="${LD_LIBS} -Wl,--wrap=sgemm_,--wrap=dgemm_ ${HOME}/libxsmm/lib/libxsmmext.a ${HOME}/libxsmm/lib/libxsmm.a"
 export MPIF90=mpiifort
 export CC=mpiicc
 export AR=xiar
