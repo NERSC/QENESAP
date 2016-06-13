@@ -8,10 +8,10 @@ OPTF=-O2
 PRFX=2017-
 
 HERE=$(cd $(dirname $0); pwd -P)
-export ELPAROOT="${HERE}/../elpa/${PRFX}skx-mkl1"
-export MKLRTL="sequential"
-#export MKLRTL="intel_thread"
-#export OPENMP="--enable-openmp"
+export ELPAROOT="${HERE}/../elpa/${PRFX}skx"
+#export MKLRTL="sequential"
+export MKLRTL="intel_thread"
+export OPENMP="--enable-openmp"
 export LD_LIBS="-Wl,--as-needed -liomp5 -Wl,--no-as-needed"
 export MPIF90=mpiifort
 export CC=mpiicc

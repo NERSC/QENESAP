@@ -8,7 +8,7 @@ OPTF=-O2
 PRFX=2017-
 
 HERE=$(cd $(dirname $0); pwd -P)
-export ELPAROOT="${HERE}/../elpa/${PRFX}knl-mkl1-omp"
+export ELPAROOT="${HERE}/../elpa/${PRFX}knl-omp"
 #export MKLRTL="sequential"
 export MKLRTL="intel_thread"
 export OPENMP="--enable-openmp"
