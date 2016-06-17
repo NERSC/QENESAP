@@ -1,0 +1,4 @@
+#!/bin/sh
+
+#source /opt/intel/compilers_and_libraries_2017.0.064/linux/bin/compilervars.sh intel64
+

@@ -1,0 +1,13 @@
+Run script for Direct Node Access (DNA)
+
+This run script might be a starting point for running Quantum Espresso (QE) on a set of nodes as enumerated by the "mynodes.sh" script. The run script as well as the "enable" and "mynodes.sh" files are expected to be located in QE's root directory.
+
+General use and syntax:
+./run-dna.sh /path/to/workload.in numnodes num-ranks-per-node | tee out.txt
+
+Example for the AUSURF112 workload (single node of KNL with 68 cores):
+./run-dna.sh /path/to/ausurf.in 1 68 > asrf-cq68x1.txt
+
+Typical customization points:
+line #5-7
+line #11
