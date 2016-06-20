@@ -1,7 +1,7 @@
 #!/bin/sh
 
-#NODES="knl1 knl2 knl3 knl4 knl5 knl6 knl7 knl8"
 NODES="localhost"
+#NODES="$(bjobs | tail -n +2 | tr -s ' ' | cut -d' ' -f1-6 | rev | cut -d' ' -f1 | rev)"
 
 INDEX=0
 if [ "" != "$1" ]; then

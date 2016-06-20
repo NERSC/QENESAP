@@ -2,10 +2,10 @@
 #
 #BSUB -n 1
 #BSUB -q knlbq
-#BSUB -R "{select[ekl] span[ptile=1]}"
+#BSUB -R "{select[ekm] span[ptile=1]}"
 #BSUB -J QE
-#BSUB -o out-%J.txt
-#BSUB -e out-%J.err
+#BSUB -o qe-%J.txt
+#BSUB -e qe-%J.err
 #BSUB -C 0
 #
 ROOT=${HOME}/espresso-5.4.0
@@ -14,7 +14,7 @@ WORKLOAD=${HOME}/espresso-data/AUSURF112/ausurf.in
 #NUMACTL="numactl --preferred=1"
 
 MAXNCORES=64
-NRANKS=32
+NRANKS=64
 MAXNT=4
 NT=1
 
@@ -43,27 +43,28 @@ else
 fi
 
 #export PSM2_MQ_RNDV_HFI_WINDOW=4194304
-#export PSM2_MQ_EAGER_SDMA_SZ=65536
 #export PSM2_MQ_RNDV_HFI_THRESH=200000
+#export PSM2_MQ_EAGER_SDMA_SZ=65536
 #export PSM2_IDENTIFY=1
 
-#export I_MPI_HYDRA_PMI_CONNECT=alltoall
+export I_MPI_FALLBACK=0
+export I_MPI_SHM_LMT=shm
+export I_MPI_HYDRA_PMI_CONNECT=alltoall
 #export I_MPI_USE_DYNAMIC_CONNECTIONS=0
-#export HFI_NO_CPUAFFINITY=1
-#export IPATH_NO_CPUAFFINITY=1
 #export I_MPI_SCALABLE_OPTIMIZATION=0
 
-#export I_MPI_PIN_DOMAIN=node
-#export I_MPI_PIN_MODE=lib
+#export IPATH_NO_CPUAFFINITY=1
+#export HFI_NO_CPUAFFINITY=1
 
 # I_MPI_FABRICS(I_MPI_DAPL_PROVIDER):
 #   OPA: dapl(ofa-v2-hib0)
 #        shm:tmi(psm2)
 #export I_MPI_FABRICS=shm:dapl
-export I_MPI_FABRICS=shm:tmi
-export I_MPI_TMI_PROVIDER=psm2
+#export I_MPI_DAPL_PROVIDER=ofa-v2-mlx5_0-1u
+#export I_MPI_FABRICS=shm:tmi
+#export I_MPI_TMI_PROVIDER=psm2
 RUN="mpirun -bootstrap ssh -genvall \
-  -np $((NRANKS*NUMNODES)) -perhost ${NRANKS} -genv I_MPI_FALLBACK=0 -genv xI_MPI_DEBUG=4 \
+  -np $((NRANKS*NUMNODES)) -perhost ${NRANKS} -genv xI_MPI_DEBUG=4 \
   -genv I_MPI_PIN_DOMAIN=auto -genv I_MPI_PIN_ORDER=scatter \
   -genv KMP_AFFINITY=${AFFINITY},granularity=fine,1 \
   -genv OMP_NUM_THREADS=${NTHREADS} \
