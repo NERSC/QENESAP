@@ -1,0 +1,7 @@
+Run script for LFS (BSUB)
+
+General use and syntax:
+bsub -W 59 < run-bsub.sh
+
+There are several customization points inside of the script, which need to be adjusted.
+Moreover, the are more options that might make sense e.g., setting EIST (Turbo mode, etc.).

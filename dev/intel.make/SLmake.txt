@@ -1,0 +1,13 @@
+Building NETLIB's ScaLAPACK
+* Download from http://www.netlib.org/scalapack/#_scalapack_version_2_0_2
+* Copy SLmake.inc into ScaLAPACK's root directory (scalapack-2.0.2)
+* Edit TARGET=-xMIC-AVX512 as needed (e.g., use -xCORE-AVX2)
+* Invoke the build process: make lib ("make scalapacklib" is not sufficient!)
+* Perhaps avoid building in parallel (-j), or check the ScaLAPACK library
+  for corruption due to parallel build: nm libscalapack.a | grep pdpotrf
+  The above should simply show the matched symbol rather than any error
+  message about an unknown object file format
+* Adjust QE's recipe, edit configure-qe-*:29:
+  #export SCALAPACK_LIBS="${HOME}/scalapack-2.0.2/libscalapack.a" ->
+  export SCALAPACK_LIBS="${HOME}/scalapack-2.0.2/libscalapack.a"
+* Configure QE, and rebuild.
