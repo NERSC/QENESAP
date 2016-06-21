@@ -1676,7 +1676,7 @@ MODULE exx
           !   >>>> add augmentation in REAL space HERE
           CALL start_clock ('vexx_augr')
           IF(okvan .AND. tqr) THEN ! augment the "charge" in real space
-             CALL addusxx_r(rhoc, becxx(ikq)%k(:,jbnd), becpsi%k(:,im))
+             CALL addusxx_r(rhoc, becxx(ikq)%k(:,jbnd), becpsi%k(:,ibnd))
           ENDIF
           CALL stop_clock ('vexx_augr')
           !
@@ -1689,7 +1689,7 @@ MODULE exx
           CALL start_clock ('vexx_augg')
           IF(okvan .AND. .NOT. tqr) THEN
              CALL addusxx_g(exx_fft, rhoc, xkq, xkp, 'c', &
-                  becphi_c=becxx(ikq)%k(:,jbnd),becpsi_c=becpsi%k(:,im))
+                  becphi_c=becxx(ikq)%k(:,jbnd),becpsi_c=becpsi%k(:,ibnd))
           ENDIF
           CALL stop_clock ('vexx_augg')
           !   >>>> charge done
@@ -1728,7 +1728,7 @@ MODULE exx
           CALL start_clock ('vexx_paw')
           IF(okpaw) THEN
              CALL PAW_newdxx(x_occupation(jbnd,ik)/nqs, becxx(ikq)%k(:,jbnd), &
-                  becpsi%k(:,im), deexx)
+                  becpsi%k(:,ibnd), deexx)
           ENDIF
           CALL stop_clock ('vexx_paw')
           !
@@ -1784,9 +1784,17 @@ MODULE exx
              !
              CALL fwfft ('CustomWave', result, exx_fft%dfftt, is_exx=.TRUE.)
              DO ig = 1, n
-                big_result(ig,ibnd) = big_result(ig,ibnd) + result(exx_fft%nlt(igk_exx(ig,current_k)))
+                big_result(ig,ibnd) = big_result(ig,ibnd) - &
+                     exxalfa*result(exx_fft%nlt(igk_exx(ig,current_k)))
              ENDDO
           ENDIF
+          !
+          ! add non-local \sum_I |beta_I> \alpha_Ii (the sum on i is outside)
+          CALL start_clock ('vexx_nloc')
+          IF(okvan) CALL add_nlxx_pot (lda, big_result(:,ibnd), xkp, n, &
+               igk_exx(1,current_k), deexx, eps_occ, exxalfa)
+          CALL stop_clock ('vexx_nloc')
+          !
           CALL stop_clock ('vexx_out2')
        END IF
 
@@ -1801,15 +1809,10 @@ MODULE exx
        CALL start_clock ('vexx_hpsi')
 !$omp parallel do default(shared), private(ig)
        DO ig = 1, n
-          hpsi(ig,im)=hpsi(ig,im) - exxalfa*big_result(ig,im)
+          hpsi(ig,im)=hpsi(ig,im) + big_result(ig,im)
        ENDDO
 !$omp end parallel do
        CALL stop_clock ('vexx_hpsi')
-       ! add non-local \sum_I |beta_I> \alpha_Ii (the sum on i is outside)
-       CALL start_clock ('vexx_nloc')
-       IF(okvan) CALL add_nlxx_pot (lda, hpsi(:,im), xkp, n, &
-            igk_exx(1,current_k), deexx, eps_occ, exxalfa)
-       CALL stop_clock ('vexx_nloc')
     END DO
     !
     CALL start_clock ('vexx_deal')
