@@ -1050,6 +1050,8 @@ MODULE exx
     USE fft_interfaces,       ONLY : fwfft
     USE control_flags,        ONLY : gamma_only
     USE us_exx,               ONLY : becxx
+    USE mp_bands,             ONLY : intra_bgrp_comm
+    USE mp_exx,               ONLY : intra_egrp_comm
 
     IMPLICIT NONE
     !
@@ -1062,6 +1064,8 @@ MODULE exx
     COMPLEX(DP),ALLOCATABLE :: phi(:)    ! aux space for fwfft
     REAL(dp), ALLOCATABLE   :: gk(:)     ! work space 
     COMPLEX(DP) :: fp, fm
+    INTEGER :: intra_bgrp_comm_
+    INTEGER :: ibnd_start_, ibnd_end_
     !
     IF(.not. okvan) RETURN
     !
@@ -1075,6 +1079,12 @@ MODULE exx
     ALLOCATE(ngkq(nkqs))
     npwq = n_plane_waves (gcutw, nkqs, xkq_collect, g, ngm)
     npwq = MAX (npwx, npwq)
+    intra_bgrp_comm_ = intra_bgrp_comm
+    intra_bgrp_comm = intra_egrp_comm
+    ibnd_start_ = ibnd_start
+    ibnd_start = 1
+    ibnd_end = ibnd_end
+    ibnd_end = nbnd
     !
     ! Dirty trick to prevent gk_sort from stopping with an error message:
     ! set npwx to max value now, reset it to original value later
@@ -1145,6 +1155,9 @@ MODULE exx
     DEALLOCATE(phi, evcq, vkbq, igkq, gk, ngkq)
     ! suite of the dirty trick: reset npwx to its original value
     npwx = npwx_
+    intra_bgrp_comm = intra_bgrp_comm_
+    ibnd_start = ibnd_start_
+    ibnd_end = ibnd_end_
     !
     CALL stop_clock('becxx')
     !-----------------------------------------------------------------------
@@ -1771,7 +1784,6 @@ MODULE exx
           !
           IF(okvan) THEN
              CALL mp_sum(deexx,intra_egrp_comm)
-             CALL mp_sum(deexx,inter_egrp_comm)
           ENDIF
           !
           IF (noncolin) THEN
