@@ -1083,7 +1083,7 @@ MODULE exx
     intra_bgrp_comm = intra_egrp_comm
     ibnd_start_ = ibnd_start
     ibnd_start = 1
-    ibnd_end = ibnd_end
+    ibnd_end_ = ibnd_end
     ibnd_end = nbnd
     !
     ! Dirty trick to prevent gk_sort from stopping with an error message:
