@@ -2369,6 +2369,7 @@ MODULE exx
     USE lsda_mod,                ONLY : lsda, current_spin, isk
     USE mp_pools,                ONLY : inter_pool_comm
     USE mp_exx,                  ONLY : inter_egrp_comm, intra_egrp_comm, negrp
+    USE mp_bands,                ONLY : intra_bgrp_comm
     USE mp,                      ONLY : mp_sum
     USE fft_interfaces,          ONLY : fwfft, invfft
     USE gvect,                   ONLY : ecutrho
@@ -2400,6 +2401,7 @@ MODULE exx
     !
     TYPE(bec_type) :: becpsi
     COMPLEX(DP), ALLOCATABLE :: psi_t(:), prod_tot(:)
+    INTEGER :: intra_bgrp_comm_
     !
     CALL start_clock ('energy_init')
     !
@@ -2437,7 +2439,10 @@ MODULE exx
        ! prepare the |beta> function at k+q
        CALL init_us_2(npw, igk_exx(:,ikk), xkp, vkb_exx)
        ! compute <beta_I|psi_j> at this k+q point, for all band and all projectors
+       intra_bgrp_comm_ = intra_bgrp_comm
+       intra_bgrp_comm = intra_egrp_comm
        CALL calbec(npw, vkb_exx, evc_exx, becpsi, nbnd)
+       intra_bgrp_comm = intra_bgrp_comm_
        !
        CALL stop_clock ('energy_ikk1')
        !
