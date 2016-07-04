@@ -10,6 +10,7 @@ NT=1
 # ulimit -s unlimited
 # ulimit -c0
 
+#PREFX="perf stat -e tlb:tlb_flush,irq_vectors:call_function_entry,syscalls:sys_enter_munmap,syscalls:sys_enter_madvise,syscalls:sys_enter_brk "
 #VTUNE="-gtool 'amplxe-cl -r vtune -data-limit 0 -collect advanced-hotspots -knob collection-detail=stack-sampling:4=exclusive'"
 #ADVXE="-gtool 'amplxe-cl -r vtune -data-limit 0 -collect advanced-hotspots -knob collection-detail=stack-sampling:4=exclusive'"
 #NUMACTL="numactl --preferred=1"
@@ -88,7 +89,7 @@ export I_MPI_HYDRA_PMI_CONNECT=alltoall
 #export I_MPI_DAPL_PROVIDER=ofa-v2-mlx5_0-1u
 #export I_MPI_FABRICS=shm:tmi
 #export I_MPI_TMI_PROVIDER=psm2
-RUN="mpirun -bootstrap ssh -genvall -host ${HOSTS} \
+RUN="${PREFX}mpirun -bootstrap ssh -genvall -host ${HOSTS} \
   -np $((NRANKS*NUMNODES)) -perhost ${NRANKS} -genv xI_MPI_DEBUG=4 \
   -genv I_MPI_PIN_DOMAIN=auto -genv I_MPI_PIN_ORDER=scatter \
   -genv KMP_AFFINITY=${AFFINITY},granularity=fine,1 \
