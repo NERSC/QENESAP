@@ -1662,10 +1662,11 @@ MODULE exx
           CALL g2_convolution(exx_fft%ngmt, exx_fft%gt, xkp, &
                xkq, iq, current_k)
           CALL stop_clock ('vexx_g2')
-          IF ( okvan .AND..NOT.tqr ) CALL qvan_init (exx_fft%ngmt, xkq, xkp)
           !
           !
           IF ( ABS(x_occupation(jbnd,ik)) < eps_occ) CYCLE
+          !
+          IF ( okvan .AND..NOT.tqr ) CALL qvan_init (exx_fft%ngmt, xkq, xkp)
           !
           !loads the phi from file
           !
@@ -1874,9 +1875,9 @@ MODULE exx
     REAL(DP) :: nqhalf_dble(3)
     LOGICAL :: odg(3)
     ! Check if coulomb_fac has been allocated
-    IF( .NOT.ALLOCATED( coulomb_fac ) ) ALLOCATE( coulomb_fac(ngm,nqs,nqs) )
+    IF( .NOT.ALLOCATED( coulomb_fac ) ) ALLOCATE( coulomb_fac(ngm,nqs,nks) )
     IF( .NOT.ALLOCATED( coulomb_done) ) THEN
-       ALLOCATE( coulomb_done(nqs,nqs) )
+       ALLOCATE( coulomb_done(nqs,nks) )
        coulomb_done = .FALSE.
     END IF
     IF ( coulomb_done(iq,current_k) ) RETURN
@@ -2494,8 +2495,7 @@ MODULE exx
              !
              xkq = xkq_collect(:,ikq)
              !
-             CALL g2_convolution(exx_fft%ngmt, exx_fft%gt, xkp, xkq, iq, &
-                  current_ik)
+             CALL g2_convolution(exx_fft%ngmt, exx_fft%gt, xkp, xkq, iq, ikk)
              IF ( okvan .AND..NOT.tqr ) CALL qvan_init (exx_fft%ngmt, xkq, xkp)
              !
              IBND_LOOP_K : &
@@ -2533,7 +2533,7 @@ MODULE exx
                 vc = 0.0_DP
 !$omp parallel do  default(shared), private(ig), reduction(+:vc)
                 DO ig=1,exx_fft%ngmt
-                   vc = vc + coulomb_fac(ig,iq,current_ik) * DBLE(rhoc(exx_fft%nlt(ig)) * &
+                   vc = vc + coulomb_fac(ig,iq,ikk) * DBLE(rhoc(exx_fft%nlt(ig)) * &
                                       CONJG(rhoc(exx_fft%nlt(ig))))
                 ENDDO
 !$omp end parallel do
