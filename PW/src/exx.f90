@@ -1525,7 +1525,7 @@ MODULE exx
     USE fft_interfaces, ONLY : fwfft, invfft
     USE becmod,         ONLY : bec_type
     USE mp_exx,       ONLY : inter_egrp_comm, intra_egrp_comm, my_egrp_id, &
-         negrp, max_pairs, egrp_pairs
+         negrp, max_pairs, egrp_pairs, ibands, nibands
     USE mp,             ONLY : mp_sum, mp_barrier, mp_bcast
     USE uspp,           ONLY : nkb, okvan
     USE paw_variables,  ONLY : okpaw
@@ -1563,6 +1563,7 @@ MODULE exx
     DOUBLE PRECISION :: max, tempx
     COMPLEX(DP), ALLOCATABLE :: big_result(:,:)
     INTEGER :: ir_out, ipair, jbnd, old_ibnd
+    INTEGER :: ii, jstart, jend
     !
     CALL start_clock ('vexx_init')
     !
@@ -1589,63 +1590,71 @@ MODULE exx
     !
     CALL stop_clock ('vexx_init')
     !
-    DO ipair=1, max_pairs
+    DO ii=1, nibands(my_egrp_id+1)
        !
-       ibnd = egrp_pairs(1,ipair,my_egrp_id+1)
-       jbnd = egrp_pairs(2,ipair,my_egrp_id+1)
+       ibnd = ibands(ii,my_egrp_id+1)
        !
        IF (ibnd.eq.0.or.ibnd.gt.m) CYCLE
        !
-       IF (ibnd.ne.old_ibnd) THEN
-          !
-          CALL start_clock ('vexx_out1')
-          !
-          IF(okvan) deexx = 0.0_DP
-          !
-          IF (noncolin) THEN
-             temppsic_nc = 0._DP
-          ELSE
-             temppsic    = 0.0_DP
+       !determine which j-bands to calculate
+       jstart = 0
+       jend = 0
+       DO ipair=1, max_pairs
+          IF(egrp_pairs(1,ipair,my_egrp_id+1).eq.ibnd)THEN
+             IF(jstart.eq.0)THEN
+                jstart = egrp_pairs(2,ipair,my_egrp_id+1)
+             ELSE
+                jend = egrp_pairs(2,ipair,my_egrp_id+1)
+             END IF
           END IF
+       END DO
+       !
+       CALL start_clock ('vexx_out1')
+       !
+       IF(okvan) deexx = 0.0_DP
+       !
+       IF (noncolin) THEN
+          temppsic_nc = 0._DP
+       ELSE
+          temppsic    = 0.0_DP
+       END IF
+       !
+       IF (noncolin) THEN
           !
-          IF (noncolin) THEN
-             !
 !$omp parallel do  default(shared), private(ig)
-             DO ig = 1, n
-                temppsic_nc(exx_fft%nlt(igk_exx(ig,current_k)),1) = psi(ig,ibnd)
-             ENDDO
+          DO ig = 1, n
+             temppsic_nc(exx_fft%nlt(igk_exx(ig,current_k)),1) = psi(ig,ibnd)
+          ENDDO
 !$omp end parallel do
 !$omp parallel do  default(shared), private(ig)
-             DO ig = 1, n
-                temppsic_nc(exx_fft%nlt(igk_exx(ig,current_k)),2) = psi(npwx+ig,ibnd)
-             ENDDO
+          DO ig = 1, n
+             temppsic_nc(exx_fft%nlt(igk_exx(ig,current_k)),2) = psi(npwx+ig,ibnd)
+          ENDDO
 !$omp end parallel do
-             !
-             CALL invfft ('CustomWave', temppsic_nc(:,1), exx_fft%dfftt, &
-                  is_exx=.TRUE.)
-             CALL invfft ('CustomWave', temppsic_nc(:,2), exx_fft%dfftt, &
-                  is_exx=.TRUE.)
-             !
-          ELSE
-             !
+          !
+          CALL invfft ('CustomWave', temppsic_nc(:,1), exx_fft%dfftt, &
+               is_exx=.TRUE.)
+          CALL invfft ('CustomWave', temppsic_nc(:,2), exx_fft%dfftt, &
+               is_exx=.TRUE.)
+          !
+       ELSE
+          !
 !$omp parallel do  default(shared), private(ig)
-             DO ig = 1, n
-                temppsic( exx_fft%nlt(igk_exx(ig,current_k)) ) = psi(ig,ibnd)
-             ENDDO
+          DO ig = 1, n
+             temppsic( exx_fft%nlt(igk_exx(ig,current_k)) ) = psi(ig,ibnd)
+          ENDDO
 !$omp end parallel do
-             !
-             CALL invfft ('CustomWave', temppsic, exx_fft%dfftt, is_exx=.TRUE.)
-             !
-          END IF
           !
-          result = 0.0_DP
-          !
-          old_ibnd = ibnd
-          !
-          CALL stop_clock ('vexx_out1')
+          CALL invfft ('CustomWave', temppsic, exx_fft%dfftt, is_exx=.TRUE.)
           !
        END IF
-       
+       !
+       result = 0.0_DP
+       !
+       old_ibnd = ibnd
+       !
+       CALL stop_clock ('vexx_out1')
+       !
        
        
        !----------------------------------------------------------------------!
@@ -1663,10 +1672,11 @@ MODULE exx
                xkq, iq, current_k)
           CALL stop_clock ('vexx_g2')
           !
+          IF ( okvan .AND..NOT.tqr ) CALL qvan_init (exx_fft%ngmt, xkq, xkp)
+          !
+          DO jbnd=jstart, jend
           !
           IF ( ABS(x_occupation(jbnd,ik)) < eps_occ) CYCLE
-          !
-          IF ( okvan .AND..NOT.tqr ) CALL qvan_init (exx_fft%ngmt, xkq, xkp)
           !
           !loads the phi from file
           !
@@ -1769,6 +1779,8 @@ MODULE exx
           ENDIF
           CALL stop_clock ('vexx_res')
           !
+          END DO
+          !
           CALL start_clock ('vexx_qcln')
           IF ( okvan .AND..NOT.tqr ) CALL qvan_clean ()
           CALL stop_clock ('vexx_qcln')
@@ -1780,36 +1792,34 @@ MODULE exx
 
 
 
-       IF (ipair.eq.max_pairs.or.egrp_pairs(1,min(ipair+1,max_pairs),my_egrp_id+1).ne.ibnd) THEN
-          CALL start_clock ('vexx_out2')
+       CALL start_clock ('vexx_out2')
+       !
+       IF(okvan) THEN
+          CALL mp_sum(deexx,intra_egrp_comm)
+       ENDIF
+       !
+       IF (noncolin) THEN
+          !brings back result in G-space
+          CALL fwfft ('CustomWave', result_nc(:,1), exx_fft%dfftt, &
+               is_exx=.TRUE.)
+          CALL fwfft ('CustomWave', result_nc(:,2), exx_fft%dfftt, &
+               is_exx=.TRUE.)
+       ELSE
           !
-          IF(okvan) THEN
-             CALL mp_sum(deexx,intra_egrp_comm)
-          ENDIF
-          !
-          IF (noncolin) THEN
-             !brings back result in G-space
-             CALL fwfft ('CustomWave', result_nc(:,1), exx_fft%dfftt, &
-                  is_exx=.TRUE.)
-             CALL fwfft ('CustomWave', result_nc(:,2), exx_fft%dfftt, &
-                  is_exx=.TRUE.)
-          ELSE
-             !
-             CALL fwfft ('CustomWave', result, exx_fft%dfftt, is_exx=.TRUE.)
-             DO ig = 1, n
-                big_result(ig,ibnd) = big_result(ig,ibnd) - &
-                     exxalfa*result(exx_fft%nlt(igk_exx(ig,current_k)))
-             ENDDO
-          ENDIF
-          !
-          ! add non-local \sum_I |beta_I> \alpha_Ii (the sum on i is outside)
-          CALL start_clock ('vexx_nloc')
-          IF(okvan) CALL add_nlxx_pot (lda, big_result(:,ibnd), xkp, n, &
-               igk_exx(1,current_k), deexx, eps_occ, exxalfa)
-          CALL stop_clock ('vexx_nloc')
-          !
-          CALL stop_clock ('vexx_out2')
-       END IF
+          CALL fwfft ('CustomWave', result, exx_fft%dfftt, is_exx=.TRUE.)
+          DO ig = 1, n
+             big_result(ig,ibnd) = big_result(ig,ibnd) - &
+                  exxalfa*result(exx_fft%nlt(igk_exx(ig,current_k)))
+          ENDDO
+       ENDIF
+       !
+       ! add non-local \sum_I |beta_I> \alpha_Ii (the sum on i is outside)
+       CALL start_clock ('vexx_nloc')
+       IF(okvan) CALL add_nlxx_pot (lda, big_result(:,ibnd), xkp, n, &
+            igk_exx(1,current_k), deexx, eps_occ, exxalfa)
+       CALL stop_clock ('vexx_nloc')
+       !
+       CALL stop_clock ('vexx_out2')
 
 
     END DO
