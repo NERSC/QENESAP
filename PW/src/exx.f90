@@ -1188,6 +1188,11 @@ MODULE exx
     USE mp_exx,         ONLY : negrp, inter_egrp_comm, init_index_over_band, &
                                use_old_exx
     USE wvfct,          ONLY : nbnd
+    !<<<
+    USE mp,             ONLY : mp_abort
+    USE mp_world,       ONLY : world_comm
+    USE control_flags,  ONLY : iprint
+    !>>>
     !
     IMPLICIT NONE
     !
@@ -1227,6 +1232,13 @@ MODULE exx
           CALL transform_hpsi_to_local(lda,n,m,hpsi)
        END IF
     ENDIF
+    !<<<
+    IF(iprint.eq.1)THEN
+       CALL print_clock_pw()
+       CALL mp_abort ( 1, world_comm )
+       STOP 1
+    END IF
+    !>>>
     !
     CALL stop_clock ('vexx')
     !
