@@ -1562,7 +1562,7 @@ MODULE exx
     INTEGER          :: request_send, request_recv
     !
     COMPLEX(DP),ALLOCATABLE :: rhoc(:), vc(:), deexx(:)
-    REAL(DP),   ALLOCATABLE :: fac(:)
+    REAL(DP),   ALLOCATABLE :: fac(:), facb(:)
     INTEGER          :: ibnd, ik, im , ikq, iq, ipol
     INTEGER          :: ir, ig
     INTEGER          :: current_ik
@@ -1581,6 +1581,7 @@ MODULE exx
     !
     ALLOCATE( fac(exx_fft%ngmt) )
     nrxxs= exx_fft%dfftt%nnr
+    ALLOCATE( facb(nrxxs) )
     !
     IF (noncolin) THEN
        ALLOCATE( temppsic_nc(nrxxs,npol), result_nc(nrxxs,npol) )
@@ -1682,6 +1683,12 @@ MODULE exx
           CALL start_clock ('vexx_g2')
           CALL g2_convolution(exx_fft%ngmt, exx_fft%gt, xkp, &
                xkq, iq, current_k)
+          !
+          facb = 0D0
+          DO ig = 1, exx_fft%ngmt
+             facb(exx_fft%nlt(ig)) = coulomb_fac(ig,iq,current_k)
+          ENDDO
+          !
           CALL stop_clock ('vexx_g2')
           !
           IF ( okvan .AND..NOT.tqr ) CALL qvan_init (exx_fft%ngmt, xkq, xkp)
@@ -1734,9 +1741,9 @@ MODULE exx
           vc = 0._DP
           !
 !$omp parallel do default(shared), private(ig)
-          DO ig = 1, exx_fft%ngmt
-             vc(exx_fft%nlt(ig)) = coulomb_fac(ig,iq,current_k) * &
-                  rhoc(exx_fft%nlt(ig)) * x_occupation(jbnd,ik) / nqs
+          DO ig = 1, nrxxs
+             vc(ig) = facb(ig) * rhoc(ig) * &
+                  x_occupation(jbnd,ik) / nqs
           ENDDO
 !$omp end parallel do
           CALL stop_clock ('vexx_vc')
@@ -1860,7 +1867,7 @@ MODULE exx
     END IF
     DEALLOCATE(big_result)
     !
-    DEALLOCATE(rhoc, vc, fac )
+    DEALLOCATE(rhoc, vc, fac, facb )
     !
     IF(okvan) DEALLOCATE( deexx)
     CALL stop_clock ('vexx_deal')
