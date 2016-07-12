@@ -1738,7 +1738,7 @@ MODULE exx
           !   >>>> charge done
           !
           CALL start_clock ('vexx_vc')
-          vc = 0._DP
+          !vc = 0._DP
           !
 !$omp parallel do default(shared), private(ig)
           DO ig = 1, nrxxs
