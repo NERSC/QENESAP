@@ -13,6 +13,8 @@ MANYPWOBJS = \
 manypw.o 
 
 PWLIBS = \
+api_itt_sde.o \
+module_itt_sde.o \
 a2fmod.o \
 add_bfield.o \
 add_efield.o \
@@ -247,10 +249,9 @@ wannier_check.o \
 wannier_clean.o \
 wannier_occ.o \
 wannier_enrg.o \
-wyckoff.o \
-module_itt_sde.o
+wyckoff.o
 
-QEMODS=../../Modules/libqemod.a ../../FFTXlib/libqefft.a ../../LAXlib/libqela.a ./module_itt_sde.o
+QEMODS=../../Modules/libqemod.a ../../FFTXlib/libqefft.a ../../LAXlib/libqela.a
 
 TLDEPS=bindir mods libs liblapack libblas
 
