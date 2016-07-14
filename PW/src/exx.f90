@@ -1692,12 +1692,13 @@ MODULE exx
           !
           IF ( okvan .AND..NOT.tqr ) CALL qvan_init (exx_fft%ngmt, xkq, xkp)
           !
+		  
 ! JRD ADD OPENMP HERE
 !$omp parallel private(ir,jbnd,rhoc,ig,vc) shared(result) default(shared)
           ALLOCATE(rhoc(nrxxs), vc(nrxxs) )!, result(nrxxs))
 
 !$omp do reduction(+:result)
-! !$omp do
+!!$omp do
           DO jbnd=jstart, jend
           !
           IF ( ABS(x_occupation(jbnd,ik)) < eps_occ) CYCLE
