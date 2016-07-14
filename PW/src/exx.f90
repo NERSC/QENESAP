@@ -1587,7 +1587,7 @@ MODULE exx
        ALLOCATE( temppsic_nc(nrxxs,npol), result_nc(nrxxs,npol) )
        ALLOCATE( result_nc_g(n,npol) )
     ELSE
-       ALLOCATE( temppsic(nrxxs) )!, result(nrxxs) )
+       ALLOCATE( temppsic(nrxxs), result(nrxxs) )
        ALLOCATE( result_g(n) )
     ENDIF
     !
@@ -1693,10 +1693,11 @@ MODULE exx
           IF ( okvan .AND..NOT.tqr ) CALL qvan_init (exx_fft%ngmt, xkq, xkp)
           !
 ! JRD ADD OPENMP HERE
-!$omp parallel default(shared), private(ir,jbnd,rhoc,ig,vc,result)
-          ALLOCATE(rhoc(nrxxs), vc(nrxxs), result(nrxxs))
-! !$omp do reduction(+:result)
-!$omp do
+!$omp parallel private(ir,jbnd,rhoc,ig,vc) shared(result) default(shared)
+          ALLOCATE(rhoc(nrxxs), vc(nrxxs) )!, result(nrxxs))
+
+!$omp do reduction(+:result)
+! !$omp do
           DO jbnd=jstart, jend
           !
           IF ( ABS(x_occupation(jbnd,ik)) < eps_occ) CYCLE
@@ -1804,7 +1805,7 @@ MODULE exx
           !
           END DO ! JRD this is end of loop
 !$omp end do
-    DEALLOCATE(rhoc, vc, result)
+    DEALLOCATE(rhoc, vc)
 !$omp end parallel
           !
 !          CALL start_clock ('vexx_qcln')
