@@ -83,6 +83,7 @@
      INTEGER, SAVE :: zdims_exx( 3, ndims ) = -1
      INTEGER, SAVE :: icurrent_exx = 1
      LOGICAL :: found
+!$omp threadprivate(zdims_local, icurrent_local, zdims_exx, icurrent_exx) 
 
      INTEGER :: tid
 
@@ -94,6 +95,7 @@
 
      !   Intel MKL native FFT driver
 
+	 !TK: added SAVE statement on hand and dfti_first
      TYPE(DFTI_DESCRIPTOR_ARRAY) :: hand( ndims )
      LOGICAL :: dfti_first = .TRUE.
      TYPE(DFTI_DESCRIPTOR_ARRAY), SAVE :: hand_local( ndims )
@@ -101,6 +103,7 @@
      TYPE(DFTI_DESCRIPTOR_ARRAY), SAVE :: hand_exx( ndims )
      LOGICAL, SAVE :: dfti_first_exx = .TRUE.
      INTEGER :: dfti_status = 0
+!$omp threadprivate(hand_local, dfti_first_local, hand_exx, dfti_first_exx) 
 
      IF(PRESENT(is_exx))THEN
         is_exx_ = is_exx
@@ -290,6 +293,7 @@
      INTEGER, SAVE :: dims_exx( 4, ndims) = -1
      LOGICAL :: dofft( nfftx ), found
      INTEGER, PARAMETER  :: stdout = 6
+!$omp threadprivate(icurrent_local, dims_local, icurrent_exx, dims_exx) 
 
 #if defined(__OPENMP)
      INTEGER :: offset
@@ -299,6 +303,7 @@
      EXTERNAL :: omp_get_thread_num, omp_get_num_threads, omp_get_max_threads
 #endif
 
+!TK added SAVE statement on hand and dfti_first
      TYPE(DFTI_DESCRIPTOR_ARRAY) :: hand( ndims )
      LOGICAL :: dfti_first = .TRUE.
      TYPE(DFTI_DESCRIPTOR_ARRAY), SAVE :: hand_local( ndims )
@@ -306,6 +311,7 @@
      TYPE(DFTI_DESCRIPTOR_ARRAY), SAVE :: hand_exx( ndims )
      LOGICAL, SAVE :: dfti_first_exx = .TRUE.
      INTEGER :: dfti_status = 0
+!$omp threadprivate(hand_local, dfti_first_local, hand_exx, dfti_first_exx) 
 
      IF(PRESENT(is_exx))THEN
         is_exx_ = is_exx
@@ -426,38 +432,38 @@
 
        dfti_status = DftiCreateDescriptor(hand( icurrent )%desc, DFTI_DOUBLE, DFTI_COMPLEX, 2,(/nx,ny/))
        IF(dfti_status /= 0) THEN
-          WRITE(*,*) "stopped in DftiCreateDescriptor", dfti_status
+          WRITE(*,*) "stopped in cft_2xy, DftiCreateDescriptor", dfti_status
           STOP
        ENDIF
        dfti_status = DftiSetValue(hand( icurrent )%desc, DFTI_NUMBER_OF_TRANSFORMS,nzl)
        IF(dfti_status /= 0)THEN
-          WRITE(*,*) "stopped in DFTI_NUMBER_OF_TRANSFORMS", dfti_status
+          WRITE(*,*) "stopped in cft_2xy, DFTI_NUMBER_OF_TRANSFORMS", dfti_status
           STOP
        ENDIF
        dfti_status = DftiSetValue(hand( icurrent )%desc,DFTI_INPUT_DISTANCE, ldx*ldy )
        IF(dfti_status /= 0)THEN
-          WRITE(*,*) "stopped in DFTI_INPUT_DISTANCE", dfti_status
+          WRITE(*,*) "stopped in cft_2xy, DFTI_INPUT_DISTANCE", dfti_status
           STOP
        ENDIF
        dfti_status = DftiSetValue(hand( icurrent )%desc, DFTI_PLACEMENT, DFTI_INPLACE)
        IF(dfti_status /= 0)THEN
-          WRITE(*,*) "stopped in DFTI_PLACEMENT", dfti_status
+          WRITE(*,*) "stopped in cft_2xy, DFTI_PLACEMENT", dfti_status
           STOP
        ENDIF
        tscale = 1.0_DP/ (nx * ny )
        dfti_status = DftiSetValue( hand( icurrent )%desc, DFTI_FORWARD_SCALE, tscale);
        IF(dfti_status /= 0)THEN
-          WRITE(*,*) "stopped in DFTI_FORWARD_SCALE", dfti_status
+          WRITE(*,*) "stopped in cft_2xy, DFTI_FORWARD_SCALE", dfti_status
           STOP
        ENDIF
        dfti_status = DftiSetValue( hand( icurrent )%desc, DFTI_BACKWARD_SCALE, DBLE(1) );
        IF(dfti_status /= 0)THEN
-          WRITE(*,*) "stopped in DFTI_BACKWARD_SCALE", dfti_status
+          WRITE(*,*) "stopped in cft_2xy, DFTI_BACKWARD_SCALE", dfti_status
           STOP
        ENDIF
        dfti_status = DftiCommitDescriptor(hand( icurrent )%desc)
        IF(dfti_status /= 0)THEN
-          WRITE(*,*) "stopped in DftiCommitDescriptor", dfti_status
+          WRITE(*,*) "stopped in cft_2xy, DftiCommitDescriptor", dfti_status
           STOP
        ENDIF
 
@@ -509,17 +515,19 @@
      INTEGER, SAVE :: dims_local(4,ndims) = -1
      INTEGER, SAVE :: icurrent_exx = 1
      INTEGER, SAVE :: dims_exx(4,ndims) = -1
+!$omp threadprivate(icurrent_local, dims_local, icurrent_exx, dims_exx) 
 
      !   Intel MKL native FFT driver
 
-     TYPE(DFTI_DESCRIPTOR_ARRAY), SAVE :: hand(ndims)
-     LOGICAL, SAVE :: dfti_first = .TRUE.
+     TYPE(DFTI_DESCRIPTOR_ARRAY) :: hand(ndims)
+     LOGICAL :: dfti_first = .TRUE.
      TYPE(DFTI_DESCRIPTOR_ARRAY), SAVE :: hand_local(ndims)
      LOGICAL, SAVE :: dfti_first_local = .TRUE.
      TYPE(DFTI_DESCRIPTOR_ARRAY), SAVE :: hand_exx(ndims)
      LOGICAL, SAVE :: dfti_first_exx = .TRUE.
      INTEGER :: dfti_status = 0
-     !
+!$omp threadprivate(hand_local, dfti_first_local, hand_exx, dfti_first_exx) 
+
 
      IF(PRESENT(is_exx))THEN
         is_exx_ = is_exx
@@ -563,7 +571,7 @@
         !
         dfti_status = DftiComputeForward(hand(ip)%desc, f(1:))
         IF(dfti_status /= 0)THEN
-           WRITE(*,*) "stopped in DftiComputeForward", dfti_status
+           WRITE(*,*) "stopped in cfft3d, DftiComputeForward", dfti_status
            STOP
         ENDIF
         !
@@ -571,7 +579,7 @@
         !
         dfti_status = DftiComputeBackward(hand(ip)%desc, f(1:))
         IF(dfti_status /= 0)THEN
-           WRITE(*,*) "stopped in DftiComputeBackward", dfti_status
+           WRITE(*,*) "stopped in cfft3d, DftiComputeBackward", dfti_status
            STOP
         ENDIF
         !
@@ -626,42 +634,42 @@
       if( ASSOCIATED( hand(icurrent)%desc ) ) THEN
           dfti_status = DftiFreeDescriptor( hand(icurrent)%desc )
           IF( dfti_status /= 0) THEN
-             WRITE(*,*) "stopped in DftiFreeDescriptor", dfti_status
+             WRITE(*,*) "stopped in cfft3d, DftiFreeDescriptor", dfti_status
              STOP
           ENDIF
        END IF
 
        dfti_status = DftiCreateDescriptor(hand(icurrent)%desc, DFTI_DOUBLE, DFTI_COMPLEX, 3,(/nx,ny,nz/))
        IF(dfti_status /= 0) THEN
-          WRITE(*,*) "stopped in DftiCreateDescriptor", dfti_status
+          WRITE(*,*) "stopped in cfft3d, DftiCreateDescriptor", dfti_status
           STOP
        ENDIF
        dfti_status = DftiSetValue(hand(icurrent)%desc, DFTI_NUMBER_OF_TRANSFORMS,1)
        IF(dfti_status /= 0)THEN
-          WRITE(*,*) "stopped in DFTI_NUMBER_OF_TRANSFORMS", dfti_status
+          WRITE(*,*) "stopped in cfft3d, DFTI_NUMBER_OF_TRANSFORMS", dfti_status
           STOP
        ENDIF
        dfti_status = DftiSetValue(hand(icurrent)%desc, DFTI_PLACEMENT, DFTI_INPLACE)
        IF(dfti_status /= 0)THEN
-         WRITE(*,*) "stopped in DFTI_PLACEMENT", dfti_status
+         WRITE(*,*) "stopped in cfft3d, DFTI_PLACEMENT", dfti_status
          STOP
       ENDIF
        tscale = 1.0_DP/ (nx * ny * nz)
        dfti_status = DftiSetValue( hand(icurrent)%desc, DFTI_FORWARD_SCALE, tscale);
        IF(dfti_status /= 0)THEN
-          WRITE(*,*) "stopped in DFTI_FORWARD_SCALE", dfti_status
+          WRITE(*,*) "stopped in cfft3d, DFTI_FORWARD_SCALE", dfti_status
           STOP
        ENDIF
        tscale = 1.0_DP
        dfti_status = DftiSetValue( hand(icurrent)%desc, DFTI_BACKWARD_SCALE, tscale );
        IF(dfti_status /= 0)THEN
-          WRITE(*,*) "stopped in DFTI_BACKWARD_SCALE", dfti_status
+          WRITE(*,*) "stopped in cfft3d, DFTI_BACKWARD_SCALE", dfti_status
           STOP
        ENDIF
 
        dfti_status = DftiCommitDescriptor(hand(icurrent)%desc)
        IF(dfti_status /= 0) THEN
-          WRITE(*,*) "stopped in DftiCreateDescriptor", dfti_status
+          WRITE(*,*) "stopped in cfft3d, DftiCreateDescriptor", dfti_status
           STOP
        ENDIF
 

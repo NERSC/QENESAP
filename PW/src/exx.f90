@@ -1,4 +1,4 @@
-! Copyright (C) 2005-2015 Quantum ESPRESSO group
+!! Copyright (C) 2005-2015 Quantum ESPRESSO group
 ! This file is distributed under the terms of the
 ! GNU General Public License. See the file `License'
 ! in the root directory of the present distribution,
@@ -1545,11 +1545,6 @@ MODULE exx
                                newdxx_g, newdxx_r, add_nlxx_pot, &
                                qvan_init, qvan_clean
     USE paw_exx,        ONLY : PAW_newdxx
-	
-#if defined(USE_VTUNE)
-	use itt_sde_fortran
-#endif
-	
     !
     !
     IMPLICIT NONE
@@ -1564,7 +1559,6 @@ MODULE exx
     COMPLEX(DP),ALLOCATABLE :: temppsic_nc(:,:),result_nc(:,:)
     COMPLEX(DP),ALLOCATABLE :: result_g(:)
     COMPLEX(DP),ALLOCATABLE :: result_nc_g(:,:)
-    REAL(DP) :: temp
     INTEGER          :: request_send, request_recv
     !
     COMPLEX(DP),ALLOCATABLE :: rhoc(:), vc(:), deexx(:)
@@ -1583,7 +1577,6 @@ MODULE exx
     INTEGER :: ir_out, ipair, jbnd, old_ibnd
     INTEGER :: ii, jstart, jend
     !
-
     CALL start_clock ('vexx_init')
     !
     ALLOCATE( fac(exx_fft%ngmt) )
@@ -1594,11 +1587,10 @@ MODULE exx
        ALLOCATE( temppsic_nc(nrxxs,npol), result_nc(nrxxs,npol) )
        ALLOCATE( result_nc_g(n,npol) )
     ELSE
-       ALLOCATE( temppsic(nrxxs), result(nrxxs) )
+       ALLOCATE( temppsic(nrxxs) )!, result(nrxxs) )
        ALLOCATE( result_g(n) )
     ENDIF
     !
-    ALLOCATE(rhoc(nrxxs), vc(nrxxs))
     IF(okvan) ALLOCATE(deexx(nkb))
     !
     current_ik=find_current_k(current_k,nkstot,nks)
@@ -1641,12 +1633,12 @@ MODULE exx
        !
        IF (noncolin) THEN
           !
-!$omp parallel do private(ig) default(shared)
+!$omp parallel do  default(shared), private(ig)
           DO ig = 1, n
              temppsic_nc(exx_fft%nlt(igk_exx(ig,current_k)),1) = psi(ig,ibnd)
           ENDDO
 !$omp end parallel do
-!$omp parallel do private(ig) default(shared)
+!$omp parallel do  default(shared), private(ig)
           DO ig = 1, n
              temppsic_nc(exx_fft%nlt(igk_exx(ig,current_k)),2) = psi(npwx+ig,ibnd)
           ENDDO
@@ -1659,7 +1651,7 @@ MODULE exx
           !
        ELSE
           !
-!$omp parallel do private(ig) default(shared)
+!$omp parallel do  default(shared), private(ig)
           DO ig = 1, n
              temppsic( exx_fft%nlt(igk_exx(ig,current_k)) ) = psi(ig,ibnd)
           ENDDO
@@ -1676,16 +1668,10 @@ MODULE exx
        CALL stop_clock ('vexx_out1')
        !
        
-       
        !----------------------------------------------------------------------!
        !INNER LOOP START
        !----------------------------------------------------------------------!
        DO iq=1, nqs
-
-#if defined(USE_VTUNE)
-                        call start_collection()
-#endif
-
           !
           ikq  = index_xkq(current_ik,iq)
           ik   = index_xk(ikq)
@@ -1696,6 +1682,7 @@ MODULE exx
           CALL g2_convolution(exx_fft%ngmt, exx_fft%gt, xkp, &
                xkq, iq, current_k)
           !
+! JRD - below not threaded
           facb = 0D0
           DO ig = 1, exx_fft%ngmt
              facb(exx_fft%nlt(ig)) = coulomb_fac(ig,iq,current_k)
@@ -1705,122 +1692,125 @@ MODULE exx
           !
           IF ( okvan .AND..NOT.tqr ) CALL qvan_init (exx_fft%ngmt, xkq, xkp)
           !
+! JRD ADD OPENMP HERE
+!$omp parallel default(shared), private(ir,jbnd,rhoc,ig,vc,result)
+          ALLOCATE(rhoc(nrxxs), vc(nrxxs), result(nrxxs))
+! !$omp do reduction(+:result)
+!$omp do
           DO jbnd=jstart, jend
           !
           IF ( ABS(x_occupation(jbnd,ik)) < eps_occ) CYCLE
           !
           !loads the phi from file
           !
-          CALL start_clock ('vexx_rho')
+!          CALL start_clock ('vexx_rho')
           IF (noncolin) THEN
-!$omp parallel do private(ir) default(shared)
+! !$omp parallel do default(shared), private(ir)
              DO ir = 1, nrxxs
                 rhoc(ir) = ( CONJG(exxbuff(ir,jbnd,ikq))*temppsic_nc(ir,1) + &
                      CONJG(exxbuff(nrxxs+ir,jbnd,ikq))*temppsic_nc(ir,2) )/omega
              ENDDO
-!$omp end parallel do
+! !$omp end parallel do
           ELSE
-!$omp parallel do private(ir) default(shared)
+! !$omp parallel do default(shared), private(ir)
              DO ir = 1, nrxxs
                 rhoc(ir)=CONJG(exxbuff(ir,jbnd,ikq))*temppsic(ir) / omega
              ENDDO
-!$omp end parallel do
+! !$omp end parallel do
           ENDIF
-          CALL stop_clock ('vexx_rho')
+!          CALL stop_clock ('vexx_rho')
 
           !   >>>> add augmentation in REAL space HERE
-          CALL start_clock ('vexx_augr')
+!          CALL start_clock ('vexx_augr')
           IF(okvan .AND. tqr) THEN ! augment the "charge" in real space
              CALL addusxx_r(rhoc, becxx(ikq)%k(:,jbnd), becpsi%k(:,ibnd))
           ENDIF
-          CALL stop_clock ('vexx_augr')
+!          CALL stop_clock ('vexx_augr')
           !
           !   >>>> brings it to G-space
-          CALL start_clock ('vexx_ffft')
+!          CALL start_clock ('vexx_ffft')
           CALL fwfft('Custom', rhoc, exx_fft%dfftt, is_exx=.TRUE.)
-          CALL stop_clock ('vexx_ffft')
+!          CALL stop_clock ('vexx_ffft')
           !
           !   >>>> add augmentation in G space HERE
-          CALL start_clock ('vexx_augg')
+!          CALL start_clock ('vexx_augg')
           IF(okvan .AND. .NOT. tqr) THEN
              CALL addusxx_g(exx_fft, rhoc, xkq, xkp, 'c', &
                   becphi_c=becxx(ikq)%k(:,jbnd),becpsi_c=becpsi%k(:,ibnd))
           ENDIF
-          CALL stop_clock ('vexx_augg')
+!          CALL stop_clock ('vexx_augg')
           !   >>>> charge done
           !
-          CALL start_clock ('vexx_vc')
+!          CALL start_clock ('vexx_vc')
           !vc = 0._DP
           !
-          temp = x_occupation(jbnd,ik) / nqs
-!$omp parallel do private(ig) default(shared)
+! !$omp parallel do default(shared), private(ig)
           DO ig = 1, nrxxs
-             vc(ig) = facb(ig) * rhoc(ig) * temp
+             vc(ig) = facb(ig) * rhoc(ig) * &
+                  x_occupation(jbnd,ik) / nqs
           ENDDO
-!$omp end parallel do
-          CALL stop_clock ('vexx_vc')
+! !$omp end parallel do
+!          CALL stop_clock ('vexx_vc')
           !
           ! Add ultrasoft contribution (RECIPROCAL SPACE)
           ! compute alpha_I,j,k+q = \sum_J \int <beta_J|phi_j,k+q> V_i,j,k,q Q_I,J(r) d3r
-          CALL start_clock ('vexx_ultr')
+!          CALL start_clock ('vexx_ultr')
           IF(okvan .AND. .NOT. tqr) THEN
              CALL newdxx_g(exx_fft, vc, xkq, xkp, 'c', deexx, &
                   becphi_c=becxx(ikq)%k(:,jbnd))
           ENDIF
-          CALL stop_clock ('vexx_ultr')
+!          CALL stop_clock ('vexx_ultr')
           !
           !brings back v in real space
-          CALL start_clock ('vexx_ifft')
+!          CALL start_clock ('vexx_ifft')
           CALL invfft ('Custom', vc, exx_fft%dfftt, is_exx=.TRUE.)
-          CALL stop_clock ('vexx_ifft')
+!          CALL stop_clock ('vexx_ifft')
           !
           ! Add ultrasoft contribution (REAL SPACE)
-          CALL start_clock ('vexx_ultg')
+!          CALL start_clock ('vexx_ultg')
           IF(okvan .AND. tqr) CALL newdxx_r(vc, becxx(ikq)%k(:,jbnd),deexx)
-          CALL stop_clock ('vexx_ultg')
+!          CALL stop_clock ('vexx_ultg')
           !
           ! Add PAW one-center contribution
-          CALL start_clock ('vexx_paw')
+!          CALL start_clock ('vexx_paw')
           IF(okpaw) THEN
              CALL PAW_newdxx(x_occupation(jbnd,ik)/nqs, becxx(ikq)%k(:,jbnd), &
                   becpsi%k(:,ibnd), deexx)
           ENDIF
-          CALL stop_clock ('vexx_paw')
+!          CALL stop_clock ('vexx_paw')
           !
           !accumulates over bands and k points
           !
-          CALL start_clock ('vexx_res')
+!          CALL start_clock ('vexx_res')
           IF (noncolin) THEN
-!$omp parallel do private(ir) default(shared)
+! !$omp parallel do default(shared), private(ir)
              DO ir = 1, nrxxs
                 result_nc(ir,1)= result_nc(ir,1) + vc(ir) * exxbuff(ir,jbnd,ikq)
              ENDDO
-!$omp end parallel do
-!$omp parallel do private(ir) default(shared)
+! !$omp end parallel do
+! !$omp parallel do default(shared), private(ir)
              DO ir = 1, nrxxs
                 result_nc(ir,2)= result_nc(ir,2) + vc(ir) * exxbuff(ir+nrxxs,jbnd,ikq)
              ENDDO
-!$omp end parallel do
+! !$omp end parallel do
           ELSE
-!$omp parallel do private(ir) default(shared)
+! !$omp parallel do default(shared), private(ir)
              DO ir = 1, nrxxs
                 result(ir) = result(ir) + vc(ir)*exxbuff(ir,jbnd,ikq)
              ENDDO
-!$omp end parallel do
+! !$omp end parallel do
           ENDIF
-          CALL stop_clock ('vexx_res')
+!          CALL stop_clock ('vexx_res')
           !
-          END DO
+          END DO ! JRD this is end of loop
+!$omp end do
+    DEALLOCATE(rhoc, vc, result)
+!$omp end parallel
           !
-          CALL start_clock ('vexx_qcln')
+!          CALL start_clock ('vexx_qcln')
           IF ( okvan .AND..NOT.tqr ) CALL qvan_clean ()
-          CALL stop_clock ('vexx_qcln')
+!          CALL stop_clock ('vexx_qcln')
           !
-
-#if defined(USE_VTUNE)
-                call stop_collection()
-#endif
-
        END DO
        !----------------------------------------------------------------------!
        !INNER LOOP END
@@ -1864,15 +1854,15 @@ MODULE exx
     CALL start_clock ('vexx_sum')
     CALL result_sum(n, m, big_result)
     CALL stop_clock ('vexx_sum')
-	CALL start_clock ('vexx_hpsi')
-!$omp parallel do collapse(2) private(im,ig) default(shared)
     DO im=1, m
+       CALL start_clock ('vexx_hpsi')
+!$omp parallel do default(shared), private(ig)
        DO ig = 1, n
           hpsi(ig,im)=hpsi(ig,im) + big_result(ig,im)
        ENDDO
-    END DO
 !$omp end parallel do
-	CALL stop_clock ('vexx_hpsi')
+       CALL stop_clock ('vexx_hpsi')
+    END DO
     !
     CALL start_clock ('vexx_deal')
     IF (noncolin) THEN
@@ -1884,7 +1874,7 @@ MODULE exx
     END IF
     DEALLOCATE(big_result)
     !
-    DEALLOCATE(rhoc, vc, fac, facb )
+    DEALLOCATE(fac, facb )
     !
     IF(okvan) DEALLOCATE( deexx)
     CALL stop_clock ('vexx_deal')

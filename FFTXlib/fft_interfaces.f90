@@ -334,9 +334,7 @@ SUBROUTINE invfft_b( grid_type, f, dfft, ia, is_exx )
   ! clocks called inside a parallel region do not work properly!
   ! in the future we probably need a thread safe version of the clock
 
-!$omp master
   CALL start_clock( 'fftb' )
-!$omp end master 
 
 #if defined(__MPI) && !defined(__USE_3D_FFT)
      
@@ -369,9 +367,7 @@ SUBROUTINE invfft_b( grid_type, f, dfft, ia, is_exx )
 
 #endif
 
-!$omp master
   CALL stop_clock( 'fftb' )
-!$omp end master
 
   RETURN
 END SUBROUTINE invfft_b
