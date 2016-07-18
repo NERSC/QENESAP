@@ -1714,7 +1714,7 @@ MODULE exx
 
 !IF ( ABS(x_occupation(jbnd,ik)) < eps_occ) CYCLE
 
-!$omp parallel do collapse(2) default(shared), private(jbnd,ir)
+!$omp parallel do collapse(2) default(shared) firstprivate(jstart,jend) private(ir)
 		DO jbnd=jstart, jend
              DO ir = 1, nrxxs
                 rhoc(ir,jbnd-jstart+1)=CONJG(exxbuff(ir,jbnd,ikq))*temppsic(ir) / omega
@@ -1728,7 +1728,7 @@ MODULE exx
           !   >>>> add augmentation in REAL space HERE
           CALL start_clock ('vexx_augr')
           IF(okvan .AND. tqr) THEN ! augment the "charge" in real space
-!$omp parallel do default(shared), private(jbnd)
+!$omp parallel do default(shared) firstprivate(jstart,jend) private(jbnd)
 		  DO jbnd=jstart, jend
              CALL addusxx_r(rhoc(:,jbnd-jstart+1), becxx(ikq)%k(:,jbnd), becpsi%k(:,ibnd))
 		  ENDDO
@@ -1746,7 +1746,7 @@ MODULE exx
           !   >>>> add augmentation in G space HERE
           CALL start_clock ('vexx_augg')
           IF(okvan .AND. .NOT. tqr) THEN
-!$omp parallel do default(shared), private(jbnd)
+!$omp parallel do default(shared) firstprivate(jstart,jend) private(jbnd)
 	 		DO jbnd=jstart, jend
             	 CALL addusxx_g(exx_fft, rhoc(:,jbnd-jstart+1), xkq, xkp, 'c', becphi_c=becxx(ikq)%k(:,jbnd),becpsi_c=becpsi%k(:,ibnd))
 			ENDDO
@@ -1757,7 +1757,7 @@ MODULE exx
           !
           CALL start_clock ('vexx_vc')
           !
-!$omp parallel do collapse(2) default(shared), private(jbnd,ig)
+!$omp parallel do collapse(2) private(ig) firstprivate(jstart,jend) default(shared)
 		DO jbnd=jstart, jend
           DO ig = 1, nrxxs
              vc(ig,jbnd-jstart+1) = facb(ig) * rhoc(ig,jbnd-jstart+1) * &
@@ -1771,7 +1771,7 @@ MODULE exx
           ! compute alpha_I,j,k+q = \sum_J \int <beta_J|phi_j,k+q> V_i,j,k,q Q_I,J(r) d3r
           CALL start_clock ('vexx_ultr')
           IF(okvan .AND. .NOT. tqr) THEN
-!$omp parallel do default(shared), private(jbnd)
+!$omp parallel do default(shared) firstprivate(jstart,jend) private(jbnd)
 			DO jbnd=jstart, jend
              CALL newdxx_g(exx_fft, vc(:,jbnd-jstart+1), xkq, xkp, 'c', deexx, &
                   becphi_c=becxx(ikq)%k(:,jbnd))
@@ -1790,9 +1790,9 @@ MODULE exx
           ! Add ultrasoft contribution (REAL SPACE)
           CALL start_clock ('vexx_ultg')
           IF(okvan .AND. tqr) THEN
-!$omp parallel do default(shared), private(jbnd)
+!$omp parallel do default(shared) firstprivate(jstart,jend) private(jbnd)
 			DO jbnd=jstart, jend
-			  CALL newdxx_r(vc(:,jbnd), becxx(ikq)%k(:,jbnd),deexx)
+			  CALL newdxx_r(vc(:,jbnd-jstart+1), becxx(ikq)%k(:,jbnd),deexx)
 			ENDDO
 !$omp end parallel do
 		  ENDIF
@@ -1801,7 +1801,7 @@ MODULE exx
           ! Add PAW one-center contribution
           CALL start_clock ('vexx_paw')
           IF(okpaw) THEN
-!$omp parallel do default(shared), private(jbnd)
+!$omp parallel do default(shared) private(jbnd)
 			DO jbnd=jstart, jend
              CALL PAW_newdxx(x_occupation(jbnd,ik)/nqs, becxx(ikq)%k(:,jbnd), &
                   becpsi%k(:,ibnd), deexx)
@@ -1828,7 +1828,7 @@ MODULE exx
 !!$omp end parallel do
 !          ELSE
 
-!$omp parallel do collapse(2) default(shared), private(ir,jbnd), reduction(+:result)
+!$omp parallel do collapse(2) default(shared) firstprivate(jstart,jend) private(ir) reduction(+:result)
 			DO jbnd=jstart, jend
              DO ir = 1, nrxxs
                 result(ir) = result(ir) + vc(ir,jbnd-jstart+1)*exxbuff(ir,jbnd,ikq)
