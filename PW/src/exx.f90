@@ -1828,12 +1828,12 @@ MODULE exx
 !!$omp end parallel do
 !          ELSE
 
-!$omp parallel do collapse(2) default(shared) firstprivate(jstart,jend) private(ir) reduction(+:result)
-			DO jbnd=jstart, jend
-             DO ir = 1, nrxxs
-                result(ir) = result(ir) + vc(ir,jbnd-jstart+1)*exxbuff(ir,jbnd,ikq)
-             ENDDO
-			ENDDO
+!$omp parallel do default(shared) firstprivate(jstart,jend) private(ir,jbnd)
+           DO ir = 1, nrxxs
+			   DO jbnd=jstart, jend
+				   result(ir) = result(ir) + vc(ir,jbnd-jstart+1)*exxbuff(ir,jbnd,ikq)
+			   ENDDO
+		   ENDDO
 !$omp end parallel do
 !          ENDIF
           CALL stop_clock ('vexx_res')
