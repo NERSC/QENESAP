@@ -4,7 +4,7 @@ include ../../make.sys
 
 # location of needed modules and included files (if any)
 MODFLAGS= $(MOD_FLAG)../../iotk/src $(MOD_FLAG)../../Modules $(MOD_FLAG)../../FFTXlib $(MOD_FLAG)../../LAXlib
-IFLAGS=
+IFLAGS=-I${VTUNE_AMPLIFIER_XE_2016_DIR}/include
 
 PWOBJS = \
 pwscf.o 
@@ -13,6 +13,8 @@ MANYPWOBJS = \
 manypw.o 
 
 PWLIBS = \
+api_itt_sde.o \
+module_itt_sde.o \
 a2fmod.o \
 add_bfield.o \
 add_efield.o \
@@ -247,7 +249,7 @@ wannier_check.o \
 wannier_clean.o \
 wannier_occ.o \
 wannier_enrg.o \
-wyckoff.o       
+wyckoff.o
 
 QEMODS=../../Modules/libqemod.a ../../FFTXlib/libqefft.a ../../LAXlib/libqela.a
 
@@ -256,6 +258,12 @@ TLDEPS=bindir mods libs liblapack libblas
 LIBOBJS	= ../../clib/clib.a ../../iotk/src/libiotk.a
 
 all : tldeps pw.x manypw.x generate_vdW_kernel_table.x generate_rVV10_kernel_table.x
+
+api_itt_sde.o : api_itt_sde.c 
+	$(CC) $(CFLAGS) -I${VTUNE_AMPLIFIER_XE_2016_DIR}/include -c $< -o $@
+
+module_itt_sde.o : api_itt_sde.o
+	$(F77) $(FFLAGS) -cpp -I${VTUNE_AMPLIFIER_XE_2016_DIR}/include -c module_itt_sde.f90 -o $@
 
 pw.x : $(PWOBJS) libpw.a $(LIBOBJS) $(QEMODS)
 	$(LD) $(LDFLAGS) -o $@ \
