@@ -21,7 +21,7 @@ MODULE exx
   IMPLICIT NONE
   SAVE
   COMPLEX(DP), ALLOCATABLE :: psi_exx(:,:), hpsi_exx(:,:)
-  COMPLEX(DP), ALLOCATABLE :: evc_exx(:,:), vkb_exx(:,:), psic_exx(:)
+  COMPLEX(DP), ALLOCATABLE :: evc_exx(:,:), psic_exx(:)
   INTEGER :: lda_original, n_original
   !
   ! general purpose vars
@@ -119,7 +119,6 @@ MODULE exx
      INTEGER, ALLOCATABLE :: indices(:)
      COMPLEX(DP), ALLOCATABLE :: msg(:,:)
      COMPLEX(DP), ALLOCATABLE :: msg_evc(:,:)
-     COMPLEX(DP), ALLOCATABLE :: msg_vkb(:,:)
   END TYPE comm_packet
   TYPE(comm_packet), ALLOCATABLE :: comm_recv(:,:), comm_send(:,:)
   TYPE(comm_packet), ALLOCATABLE :: comm_recv_reverse(:,:)
@@ -2156,6 +2155,7 @@ MODULE exx
     COMPLEX(DP), ALLOCATABLE :: temppsic(:)
     COMPLEX(DP), ALLOCATABLE :: rhoc(:)
     REAL(DP),    ALLOCATABLE :: fac(:)
+    COMPLEX(DP), ALLOCATABLE :: vkb_exx(:,:)
     INTEGER  :: jbnd, ibnd, ik, ikk, ig, ikq, iq, ir
     INTEGER  :: h_ibnd, nrxxs, current_ik, ibnd_loop_start
     REAL(DP) :: x1, x2
@@ -2177,6 +2177,7 @@ MODULE exx
     !
     ALLOCATE(temppsic(nrxxs), temppsic_dble(nrxxs),temppsic_aimag(nrxxs)) 
     ALLOCATE( rhoc(nrxxs) )
+    ALLOCATE( vkb_exx(npwx,nkb) )
     !
     energy=0.0_DP
     !
@@ -2415,6 +2416,7 @@ MODULE exx
     COMPLEX(DP), ALLOCATABLE :: temppsic_nc(:,:)
     COMPLEX(DP), ALLOCATABLE :: rhoc(:)
     REAL(DP),    ALLOCATABLE :: fac(:)
+    COMPLEX(DP), ALLOCATABLE :: vkb_exx(:,:)
     INTEGER  :: npw, jbnd, ibnd, ik, ikk, ig, ikq, iq, ir
     INTEGER  :: h_ibnd, nrxxs, current_ik, ibnd_loop_start
     REAL(DP) :: x1, x2
@@ -2439,6 +2441,7 @@ MODULE exx
        ALLOCATE(temppsic(nrxxs)) 
     ENDIF
     ALLOCATE( rhoc(nrxxs) )
+    ALLOCATE( vkb_exx(npwx,nkb) )
     !
     energy=0.0_DP
     !
@@ -3062,13 +3065,6 @@ MODULE exx
        END IF
        evc_exx = evc
        !
-       ! get vkb_exx
-       !
-       IF(.not.allocated(vkb_exx)) THEN
-          ALLOCATE( vkb_exx( npwx, nkb ) )
-          vkb_exx = vkb
-       END IF
-       !
        ! get igk_exx
        !
        IF(.not.allocated(igk_exx)) THEN
@@ -3123,18 +3119,6 @@ MODULE exx
        nwordwfc_exx  = nbnd*npwx_exx*npol
        CALL open_buffer( iunwfc_exx, 'wfc_exx', nwordwfc_exx, io_level, &
             exst_mem, exst_file )
-    END IF
-    !
-    ! get vkb_exx
-    !
-    IF(.not.allocated(vkb_exx)) THEN
-       !
-       ! if this is the first time that transform_evc has been called, 
-       ! construct vkb for the EXX data structure
-       !
-       ALLOCATE( vkb_exx( npwx, nkb ) )
-       vkb_exx = 0.0_DP
-       CALL transform_to_exx(lda, n, nkb, 1, vkb, vkb_exx, 2)
     END IF
     !
     DO ik=1, nks
@@ -3394,7 +3378,6 @@ MODULE exx
                 ALLOCATE(comm_recv(iproc+1,ik)%indices(count))
                 ALLOCATE(comm_recv(iproc+1,ik)%msg(count,m))
                 ALLOCATE(comm_recv(iproc+1,ik)%msg_evc(count,nbnd))
-                ALLOCATE(comm_recv(iproc+1,ik)%msg_vkb(count,nkb))
              END IF
           END IF
           !
@@ -3433,7 +3416,6 @@ MODULE exx
                 ALLOCATE(comm_send(iproc+1,ik)%indices(count))
                 ALLOCATE(comm_send(iproc+1,ik)%msg(count,m))
                 ALLOCATE(comm_send(iproc+1,ik)%msg_evc(count,nbnd))
-                ALLOCATE(comm_send(iproc+1,ik)%msg_vkb(count,nkb))
              END IF
           END IF
           !
@@ -3734,11 +3716,6 @@ MODULE exx
                    comm_send(iproc+1,current_ik)%msg_evc(i,im) = &
                         psi_work(ig,im,1+(j-1)/nproc_egrp)
                 END DO
-             ELSE IF (type.eq.2) THEN !vkb
-                DO im=1, m
-                   comm_send(iproc+1,current_ik)%msg_vkb(i,im) = &
-                        psi_work(ig,im,1+(j-1)/nproc_egrp)
-                END DO
              END IF
              !
           END DO
@@ -3754,11 +3731,6 @@ MODULE exx
                   intra_egrp_comm, request_send(iproc+1), ierr )
           ELSE IF (type.eq.1) THEN !evc
              CALL MPI_ISEND( comm_send(iproc+1,current_ik)%msg_evc, &
-                  comm_send(iproc+1,current_ik)%size*m, MPI_DOUBLE_COMPLEX, &
-                  iproc, 100+iproc*nproc_egrp+me_egrp, &
-                  intra_egrp_comm, request_send(iproc+1), ierr )
-          ELSE IF (type.eq.2) THEN ! vkb
-             CALL MPI_ISEND( comm_send(iproc+1,current_ik)%msg_vkb, &
                   comm_send(iproc+1,current_ik)%size*m, MPI_DOUBLE_COMPLEX, &
                   iproc, 100+iproc*nproc_egrp+me_egrp, &
                   intra_egrp_comm, request_send(iproc+1), ierr )
@@ -3784,11 +3756,6 @@ MODULE exx
                   intra_egrp_comm, request_recv(iproc+1), ierr )
           ELSE IF (type.eq.1) THEN !evc
              CALL MPI_IRECV( comm_recv(iproc+1,current_ik)%msg_evc, &
-                  comm_recv(iproc+1,current_ik)%size*m, MPI_DOUBLE_COMPLEX, &
-                  iproc, 100+me_egrp*nproc_egrp+iproc, &
-                  intra_egrp_comm, request_recv(iproc+1), ierr )
-          ELSE IF (type.eq.2) THEN !vkb
-             CALL MPI_IRECV( comm_recv(iproc+1,current_ik)%msg_vkb, &
                   comm_recv(iproc+1,current_ik)%size*m, MPI_DOUBLE_COMPLEX, &
                   iproc, 100+me_egrp*nproc_egrp+iproc, &
                   intra_egrp_comm, request_recv(iproc+1), ierr )
@@ -3822,10 +3789,6 @@ MODULE exx
              ELSE IF (type.eq.1) THEN !evc
                 DO im=1, m
                    psi_out(ig,im) = comm_recv(iproc+1,current_ik)%msg_evc(i,im)
-                END DO
-             ELSE IF (type.eq.2) THEN !vkb
-                DO im=1, m
-                   psi_out(ig,im) = comm_recv(iproc+1,current_ik)%msg_vkb(i,im)
                 END DO
              END IF
              !
