@@ -1545,6 +1545,8 @@ MODULE exx
                                newdxx_g, newdxx_r, add_nlxx_pot, &
                                qvan_init, qvan_clean
     USE paw_exx,        ONLY : PAW_newdxx
+	USE io_global,  ONLY : stdout
+	
     !
     !
     IMPLICIT NONE
@@ -1878,22 +1880,25 @@ MODULE exx
        !
        CALL stop_clock ('vexx_out2')
 
-
     END DO
 
     !sum result
     CALL start_clock ('vexx_sum')
     CALL result_sum(n, m, big_result)
     CALL stop_clock ('vexx_sum')
-    DO im=1, m
-       CALL start_clock ('vexx_hpsi')
-!$omp parallel do default(shared), private(ig)
-       DO ig = 1, n
+	CALL start_clock ('vexx_hpsi')
+	DO im=1, m
+!$omp parallel do default(shared), private(ig) firstprivate(im,n)
+		DO ig = 1, n
           hpsi(ig,im)=hpsi(ig,im) + big_result(ig,im)
        ENDDO
 !$omp end parallel do
-       CALL stop_clock ('vexx_hpsi')
-    END DO
+	ENDDO
+	CALL stop_clock ('vexx_hpsi')
+	
+	!print hpsi:
+	!write(stdout,*) hpsi(1:10,1), hpsi(1:10,2), hpsi(30:40,124)
+	
     !
     CALL start_clock ('vexx_deal')
     IF (noncolin) THEN
