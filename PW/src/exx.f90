@@ -1622,6 +1622,7 @@ MODULE exx
           IF(egrp_pairs(1,ipair,my_egrp_id+1).eq.ibnd)THEN
              IF(jstart.eq.0)THEN
                 jstart = egrp_pairs(2,ipair,my_egrp_id+1)
+                jend = jstart
              ELSE
                 jend = egrp_pairs(2,ipair,my_egrp_id+1)
              END IF
