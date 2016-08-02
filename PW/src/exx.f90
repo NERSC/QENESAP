@@ -2465,7 +2465,7 @@ MODULE exx
     COMPLEX(DP), ALLOCATABLE :: temppsic_nc(:,:)
     COMPLEX(DP), ALLOCATABLE :: rhoc(:)
     REAL(DP),    ALLOCATABLE :: fac(:)
-    INTEGER  :: npw, jbnd, ibnd, ik, ikk, ig, ikq, iq, ir
+    INTEGER  :: npw, jbnd, ibnd, jcount, ik, ikk, ig, ikq, iq, ir
     INTEGER  :: h_ibnd, nrxxs, current_ik, ibnd_loop_start
     REAL(DP) :: x1, x2
     REAL(DP) :: xkq(3), xkp(3), vc
@@ -2521,6 +2521,13 @@ MODULE exx
        !
        CALL start_clock ('energy_j')
        !
+	   
+	   !compute number of elements in loop
+	   jcount=jend-jstart+1
+	   
+	   !allocate arrays:
+	   
+	   
        JBND_LOOP : &
        DO jbnd = ibnd_start, ibnd_end !for each band of psi (the k cycle is outside band)
           !
