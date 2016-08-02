@@ -2444,7 +2444,7 @@ MODULE exx
     USE mp_exx,                  ONLY : inter_egrp_comm, intra_egrp_comm, negrp
     USE mp_bands,                ONLY : intra_bgrp_comm
     USE mp,                      ONLY : mp_sum
-    USE fft_interfaces,          ONLY : fwfft, invfft
+    USE fft_interfaces,          ONLY : fwfftm, invfftm, invfft
     USE gvect,                   ONLY : ecutrho
     USE klist,                   ONLY : wk
     USE uspp,                    ONLY : okvan,nkb,vkb
@@ -2463,9 +2463,9 @@ MODULE exx
     REAL(DP) :: energy 
     COMPLEX(DP), ALLOCATABLE :: temppsic(:)
     COMPLEX(DP), ALLOCATABLE :: temppsic_nc(:,:)
-    COMPLEX(DP), ALLOCATABLE :: rhoc(:)
+    COMPLEX(DP), ALLOCATABLE :: rhoc(:,:)
     REAL(DP),    ALLOCATABLE :: fac(:)
-    INTEGER  :: npw, jbnd, ibnd, jcount, ik, ikk, ig, ikq, iq, ir
+    INTEGER  :: npw, jbnd, ibnd, ibnd_inner_start, ibnd_inner_end, ibnd_inner_count, ik, ikk, ig, ikq, iq, ir
     INTEGER  :: h_ibnd, nrxxs, current_ik, ibnd_loop_start
     REAL(DP) :: x1, x2
     REAL(DP) :: xkq(3), xkp(3), vc
@@ -2488,7 +2488,6 @@ MODULE exx
     ELSE
        ALLOCATE(temppsic(nrxxs)) 
     ENDIF
-    ALLOCATE( rhoc(nrxxs) )
     !
     energy=0.0_DP
     !
@@ -2521,13 +2520,6 @@ MODULE exx
        !
        CALL start_clock ('energy_j')
        !
-	   
-	   !compute number of elements in loop
-	   jcount=jend-jstart+1
-	   
-	   !allocate arrays:
-	   
-	   
        JBND_LOOP : &
        DO jbnd = ibnd_start, ibnd_end !for each band of psi (the k cycle is outside band)
           !
@@ -2552,8 +2544,7 @@ MODULE exx
              ENDDO
 !$omp end parallel do
              !
-             CALL invfft ('CustomWave', temppsic_nc(:,1), exx_fft%dfftt, is_exx=.TRUE.)
-             CALL invfft ('CustomWave', temppsic_nc(:,2), exx_fft%dfftt, is_exx=.TRUE.)
+             CALL invfftm ('CustomWave', temppsic_nc, 2, exx_fft%dfftt, is_exx=.TRUE.)
              !
           ELSE
 !$omp parallel do default(shared), private(ig)
@@ -2577,57 +2568,80 @@ MODULE exx
              CALL g2_convolution(exx_fft%ngmt, exx_fft%gt, xkp, xkq, iq, ikk)
              IF ( okvan .AND..NOT.tqr ) CALL qvan_init (exx_fft%ngmt, xkq, xkp)
              !
-             IBND_LOOP_K : &
-             DO ibnd = 1, nbnd
+			 !these variables prepare for inner band parallelism
+			 ibnd_inner_start=1
+			 ibnd_inner_end=nbnd
+			 ibnd_inner_count=nbnd
+			 
+			 !allocate arrays
+			 ALLOCATE( rhoc(nrxxs,ibnd_inner_count) )
+			 
+!             IBND_LOOP_K : &
+!             DO ibnd = ibnd_inner_start, ibnd_inner_end
                 !
-                IF ( ABS(x_occupation(ibnd,ik)) < eps_occ) CYCLE
+                !IF ( ABS(x_occupation(ibnd,ik)) < eps_occ) CYCLE
                 !
                 ! load the phi at this k+q and band
-                IF (noncolin) THEN
-                   !
-!$omp parallel do  default(shared), private(ir) 
-                   DO ir = 1, nrxxs
-                      rhoc(ir)=(CONJG(exxbuff(ir      ,ibnd,ikq))*temppsic_nc(ir,1) + &
-                                CONJG(exxbuff(ir+nrxxs,ibnd,ikq))*temppsic_nc(ir,2) )/omega
-                   ENDDO
+				IF (noncolin) THEN
+!$omp parallel do collapse(2) default(shared) private(ir,ibnd) firstprivate(ibnd_inner_start,ibnd_inner_end)
+					DO ibnd = ibnd_inner_start, ibnd_inner_end
+						DO ir = 1, nrxxs
+							rhoc(ir,ibnd-ibnd_inner_start+1)=(CONJG(exxbuff(ir      ,ibnd,ikq))*temppsic_nc(ir,1) + &
+									CONJG(exxbuff(ir+nrxxs,ibnd,ikq))*temppsic_nc(ir,2) )/omega
+						ENDDO
+					ENDDO
 !$omp end parallel do
-                ELSE
-                   !calculate rho in real space
-!$omp parallel do  default(shared), private(ir)
-                   DO ir = 1, nrxxs
-                      rhoc(ir)=CONJG(exxbuff(ir,ibnd,ikq))*temppsic(ir) / omega
-                   ENDDO
+				ELSE
+				!calculate rho in real space
+!$omp parallel do collapse(2) default(shared) private(ir,ibnd) firstprivate(ibnd_inner_start,ibnd_inner_end)
+				DO ibnd = ibnd_inner_start, ibnd_inner_end
+					DO ir = 1, nrxxs
+						rhoc(ir,ibnd-ibnd_inner_start+1)=CONJG(exxbuff(ir,ibnd,ikq))*temppsic(ir) / omega
+					ENDDO
+				ENDDO
 !$omp end parallel do
                 ENDIF
                 ! augment the "charge" in real space
-                IF(okvan .AND. tqr) CALL addusxx_r(rhoc, becxx(ikq)%k(:,ibnd), becpsi%k(:,jbnd))
+                IF(okvan .AND. tqr) THEN
+!omp parallel do default(shared) private(ibnd) firstprivate(ibnd_inner_start,ibnd_inner_end)
+					DO ibnd = ibnd_inner_start, ibnd_inner_end
+						CALL addusxx_r(rhoc(:,ibnd-ibnd_inner_start+1), becxx(ikq)%k(:,ibnd), becpsi%k(:,jbnd))
+					ENDDO
+!$omp end parallel do
+				ENDIF
                 !
                 ! bring rhoc to G-space
-                CALL fwfft ('Custom', rhoc, exx_fft%dfftt, is_exx=.TRUE.)
+                CALL fwfftm ('Custom', rhoc, ibnd_inner_count, exx_fft%dfftt, is_exx=.TRUE.)
                 ! augment the "charge" in G space
-                IF(okvan .AND. .NOT. tqr) & 
-                   CALL addusxx_g(exx_fft, rhoc, xkq, xkp, 'c', &
-                   becphi_c=becxx(ikq)%k(:,ibnd),becpsi_c=becpsi%k(:,jbnd))
+                IF(okvan .AND. .NOT. tqr) THEN
+!omp parallel do default(shared) private(ibnd) firstprivate(ibnd_inner_start,ibnd_inner_end)
+					DO ibnd = ibnd_inner_start, ibnd_inner_end
+                		CALL addusxx_g(exx_fft, rhoc(:,ibnd-ibnd_inner_start+1), xkq, xkp, 'c', becphi_c=becxx(ikq)%k(:,ibnd),becpsi_c=becpsi%k(:,jbnd))
+					ENDDO
+!$omp end parallel do
+				ENDIF
                 !
                 vc = 0.0_DP
-!$omp parallel do  default(shared), private(ig), reduction(+:vc)
-                DO ig=1,exx_fft%ngmt
-                   vc = vc + coulomb_fac(ig,iq,ikk) * DBLE(rhoc(exx_fft%nlt(ig)) * &
-                                      CONJG(rhoc(exx_fft%nlt(ig))))
-                ENDDO
+!$omp parallel do default(shared) private(ibnd) reduction(+:vc) firstprivate(ibnd_inner_start,ibnd_inner_end)
+				DO ibnd = ibnd_inner_start, ibnd_inner_end
+					DO ig=1,exx_fft%ngmt
+						vc = vc + coulomb_fac(ig,iq,ikk) * DBLE(rhoc(exx_fft%nlt(ig),ibnd-ibnd_inner_start+1) * &
+												CONJG(rhoc(exx_fft%nlt(ig),ibnd-ibnd_inner_start+1)))
+					ENDDO
+					vc = vc * omega * x_occupation(ibnd,ik) / nqs
+					energy = energy - exxalfa * vc * wg(jbnd,ikk)
+					
+					IF(okpaw) THEN
+						energy = energy +exxalfa*x_occupation(ibnd,ik)/nqs*wg(jbnd,ikk) &
+								*PAW_xx_energy(becxx(ikq)%k(:,ibnd), becpsi%k(:,jbnd))
+					ENDIF
+				ENDDO
 !$omp end parallel do
-                vc = vc * omega * x_occupation(ibnd,ik) / nqs
-                ! 
-                energy = energy - exxalfa * vc * wg(jbnd,ikk)
-                !
-                IF(okpaw) THEN
-                   energy = energy +exxalfa*x_occupation(ibnd,ik)/nqs*wg(jbnd,ikk) &
-                              *PAW_xx_energy(becxx(ikq)%k(:,ibnd), becpsi%k(:,jbnd))
-                ENDIF
-                !
-             ENDDO &
-             IBND_LOOP_K 
-             IF ( okvan .AND..NOT.tqr ) CALL qvan_clean ( )
+			
+			!deallocate memory
+			DEALLOCATE( rhoc )
+			
+			IF ( okvan .AND..NOT.tqr ) CALL qvan_clean ( )
           ENDDO &
           IQ_LOOP
        ENDDO &
