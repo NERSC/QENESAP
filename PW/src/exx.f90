@@ -1617,11 +1617,12 @@ MODULE exx
     COMPLEX(DP),ALLOCATABLE :: rhoc(:,:), vc(:,:), deexx(:)
     REAL(DP),   ALLOCATABLE :: fac(:), facb(:)
     INTEGER          :: ibnd, ik, im , ikq, iq, ipol
-    INTEGER          :: ir, ig
+    INTEGER          :: ir, ig, ir_start, ir_end
+	INTEGER			 :: irt, nrt, nblock
     INTEGER          :: current_ik
     INTEGER          :: ibnd_loop_start
     INTEGER          :: h_ibnd, nrxxs
-    REAL(DP) :: x1, x2, xkp(3)
+    REAL(DP) :: x1, x2, xkp(3), omega_inv, nqs_inv
     REAL(DP) :: xkq(3)
     ! <LMS> temp array for vcut_spheric
     INTEGER  :: find_current_k
@@ -1733,6 +1734,9 @@ MODULE exx
 	   !how many iters
 	   jcount=jend-jstart+1
 	   
+	   !precompute these guys
+       omega_inv = 1.0 / omega
+       nqs_inv = 1.0 / nqs
        DO iq=1, nqs
           !
           ikq  = index_xkq(current_ik,iq)
@@ -1769,12 +1773,22 @@ MODULE exx
           ELSE
 !IF ( ABS(x_occupation(jbnd,ik)) < eps_occ) CYCLE
 
-!$omp parallel do collapse(2) default(shared) firstprivate(jstart,jend) private(ir,jbnd)
-		DO jbnd=jstart, jend
-             DO ir = 1, nrxxs
-                rhoc(ir,jbnd-jstart+1)=CONJG(exxbuff(ir,jbnd,ikq))*temppsic(ir) / omega
-             ENDDO
-		ENDDO
+			nblock=2048
+			nrt = nrxxs / nblock
+			if (mod(nrxxs, nblock) .ne. 0) nrt = nrt + 1
+			!nrt = 64
+			!nblock = nrxxs/63
+!$omp parallel do collapse(2) default(shared) firstprivate(jstart,jend,nblock,nrxxs,omega_inv) private(ir,ir_start,ir_end,jbnd)
+			DO irt = 1, nrt
+				DO jbnd=jstart, jend
+					ir_start = (irt - 1) * nblock + 1
+					ir_end = min(ir_start+nblock-1,nrxxs)
+!DIR$ vector nontemporal (rhoc)
+					DO ir = ir_start, ir_end
+						rhoc(ir,jbnd-jstart+1)=CONJG(exxbuff(ir,jbnd,ikq))*temppsic(ir) * omega_inv
+					ENDDO
+				ENDDO
+			ENDDO
 !$omp end parallel do
 	ENDIF
 	
@@ -1813,12 +1827,22 @@ MODULE exx
           !
           CALL start_clock ('vexx_vc')
           !
-!$omp parallel do collapse(2) private(ir,jbnd) firstprivate(jstart,jend) default(shared)
-		DO jbnd=jstart, jend
-          DO ir = 1, nrxxs
-             vc(ir,jbnd-jstart+1) = facb(ir) * rhoc(ir,jbnd-jstart+1) * x_occupation(jbnd,ik) / nqs
-          ENDDO
-		ENDDO
+          nblock=2048
+          nrt = nrxxs / nblock
+          if (mod(nrxxs, nblock) .ne. 0) nrt = nrt + 1
+          !nrt = 64
+          !nblock = nrxxs/63
+!$omp parallel do collapse(2) default(shared) firstprivate(jstart,jend,nblock,nrxxs,nqs_inv) private(ir,ir_start,ir_end,jbnd)
+			DO jbnd=jstart, jend
+				DO irt = 1, nrt
+					ir_start = (irt - 1) * nblock + 1
+					ir_end = min(ir_start+nblock-1,nrxxs)
+!DIR$ vector nontemporal (vc)
+					DO ir = ir_start, ir_end
+						vc(ir,jbnd-jstart+1) = facb(ir) * rhoc(ir,jbnd-jstart+1) * x_occupation(jbnd,ik) * nqs_inv
+					ENDDO
+				ENDDO
+			ENDDO
 !$omp end parallel do
           CALL stop_clock ('vexx_vc')
           !
@@ -1876,17 +1900,27 @@ MODULE exx
 !$omp end parallel do
 		ELSE
 
-!$omp parallel do default(shared) firstprivate(jstart,jend) private(ir,jbnd)
-			DO ir = 1, nrxxs
+
+			nblock=2048
+			nrt = nrxxs / nblock
+			if (mod(nrxxs, nblock) .ne. 0) nrt = nrt + 1
+			!nrt = 64
+			!nblock = nrxxs / 63
+!$omp parallel do collapse(2) default(shared) firstprivate(jstart,jend,nblock,nrxxs) private(ir,ir_start,ir_end,jbnd)
+			DO irt = 1, nrt
 				DO jbnd=jstart, jend
-				   result(ir) = result(ir) + vc(ir,jbnd-jstart+1)*exxbuff(ir,jbnd,ikq)
-			   ENDDO
-		   ENDDO
+					ir_start = (irt - 1) * nblock + 1
+					ir_end = min(ir_start+nblock-1,nrxxs)
+!!dir$ vector nontemporal (result)
+					DO ir = ir_start, ir_end
+						result(ir) = result(ir) + vc(ir,jbnd-jstart+1)*exxbuff(ir,jbnd,ikq)
+					ENDDO
+				ENDDO
+			ENDDO
 !$omp end parallel do
 		ENDIF
 		CALL stop_clock ('vexx_res')
           !
-		  
           !
 !          CALL start_clock ('vexx_qcln')
           IF ( okvan .AND..NOT.tqr ) CALL qvan_clean ()
