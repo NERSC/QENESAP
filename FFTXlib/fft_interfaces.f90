@@ -157,16 +157,37 @@ SUBROUTINE invfft_x( grid_type, f, dfft, is_exx )
      CALL fftx_error__( ' invfft ', ' unknown grid: '//grid_type , 1 )
   END IF
 
-#if defined(__MPI) && !defined __USE_3D_FFT
+
+! pcarrier@cray.com CHANGED: simplified syntax, and added is_exx syntax for USE_3D_FFT
+#if defined(__MPI) && !defined(__USE_3D_FFT)
      
   IF( grid_type == 'Dense' .OR. grid_type == 'Smooth' .OR. &
-       grid_type == 'Custom' ) THEN
+      grid_type == 'Custom' ) THEN
      CALL tg_cft3s( f, dfft, 1, is_exx=is_exx_ )
   ELSE IF( grid_type == 'Wave' .OR. grid_type == 'CustomWave' ) THEN
      CALL tg_cft3s( f, dfft, 2, dfft%have_task_groups, is_exx=Is_exx_ )
   END IF
 
-#else
+#endif
+
+#if defined(__MPI) && defined(__USE_3D_FFT)
+
+  IF ( .NOT. is_exx_ ) THEN
+
+    IF( grid_type == 'Dense' .OR. grid_type == 'Smooth' .OR. &
+         grid_type == 'Custom' ) THEN
+       CALL tg_cft3s( f, dfft, 1, is_exx=is_exx_ )
+    ELSE IF( grid_type == 'Wave' .OR. grid_type == 'CustomWave' ) THEN
+       CALL tg_cft3s( f, dfft, 2, dfft%have_task_groups, is_exx=Is_exx_ )
+    END IF
+
+  ELSE
+    CALL cfft3d( f, dfft%nr1, dfft%nr2, dfft%nr3, &
+                    dfft%nr1x,dfft%nr2x,dfft%nr3x, 1)
+  ENDIF
+#endif
+
+#if !defined(__MPI)
 
   IF( grid_type == 'Dense' .OR. grid_type == 'Smooth' .OR. &
       grid_type == 'Custom' ) THEN
@@ -175,14 +196,9 @@ SUBROUTINE invfft_x( grid_type, f, dfft, is_exx )
 
   ELSE IF( grid_type == 'Wave' .OR. grid_type == 'CustomWave' ) THEN
 
-#if defined(__MPI) && defined __USE_3D_FFT
-     CALL cfft3d( f, dfft%nr1, dfft%nr2, dfft%nr3, &
-                     dfft%nr1x,dfft%nr2x,dfft%nr3x, 1)
-#else
      CALL cfft3ds( f, dfft%nr1, dfft%nr2, dfft%nr3, &
                       dfft%nr1x,dfft%nr2x,dfft%nr3x, 1, &
                       dfft%isind, dfft%iplw )
-#endif
 
   END IF
 
@@ -324,16 +340,35 @@ SUBROUTINE fwfft_x( grid_type, f, dfft, is_exx )
      CALL fftx_error__( ' fwfft ', ' unknown grid: '//grid_type , 1 )
   END IF
 
+! pcarrier@cray.com CHANGED: simplified syntax, and added is_exx syntax for USE_3D_FFT
 #if defined(__MPI) && !defined(__USE_3D_FFT)
      
   IF( grid_type == 'Dense' .OR. grid_type == 'Smooth' .OR. &
       grid_type == 'Custom' ) THEN
-     CALL tg_cft3s(f,dfft,-1,is_exx=is_exx_)
+     CALL tg_cft3s( f, dfft, -1, is_exx=is_exx_ )
   ELSE IF( grid_type == 'Wave' .OR. grid_type == 'CustomWave' ) THEN
-     CALL tg_cft3s(f,dfft,-2, dfft%have_task_groups, is_exx=is_exx_ )
+     CALL tg_cft3s( f, dfft, -2, dfft%have_task_groups, is_exx=Is_exx_ )
   END IF
 
-#else 
+#endif
+
+#if defined(__MPI) && defined(__USE_3D_FFT)
+
+  IF ( .NOT. is_exx_ ) THEN
+
+    IF( grid_type == 'Dense' .OR. grid_type == 'Smooth' .OR. &
+         grid_type == 'Custom' ) THEN
+       CALL tg_cft3s( f, dfft, -1, is_exx=is_exx_ )
+    ELSE IF( grid_type == 'Wave' .OR. grid_type == 'CustomWave' ) THEN
+       CALL tg_cft3s( f, dfft, -2, dfft%have_task_groups, is_exx=Is_exx_ )
+    END IF
+
+     CALL cfft3d( f, dfft%nr1, dfft%nr2, dfft%nr3, &
+                     dfft%nr1x,dfft%nr2x,dfft%nr3x, -1)
+  ENDIF
+#endif
+
+#if !defined(__MPI)
 
   IF( grid_type == 'Dense' .OR. grid_type == 'Smooth' .OR. &
       grid_type == 'Custom' ) THEN
@@ -342,14 +377,9 @@ SUBROUTINE fwfft_x( grid_type, f, dfft, is_exx )
 
   ELSE IF( grid_type == 'Wave' .OR. grid_type == 'CustomWave' ) THEN
 
-#if defined(__MPI) && defined(__USE_3D_FFT)
-     CALL cfft3d( f, dfft%nr1, dfft%nr2, dfft%nr3, &
-                     dfft%nr1x,dfft%nr2x,dfft%nr3x, -1)
-#else
      CALL cfft3ds( f, dfft%nr1, dfft%nr2, dfft%nr3, &
                       dfft%nr1x,dfft%nr2x,dfft%nr3x, -1, &
                       dfft%isind, dfft%iplw )
-#endif
 
   END IF
 

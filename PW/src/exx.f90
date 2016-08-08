@@ -203,7 +203,7 @@ MODULE exx
     exx_fft%gcutmt = exx_fft%dual_t*exx_fft%ecutt / tpiba2
     CALL realspace_grid_init(exx_fft%dfftt, at, bg, exx_fft%gcutmt)
     CALL data_structure_custom(exx_fft, gamma_only)
-    CALL ggent(exx_fft)
+    CALL ggent(exx_fft, is_exx=.true.)
     exx_fft%initialized = .true.
     exx_fft%dfftt%have_task_groups = .FALSE.
     !
@@ -4157,7 +4157,7 @@ MODULE exx
     END IF
     !
     IF (first_data_structure_change) THEN
-       CALL ggen( gamma_only, at, bg, intra_egrp_comm, no_global_sort = .FALSE. )
+       CALL ggen( gamma_only, at, bg, intra_egrp_comm, no_global_sort = .FALSE., is_exx=.true. )
        allocate( ig_l2g_exx(ngm), g_exx(3,ngm), gg_exx(ngm) )
        allocate( mill_exx(3,ngm), nl_exx(ngm) )
        allocate( nls_exx(ngms) )
