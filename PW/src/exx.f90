@@ -1597,7 +1597,10 @@ MODULE exx
     USE wvfct,          ONLY : npwx, current_k, nbnd
     USE control_flags,  ONLY : gamma_only
     USE klist,          ONLY : xk, nks, nkstot
-    USE fft_interfaces, ONLY : fwfft, invfft, fwfftm, invfftm
+    USE fft_interfaces, ONLY : fwfft, invfft
+#if defined(__USE_3D_FFT) & defined(__DFTI)
+    USE fft_interfaces, ONLY : fwfftm, invfftm
+#endif
     USE becmod,         ONLY : bec_type
     USE mp_exx,       ONLY : inter_egrp_comm, intra_egrp_comm, my_egrp_id, &
          negrp, max_pairs, egrp_pairs, ibands, nibands
@@ -1830,10 +1833,15 @@ MODULE exx
           !
           !   >>>> brings it to G-space
           CALL start_clock ('vexx_ffft')
-		  !DO jbnd=jstart, jend
-          		!CALL fwfft('Custom', rhoc(:,jbnd-jstart+1), exx_fft%dfftt, is_exx=.TRUE.)
-				CALL fwfftm ('Custom', rhoc, jcount, exx_fft%dfftt, is_exx=.TRUE.)
-		  !ENDDO
+          !<<<
+#if defined(__USE_3D_FFT) & defined(__DFTI)
+          CALL fwfftm ('Custom', rhoc, jcount, exx_fft%dfftt, is_exx=.TRUE.)
+#else
+          DO jbnd=jstart, jend
+             CALL fwfft('Custom', rhoc(:,jbnd-jstart+1), exx_fft%dfftt, is_exx=.TRUE.)
+          ENDDO
+#endif
+          !>>>
           CALL stop_clock ('vexx_ffft')
           !
           !   >>>> add augmentation in G space HERE
@@ -1885,8 +1893,14 @@ MODULE exx
           !
           !brings back v in real space
           CALL start_clock ('vexx_ifft')
+#if defined(__USE_3D_FFT) & defined(__DFTI)
+          CALL invfftm ('Custom', vc, jcount, exx_fft%dfftt, is_exx=.TRUE.)
+#else
+          DO jbnd=jstart, jend
+             CALL invfft('Custom', vc(:,jbnd-jstart+1), exx_fft%dfftt, is_exx=.TRUE.)
+          ENDDO
+#endif
 		  !fft many
-		  CALL invfftm ('Custom', vc, jcount, exx_fft%dfftt, is_exx=.TRUE.)
           CALL stop_clock ('vexx_ifft')
           !
           ! Add ultrasoft contribution (REAL SPACE)
@@ -2553,7 +2567,10 @@ MODULE exx
     USE mp_exx,                  ONLY : inter_egrp_comm, intra_egrp_comm, negrp
     USE mp_bands,                ONLY : intra_bgrp_comm
     USE mp,                      ONLY : mp_sum
-    USE fft_interfaces,          ONLY : fwfftm, invfftm, invfft
+    USE fft_interfaces,          ONLY : fwfft, invfft
+#if defined(__USE_3D_FFT) & defined(__DFTI)
+    USE fft_interfaces,          ONLY : fwfftm, invfftm
+#endif
     USE gvect,                   ONLY : ecutrho
     USE klist,                   ONLY : wk
     USE uspp,                    ONLY : okvan,nkb,vkb
@@ -2656,7 +2673,8 @@ MODULE exx
              ENDDO
 !$omp end parallel do
              !
-             CALL invfftm ('CustomWave', temppsic_nc, 2, exx_fft%dfftt, is_exx=.TRUE.)
+             CALL invfft ('CustomWave', temppsic_nc(:,1), exx_fft%dfftt, is_exx=.TRUE.)
+             CALL invfft ('CustomWave', temppsic_nc(:,2), exx_fft%dfftt, is_exx=.TRUE.)
              !
           ELSE
 !$omp parallel do default(shared), private(ig)
@@ -2748,7 +2766,13 @@ MODULE exx
 				!
 				! bring rhoc to G-space
 				CALL start_clock ('exxenergy_ffft')
-				CALL fwfftm ('Custom', rhoc, ibnd_inner_count, exx_fft%dfftt, is_exx=.TRUE.)
+#if defined(__USE_3D_FFT) & defined(__DFTI)
+          CALL fwfftm ('Custom', rhoc, ibnd_inner_count, exx_fft%dfftt, is_exx=.TRUE.)
+#else
+          DO ibnd=ibnd_inner_start, ibnd_inner_end
+             CALL fwfft('Custom', rhoc(:,ibnd-ibnd_inner_start+1), exx_fft%dfftt, is_exx=.TRUE.)
+          ENDDO
+#endif
 				CALL stop_clock ('exxenergy_ffft')
 				
 				CALL start_clock ('exxenergy_augr')
