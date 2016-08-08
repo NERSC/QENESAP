@@ -14,7 +14,10 @@ MODULE fft_interfaces
 
 
   PUBLIC :: fwfft, invfft
-
+#ifdef __USE_3D_FFT
+	PUBLIC :: fwfftm, invfftm
+#endif
+  
   
   INTERFACE invfft
      !! invfft is the interface to both the standard fft **invfft_x**,
@@ -43,6 +46,22 @@ MODULE fft_interfaces
      END SUBROUTINE invfft_b
   END INTERFACE
 
+#ifdef __USE_3D_FFT
+  INTERFACE invfftm
+ 	 !many version
+      SUBROUTINE invfft_xm( grid_type, f, howmany, dfft, is_exx )
+        USE fft_types,  ONLY: fft_dlay_descriptor
+        IMPLICIT NONE
+        INTEGER, PARAMETER :: DP = selected_real_kind(14,200)
+        CHARACTER(LEN=*),  INTENT(IN) :: grid_type
+        TYPE(fft_dlay_descriptor), INTENT(IN) :: dfft
+        COMPLEX(DP) :: f(:,:)
+        LOGICAL, OPTIONAL, INTENT(IN) :: is_exx
+ 	   INTEGER, INTENT(IN) :: howmany
+      END SUBROUTINE invfft_xm
+  END INTERFACE
+#endif
+
   INTERFACE fwfft
      SUBROUTINE fwfft_x( grid_type, f, dfft, is_exx )
        USE fft_types,  ONLY: fft_dlay_descriptor
@@ -54,6 +73,21 @@ MODULE fft_interfaces
        LOGICAL, OPTIONAL, INTENT(IN) :: is_exx
      END SUBROUTINE fwfft_x
   END INTERFACE
+  
+#ifdef __USE_3D_FFT
+	INTERFACE fwfftm
+       SUBROUTINE fwfft_xm( grid_type, f, howmany, dfft, is_exx )
+         USE fft_types,  ONLY: fft_dlay_descriptor
+         IMPLICIT NONE
+         INTEGER, PARAMETER :: DP = selected_real_kind(14,200)
+         CHARACTER(LEN=*), INTENT(IN) :: grid_type
+         TYPE(fft_dlay_descriptor), INTENT(IN) :: dfft
+         COMPLEX(DP) :: f(:,:)
+         LOGICAL, OPTIONAL, INTENT(IN) :: is_exx
+  	   	 INTEGER, INTENT(IN) :: howmany
+       END SUBROUTINE fwfft_xm
+	END INTERFACE
+#endif
 
 END MODULE fft_interfaces
 !=---------------------------------------------------------------------------=!
@@ -123,16 +157,37 @@ SUBROUTINE invfft_x( grid_type, f, dfft, is_exx )
      CALL fftx_error__( ' invfft ', ' unknown grid: '//grid_type , 1 )
   END IF
 
-#if defined(__MPI) && !defined __USE_3D_FFT
+
+! pcarrier@cray.com CHANGED: simplified syntax, and added is_exx syntax for USE_3D_FFT
+#if defined(__MPI) && !defined(__USE_3D_FFT)
      
   IF( grid_type == 'Dense' .OR. grid_type == 'Smooth' .OR. &
-       grid_type == 'Custom' ) THEN
+      grid_type == 'Custom' ) THEN
      CALL tg_cft3s( f, dfft, 1, is_exx=is_exx_ )
   ELSE IF( grid_type == 'Wave' .OR. grid_type == 'CustomWave' ) THEN
      CALL tg_cft3s( f, dfft, 2, dfft%have_task_groups, is_exx=Is_exx_ )
   END IF
 
-#else
+#endif
+
+#if defined(__MPI) && defined(__USE_3D_FFT)
+
+  IF ( .NOT. is_exx_ ) THEN
+
+    IF( grid_type == 'Dense' .OR. grid_type == 'Smooth' .OR. &
+         grid_type == 'Custom' ) THEN
+       CALL tg_cft3s( f, dfft, 1, is_exx=is_exx_ )
+    ELSE IF( grid_type == 'Wave' .OR. grid_type == 'CustomWave' ) THEN
+       CALL tg_cft3s( f, dfft, 2, dfft%have_task_groups, is_exx=Is_exx_ )
+    END IF
+
+  ELSE
+    CALL cfft3d( f, dfft%nr1, dfft%nr2, dfft%nr3, &
+                    dfft%nr1x,dfft%nr2x,dfft%nr3x, 1)
+  ENDIF
+#endif
+
+#if !defined(__MPI)
 
   IF( grid_type == 'Dense' .OR. grid_type == 'Smooth' .OR. &
       grid_type == 'Custom' ) THEN
@@ -141,14 +196,9 @@ SUBROUTINE invfft_x( grid_type, f, dfft, is_exx )
 
   ELSE IF( grid_type == 'Wave' .OR. grid_type == 'CustomWave' ) THEN
 
-#if defined(__MPI) && defined __USE_3D_FFT
-     CALL cfft3d( f, dfft%nr1, dfft%nr2, dfft%nr3, &
-                     dfft%nr1x,dfft%nr2x,dfft%nr3x, 1)
-#else
      CALL cfft3ds( f, dfft%nr1, dfft%nr2, dfft%nr3, &
                       dfft%nr1x,dfft%nr2x,dfft%nr3x, 1, &
                       dfft%isind, dfft%iplw )
-#endif
 
   END IF
 
@@ -169,6 +219,63 @@ SUBROUTINE invfft_x( grid_type, f, dfft, is_exx )
   RETURN
 
 END SUBROUTINE invfft_x
+!=---------------------------------------------------------------------------=!
+!
+!=---------------------------------------------------------------------------=!
+#ifdef __USE_3D_FFT
+SUBROUTINE invfft_xm( grid_type, f, howmany, dfft, is_exx )
+  !! Compute G-space to R-space for a specific grid type
+  !! 
+  !! **grid_type = 'Custom'** : 
+  !!   inverse fourier transform of potentials and charge density f
+  !!   on a custom grid. On output, f is overwritten. Only that is supported
+  !! 
+  !! **dfft = FFT descriptor**, IMPORTANT NOTICE: grid is specified only by dfft.
+  !!   No check is performed on the correspondence between dfft and grid_type.
+  !!   grid_type is now used only to distinguish cases 'Wave' / 'CustomWave' 
+  !!   from all other cases
+  
+  USE fft_scalar,    ONLY: cfft3dm
+  USE fft_smallbox,  ONLY: cft_b, cft_b_omp
+  USE fft_parallel,  ONLY: tg_cft3s
+  USE fft_types,     ONLY: fft_dlay_descriptor
+
+  IMPLICIT NONE
+
+  INTEGER, PARAMETER :: DP = selected_real_kind(14,200)
+
+  TYPE(fft_dlay_descriptor), INTENT(IN) :: dfft
+  CHARACTER(LEN=*), INTENT(IN) :: grid_type
+  COMPLEX(DP) :: f(:)
+  LOGICAL, OPTIONAL, INTENT(IN) :: is_exx
+  INTEGER, INTENT(IN) :: howmany
+  LOGICAL :: is_exx_
+  IF( present( is_exx ) ) THEN
+     is_exx_ = is_exx
+  ELSE
+     is_exx_ = .FALSE.
+  END IF
+  !
+  IF( grid_type == 'Custom' ) THEN
+     CALL start_clock('fftcm')
+  ELSE 
+     CALL fftx_error__( ' invfft ', ' unknown grid: '//grid_type , 1 )
+  END IF
+
+#if !defined __USE_3D_FFT
+#error Unsupported Option
+#else
+
+     CALL cfft3dm( f, dfft%nr1, dfft%nr2, dfft%nr3, &
+                     dfft%nr1x,dfft%nr2x,dfft%nr3x, howmany, 1)
+#endif
+
+  CALL stop_clock('fftcm')
+
+  RETURN
+
+END SUBROUTINE invfft_xm
+#endif
 !=---------------------------------------------------------------------------=!
 !
 !=---------------------------------------------------------------------------=!
@@ -233,16 +340,35 @@ SUBROUTINE fwfft_x( grid_type, f, dfft, is_exx )
      CALL fftx_error__( ' fwfft ', ' unknown grid: '//grid_type , 1 )
   END IF
 
+! pcarrier@cray.com CHANGED: simplified syntax, and added is_exx syntax for USE_3D_FFT
 #if defined(__MPI) && !defined(__USE_3D_FFT)
      
   IF( grid_type == 'Dense' .OR. grid_type == 'Smooth' .OR. &
       grid_type == 'Custom' ) THEN
-     CALL tg_cft3s(f,dfft,-1,is_exx=is_exx_)
+     CALL tg_cft3s( f, dfft, -1, is_exx=is_exx_ )
   ELSE IF( grid_type == 'Wave' .OR. grid_type == 'CustomWave' ) THEN
-     CALL tg_cft3s(f,dfft,-2, dfft%have_task_groups, is_exx=is_exx_ )
+     CALL tg_cft3s( f, dfft, -2, dfft%have_task_groups, is_exx=Is_exx_ )
   END IF
 
-#else 
+#endif
+
+#if defined(__MPI) && defined(__USE_3D_FFT)
+
+  IF ( .NOT. is_exx_ ) THEN
+
+    IF( grid_type == 'Dense' .OR. grid_type == 'Smooth' .OR. &
+         grid_type == 'Custom' ) THEN
+       CALL tg_cft3s( f, dfft, -1, is_exx=is_exx_ )
+    ELSE IF( grid_type == 'Wave' .OR. grid_type == 'CustomWave' ) THEN
+       CALL tg_cft3s( f, dfft, -2, dfft%have_task_groups, is_exx=Is_exx_ )
+    END IF
+
+     CALL cfft3d( f, dfft%nr1, dfft%nr2, dfft%nr3, &
+                     dfft%nr1x,dfft%nr2x,dfft%nr3x, -1)
+  ENDIF
+#endif
+
+#if !defined(__MPI)
 
   IF( grid_type == 'Dense' .OR. grid_type == 'Smooth' .OR. &
       grid_type == 'Custom' ) THEN
@@ -251,14 +377,9 @@ SUBROUTINE fwfft_x( grid_type, f, dfft, is_exx )
 
   ELSE IF( grid_type == 'Wave' .OR. grid_type == 'CustomWave' ) THEN
 
-#if defined(__MPI) && defined(__USE_3D_FFT)
-     CALL cfft3d( f, dfft%nr1, dfft%nr2, dfft%nr3, &
-                     dfft%nr1x,dfft%nr2x,dfft%nr3x, -1)
-#else
      CALL cfft3ds( f, dfft%nr1, dfft%nr2, dfft%nr3, &
                       dfft%nr1x,dfft%nr2x,dfft%nr3x, -1, &
                       dfft%isind, dfft%iplw )
-#endif
 
   END IF
 
@@ -279,6 +400,63 @@ SUBROUTINE fwfft_x( grid_type, f, dfft, is_exx )
   RETURN
   !
 END SUBROUTINE fwfft_x
+!=---------------------------------------------------------------------------=!
+!
+!=---------------------------------------------------------------------------=!
+#ifdef __USE_3D_FFT
+SUBROUTINE fwfft_xm( grid_type, f, howmany, dfft, is_exx )
+  !! Compute R-space to G-space for a specific grid type
+  !! 
+  !! **grid_type = 'Custom'**
+  !!   forward fourier transform of potentials and charge density f
+  !!   on a custom grid . On output, f is overwritten
+  !!
+  !! **dfft = FFT descriptor**, IMPORTANT NOTICE: grid is specified only by dfft.
+  !!   No check is performed on the correspondence between dfft and grid_type.
+  !!   grid_type is now used only to distinguish cases 'Wave' / 'CustomWave' 
+  !!   from all other cases
+  
+  USE fft_scalar,    ONLY: cfft3dm
+  USE fft_parallel,  ONLY: tg_cft3s
+  USE fft_types,     ONLY: fft_dlay_descriptor
+
+  IMPLICIT NONE
+
+  INTEGER, PARAMETER :: DP = selected_real_kind(14,200)
+
+  TYPE(fft_dlay_descriptor), INTENT(IN) :: dfft
+  CHARACTER(LEN=*), INTENT(IN) :: grid_type
+  COMPLEX(DP) :: f(:)
+  LOGICAL, OPTIONAL, INTENT(IN) :: is_exx
+  INTEGER, INTENT(IN) :: howmany
+  LOGICAL :: is_exx_
+  IF( present(is_exx) ) THEN
+     is_exx_ = is_exx
+  ELSE
+     is_exx_ = .FALSE.
+  END IF
+
+  IF( grid_type == 'Custom' ) THEN
+     CALL start_clock('fftc')
+  ELSE
+     CALL fftx_error__( ' fwfft ', ' unknown grid: '//grid_type , 1 )
+  END IF
+
+#if !defined(__USE_3D_FFT)
+#error Unsupported Option
+#else 
+
+     CALL cfft3dm( f, dfft%nr1, dfft%nr2, dfft%nr3, &
+                     dfft%nr1x,dfft%nr2x,dfft%nr3x, howmany, -1)
+#endif
+
+  CALL stop_clock('fftc')
+
+  
+  RETURN
+  !
+END SUBROUTINE fwfft_xm
+#endif
 !=---------------------------------------------------------------------------=!
 !
 !=---------------------------------------------------------------------------=!
@@ -334,9 +512,7 @@ SUBROUTINE invfft_b( grid_type, f, dfft, ia, is_exx )
   ! clocks called inside a parallel region do not work properly!
   ! in the future we probably need a thread safe version of the clock
 
-!$omp master
   CALL start_clock( 'fftb' )
-!$omp end master 
 
 #if defined(__MPI) && !defined(__USE_3D_FFT)
      
@@ -369,9 +545,7 @@ SUBROUTINE invfft_b( grid_type, f, dfft, ia, is_exx )
 
 #endif
 
-!$omp master
   CALL stop_clock( 'fftb' )
-!$omp end master
 
   RETURN
 END SUBROUTINE invfft_b
