@@ -23,7 +23,7 @@ END INTERFACE
 contains
 
    subroutine start_collection()
-#ifdef USE_SDE
+#ifdef __USE_SDE
      call fortran_sde_start()
 #endif
      call fortran_itt_resume()
@@ -31,7 +31,7 @@ contains
 
    subroutine stop_collection() 
     call fortran_itt_pause()
-#ifdef USE_SDE
+#ifdef __USE_SDE
     call fortran_sde_stop()
 #endif
    end subroutine stop_collection

@@ -47,6 +47,7 @@ MODULE exx
   INTEGER :: ibnd_end = 0                ! ending band index used in bgrp parallelization
 
   COMPLEX(DP), ALLOCATABLE :: exxbuff(:,:,:)
+!DIR$ ATTRIBUTES FASTMEM :: exxbuff
                                          ! temporary buffer for wfc storage
   !
   !
@@ -688,6 +689,7 @@ MODULE exx
     INTEGER :: ibnd_loop_start, ibnd_buff_start, ibnd_buff_end
     INTEGER :: ipol, jpol
     COMPLEX(DP),ALLOCATABLE :: temppsic(:)
+!DIR$ ATTRIBUTES FASTMEM :: temppsic
     COMPLEX(DP),ALLOCATABLE :: temppsic_nc(:,:), psic_nc(:,:)
     INTEGER :: nxxs, nrxxs
 #ifdef __MPI
@@ -793,15 +795,15 @@ MODULE exx
     IF (.NOT. allocated(exxbuff)) &
         ALLOCATE( exxbuff(nrxxs*npol, ibnd_buff_start:ibnd_buff_end, nkqs))
 
-	!assign buffer
-!$omp parallel do collapse(3) default(shared) firstprivate(npol,nrxxs,nkqs,ibnd_buff_start,ibnd_buff_end) private(ir,ibnd,ikq,ipol)
-	DO ikq=1,nkqs
-		DO ibnd=ibnd_buff_start,ibnd_buff_end
-			DO ir=1,nrxxs*npol
-				exxbuff(ir,ibnd,ikq)=(0.0_DP,0.0_DP)
-			ENDDO
-		ENDDO
-	ENDDO
+!	!assign buffer
+!!$omp parallel do collapse(3) default(shared) firstprivate(npol,nrxxs,nkqs,ibnd_buff_start,ibnd_buff_end) private(ir,ibnd,ikq,ipol)
+!	DO ikq=1,nkqs
+!		DO ibnd=ibnd_buff_start,ibnd_buff_end
+!			DO ir=1,nrxxs*npol
+!				exxbuff(ir,ibnd,ikq)=(0.0_DP,0.0_DP)
+!			ENDDO
+!		ENDDO
+!	ENDDO
 	
     !
     !   This is parallelized over pools. Each pool computes only its k-points
@@ -872,11 +874,13 @@ MODULE exx
 				DO ig=1,npw
                 	temppsic_nc(exx_fft%nlt(igk_exx(ig,ik)),1) = evc_exx(ig,ibnd_exx)
 				ENDDO
+!$omp end parallel do
 				CALL invfft ('CustomWave', temppsic_nc(:,1), exx_fft%dfftt, is_exx=.TRUE.)
 !$omp parallel do default(shared) private(ig) firstprivate(npw,ik,ibnd_exx,npwx)
 				DO ig=1,npw
 					temppsic_nc(exx_fft%nlt(igk_exx(ig,ik)),2) = evc_exx(ig+npwx,ibnd_exx)
 				ENDDO
+!$omp end parallel do
 				CALL invfft ('CustomWave', temppsic_nc(:,2), exx_fft%dfftt, is_exx=.TRUE.)
              ELSE
 !$omp parallel do default(shared) private(ir) firstprivate(nrxxs)
@@ -887,6 +891,7 @@ MODULE exx
 				DO ig=1,npw
                 	temppsic(exx_fft%nlt(igk_exx(ig,ik))) = evc_exx(ig,ibnd_exx)
 				ENDDO
+!$omp end parallel do
                 CALL invfft ('CustomWave', temppsic, exx_fft%dfftt, is_exx=.TRUE.)
              ENDIF
              !
@@ -908,6 +913,7 @@ MODULE exx
 								psic_all_nc(ir,ipol) = (0.0_DP, 0.0_DP)
 							ENDDO
 						ENDDO
+!$omp end parallel do
 !$omp parallel do default(shared) private(ir) firstprivate(npol,isym,nrxxs) reduction(+:psic_all_nc)
 						DO ir=1,nrxxs
 							!DIR$ UNROLL_AND_JAM (4)
@@ -917,6 +923,7 @@ MODULE exx
 								ENDDO
 							ENDDO
 						ENDDO
+!$omp end parallel do
 					ENDIF
 					DO ipol=1,npol
 						CALL scatter_grid(exx_fft%dfftt,psic_all_nc(:,ipol), psic_nc(:,ipol))
@@ -929,6 +936,7 @@ MODULE exx
 							psic_nc(ir,ipol) = (0._dp, 0._dp)
 						ENDDO
 					ENDDO
+!$omp end parallel do
 !$omp parallel do default(shared) private(ipol,jpol,ir) firstprivate(npol,isym,nrxxs) reduction(+:psic_nc)
 					DO ir=1,nrxxs
 						!DIR$ UNROLL_AND_JAM (4)
@@ -938,12 +946,14 @@ MODULE exx
 							ENDDO
 						ENDDO
 					ENDDO
+!$omp end parallel do
 #endif
 !$omp parallel do default(shared) private(ir) firstprivate(ibnd,isym,ikq)
 					DO ir=1,nrxxs
 						exxbuff(ir,ibnd,ikq)=psic_nc(ir,1)
 						exxbuff(ir+nrxxs,ibnd,ikq)=psic_nc(ir,2)
 					ENDDO
+!$omp end parallel do
 				ELSE ! noncolinear
 #ifdef __MPI
 					CALL gather_grid(exx_fft%dfftt,temppsic,temppsic_all)
@@ -952,6 +962,7 @@ MODULE exx
 						DO ir=1,nrxxs
 							psic_all(ir) = temppsic_all(rir(ir,isym))
 						ENDDO
+!$omp end parallel do
 					ENDIF
 					CALL scatter_grid(exx_fft%dfftt,psic_all,psic_exx)
 #else
@@ -959,6 +970,7 @@ MODULE exx
 					DO ir=1,nrxxs
 						psic_exx(ir) = temppsic(rir(ir,isym))
 					ENDDO
+!$omp end parallel do
 #endif
 !$omp parallel do default(shared) private(ir) firstprivate(isym,ibnd,ikq)
 					DO ir=1,nrxxs
@@ -967,6 +979,7 @@ MODULE exx
 						ENDIF
 						exxbuff(ir,ibnd,ikq)=psic_exx(ir)
 					ENDDO
+!$omp end parallel do
 					!
 				ENDIF ! noncolinear
 
@@ -1598,6 +1611,9 @@ MODULE exx
     USE paw_exx,        ONLY : PAW_newdxx
 	USE io_global,  ONLY : stdout
 	
+	!DEBUG
+	USE itt_sde_fortran
+	!DEBUG
     !
     !
     IMPLICIT NONE
@@ -1609,12 +1625,14 @@ MODULE exx
     !
     ! local variables
     COMPLEX(DP),ALLOCATABLE :: temppsic(:), result(:)
+!DIR$ ATTRIBUTES FASTMEM :: result
     COMPLEX(DP),ALLOCATABLE :: temppsic_nc(:,:),result_nc(:,:)
     COMPLEX(DP),ALLOCATABLE :: result_g(:)
     COMPLEX(DP),ALLOCATABLE :: result_nc_g(:,:)
     INTEGER          :: request_send, request_recv
     !
     COMPLEX(DP),ALLOCATABLE :: rhoc(:,:), vc(:,:), deexx(:)
+!DIR$ ATTRIBUTES FASTMEM :: rhoc, vc
     REAL(DP),   ALLOCATABLE :: fac(:), facb(:)
     INTEGER          :: ibnd, ik, im , ikq, iq, ipol
     INTEGER          :: ir, ig, ir_start, ir_end
@@ -1630,6 +1648,7 @@ MODULE exx
     COMPLEX(DP), ALLOCATABLE :: big_result(:,:)
     INTEGER :: ir_out, ipair, jbnd, old_ibnd
     INTEGER :: ii, jstart, jend, jcount, jind
+	
     !
     CALL start_clock ('vexx_init')
     !
@@ -1763,7 +1782,7 @@ MODULE exx
           !
           CALL start_clock ('vexx_rho')
           IF (noncolin) THEN
-!$omp parallel do collapse(2) default(shared) firstprivate(jstart,jend) private(ir)
+!$omp parallel do collapse(2) default(shared) firstprivate(jstart,jend) private(jbnd,ir)
 			DO jbnd=jstart, jend
 				DO ir = 1, nrxxs
 					rhoc(ir,jbnd-jstart+1) = ( CONJG(exxbuff(ir,jbnd,ikq))*temppsic_nc(ir,1) + CONJG(exxbuff(nrxxs+ir,jbnd,ikq))*temppsic_nc(ir,2) )/omega
@@ -1773,12 +1792,14 @@ MODULE exx
           ELSE
 !IF ( ABS(x_occupation(jbnd,ik)) < eps_occ) CYCLE
 
+!call start_collection()
+
 			nblock=2048
 			nrt = nrxxs / nblock
 			if (mod(nrxxs, nblock) .ne. 0) nrt = nrt + 1
 			!nrt = 64
 			!nblock = nrxxs/63
-!$omp parallel do collapse(2) default(shared) firstprivate(jstart,jend,nblock,nrxxs,omega_inv) private(ir,ir_start,ir_end,jbnd)
+!$omp parallel do collapse(2) default(shared) firstprivate(jstart,jend,nblock,nrxxs,omega_inv) private(irt,ir,ir_start,ir_end,jbnd)
 			DO irt = 1, nrt
 				DO jbnd=jstart, jend
 					ir_start = (irt - 1) * nblock + 1
@@ -1790,6 +1811,8 @@ MODULE exx
 				ENDDO
 			ENDDO
 !$omp end parallel do
+
+!call stop_collection()
 	ENDIF
 	
           CALL stop_clock ('vexx_rho')
@@ -1827,14 +1850,15 @@ MODULE exx
           !
           CALL start_clock ('vexx_vc')
           !
+!call start_collection()
           nblock=2048
           nrt = nrxxs / nblock
           if (mod(nrxxs, nblock) .ne. 0) nrt = nrt + 1
           !nrt = 64
           !nblock = nrxxs/63
-!$omp parallel do collapse(2) default(shared) firstprivate(jstart,jend,nblock,nrxxs,nqs_inv) private(ir,ir_start,ir_end,jbnd)
-			DO jbnd=jstart, jend
-				DO irt = 1, nrt
+!$omp parallel do collapse(2) default(shared) firstprivate(jstart,jend,nblock,nrxxs,nqs_inv) private(irt,ir,ir_start,ir_end,jbnd)
+			DO irt = 1, nrt
+				DO jbnd=jstart, jend
 					ir_start = (irt - 1) * nblock + 1
 					ir_end = min(ir_start+nblock-1,nrxxs)
 !DIR$ vector nontemporal (vc)
@@ -1844,6 +1868,7 @@ MODULE exx
 				ENDDO
 			ENDDO
 !$omp end parallel do
+!call stop_collection()
           CALL stop_clock ('vexx_vc')
           !
           ! Add ultrasoft contribution (RECIPROCAL SPACE)
@@ -1901,6 +1926,7 @@ MODULE exx
 		ELSE
 
 
+!call start_collection()
 			nblock=2048
 			nrt = nrxxs / nblock
 			if (mod(nrxxs, nblock) .ne. 0) nrt = nrt + 1
@@ -1918,6 +1944,7 @@ MODULE exx
 				ENDDO
 			ENDDO
 !$omp end parallel do
+!call stop_collection()
 		ENDIF
 		CALL stop_clock ('vexx_res')
           !
@@ -1977,7 +2004,7 @@ MODULE exx
 	CALL stop_clock ('vexx_hpsi')
 	
 	!print hpsi:
-	write(stdout,*) hpsi(1:10,1), hpsi(1:10,2), hpsi(30:40,124)
+	!write(stdout,*) hpsi(1:10,1), hpsi(1:10,2), hpsi(30:40,124)
 	
     !
     CALL start_clock ('vexx_deal')
@@ -2546,9 +2573,9 @@ MODULE exx
     COMPLEX(DP), ALLOCATABLE :: rhoc(:,:)
     REAL(DP),    ALLOCATABLE :: fac(:)
     INTEGER  :: npw, jbnd, ibnd, ibnd_inner_start, ibnd_inner_end, ibnd_inner_count, ik, ikk, ig, ikq, iq, ir
-    INTEGER  :: h_ibnd, nrxxs, current_ik, ibnd_loop_start
+    INTEGER  :: h_ibnd, nrxxs, current_ik, ibnd_loop_start, nblock, nrt, irt, ir_start, ir_end
     REAL(DP) :: x1, x2
-    REAL(DP) :: xkq(3), xkp(3), vc
+    REAL(DP) :: xkq(3), xkp(3), vc, omega_inv
 	!REAL(DP), ALLOCATEABLE :: vcarr(:)
     ! temp array for vcut_spheric
     INTEGER,        EXTERNAL :: find_current_k
@@ -2576,6 +2603,10 @@ MODULE exx
     !
     CALL stop_clock ('energy_init')
     !
+	
+	!precompute that stuff
+	omega_inv=1.0/omega
+	
     IKK_LOOP : &
     DO ikk=1,nks
        !
@@ -2665,27 +2696,49 @@ MODULE exx
 					DO ibnd = ibnd_inner_start, ibnd_inner_end
 						DO ir = 1, nrxxs
 							rhoc(ir,ibnd-ibnd_inner_start+1)=(CONJG(exxbuff(ir      ,ibnd,ikq))*temppsic_nc(ir,1) + &
-									CONJG(exxbuff(ir+nrxxs,ibnd,ikq))*temppsic_nc(ir,2) )/omega
+									CONJG(exxbuff(ir+nrxxs,ibnd,ikq))*temppsic_nc(ir,2) ) * omega_inv
 						ENDDO
 					ENDDO
+!$omp end parallel do
 				ELSE
-				!calculate rho in real space
-!$omp parallel do collapse(2) default(shared) private(ir,ibnd) firstprivate(ibnd_inner_start,ibnd_inner_end)
-					DO ibnd = ibnd_inner_start, ibnd_inner_end
-						DO ir = 1, nrxxs
-							rhoc(ir,ibnd-ibnd_inner_start+1)=CONJG(exxbuff(ir,ibnd,ikq))*temppsic(ir) / omega
+!				!calculate rho in real space
+!!$omp parallel do collapse(2) default(shared) private(ir,ibnd) firstprivate(ibnd_inner_start,ibnd_inner_end)
+!					DO ibnd = ibnd_inner_start, ibnd_inner_end
+!						DO ir = 1, nrxxs
+!							rhoc(ir,ibnd-ibnd_inner_start+1)=CONJG(exxbuff(ir,ibnd,ikq))*temppsic(ir) / omega
+!						ENDDO
+!					ENDDO
+!					
+					
+					nblock=2048
+					nrt = nrxxs / nblock
+					if (mod(nrxxs, nblock) .ne. 0) nrt = nrt + 1
+					!nrt = 64
+					!nblock = nrxxs/63
+!$omp parallel do collapse(2) default(shared) firstprivate(ibnd_inner_start,ibnd_inner_end,nblock,nrxxs,omega_inv) private(ir,irt,ir_start,ir_end,ibnd)
+					DO irt = 1, nrt
+						DO ibnd=ibnd_inner_start, ibnd_inner_end
+							ir_start = (irt - 1) * nblock + 1
+							ir_end = min(ir_start+nblock-1,nrxxs)
+!DIR$ vector nontemporal (rhoc)
+							DO ir = ir_start, ir_end
+								rhoc(ir,ibnd-ibnd_inner_start+1)=CONJG(exxbuff(ir,ibnd,ikq))*temppsic(ir) * omega_inv
+							ENDDO
 						ENDDO
 					ENDDO
+!$omp end parallel do
+
                 ENDIF
 				CALL stop_clock ('exxenergy_rho')
 				
                 ! augment the "charge" in real space
 				CALL start_clock ('exxenergy_augr')
                 IF(okvan .AND. tqr) THEN
-!omp parallel do default(shared) private(ibnd) firstprivate(ibnd_inner_start,ibnd_inner_end)
+!$omp parallel do default(shared) private(ibnd) firstprivate(ibnd_inner_start,ibnd_inner_end)
 					DO ibnd = ibnd_inner_start, ibnd_inner_end
 						CALL addusxx_r(rhoc(:,ibnd-ibnd_inner_start+1), becxx(ikq)%k(:,ibnd), becpsi%k(:,jbnd))
 					ENDDO
+!$omp end parallel do
 				ENDIF
 				CALL stop_clock ('exxenergy_augr')
 				!
@@ -2697,16 +2750,17 @@ MODULE exx
 				CALL start_clock ('exxenergy_augr')
 				! augment the "charge" in G space
 				IF(okvan .AND. .NOT. tqr) THEN
-!omp parallel do default(shared) private(ibnd) firstprivate(ibnd_inner_start,ibnd_inner_end)
+!$omp parallel do default(shared) private(ibnd) firstprivate(ibnd_inner_start,ibnd_inner_end)
 					DO ibnd = ibnd_inner_start, ibnd_inner_end
                 		CALL addusxx_g(exx_fft, rhoc(:,ibnd-ibnd_inner_start+1), xkq, xkp, 'c', becphi_c=becxx(ikq)%k(:,ibnd),becpsi_c=becpsi%k(:,jbnd))
 					ENDDO
+!$omp end parallel do
 				ENDIF
 				CALL stop_clock ('exxenergy_augr')
 				!
 				
 				CALL start_clock ('exxenergy_vc')
-!$omp parallel do default(shared) reduction(+:energy) private(ibnd) firstprivate(ibnd_inner_start,ibnd_inner_end)
+!$omp parallel do default(shared) reduction(+:energy) private(ig,ibnd,vc) firstprivate(ibnd_inner_start,ibnd_inner_end)
 				DO ibnd = ibnd_inner_start, ibnd_inner_end
 					vc=0.0_DP
 					DO ig=1,exx_fft%ngmt
@@ -2720,6 +2774,7 @@ MODULE exx
 								*PAW_xx_energy(becxx(ikq)%k(:,ibnd), becpsi%k(:,jbnd))
 					ENDIF
 				ENDDO
+!$omp end parallel do
 				CALL stop_clock ('exxenergy_vc')
 			
 			!deallocate memory

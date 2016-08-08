@@ -49,7 +49,7 @@ FDFLAGS        = $(DFLAGS) $(MANUAL_DFLAGS)
 #          typically -I../include -I/some/other/directory/
 #          the latter contains .e.g. files needed by FFT libraries
 
-IFLAGS         = -I../include -I${MKLROOT}/include/fftw -I${VTUNE_AMPLIFIER_XE_2016_DIR}/include
+IFLAGS         = -I../include -I${MKLROOT}/include/fftw -I$(VTUNE_AMPLIFIER_XE_2016_DIR)/include
 
 # MOD_FLAGS = flag used by f90 compiler to locate modules
 # Each Makefile defines the list of needed modules in MODFLAGS
@@ -81,7 +81,7 @@ CPPFLAGS       = -mkl -P -C -traditional $(DFLAGS) $(IFLAGS)
 # C flags must include DFLAGS and IFLAGS
 # F90 flags must include MODFLAGS, IFLAGS, and FDFLAGS with appropriate syntax
 
-CFLAGS         = -mkl -xMIC-AVX512 -O3 $(DFLAGS) $(IFLAGS)
+CFLAGS         = -mkl -xMIC-AVX512 -g -O3 $(DFLAGS) $(IFLAGS)
 F90FLAGS       = $(FFLAGS) -nomodule -qopenmp -fpp $(FDFLAGS) $(IFLAGS) $(MODFLAGS)
 FFLAGS         = -debug -mkl -align array64byte -xMIC-AVX512 -O2 -assume byterecl -g -traceback -qopenmp -qopt-report=5 -qopt-report-phase=vec,openmp,loop
 
