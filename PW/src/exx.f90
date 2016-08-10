@@ -794,15 +794,15 @@ MODULE exx
     IF (.NOT. allocated(exxbuff)) &
         ALLOCATE( exxbuff(nrxxs*npol, ibnd_buff_start:ibnd_buff_end, nkqs))
 
-!	!assign buffer
-!!$omp parallel do collapse(3) default(shared) firstprivate(npol,nrxxs,nkqs,ibnd_buff_start,ibnd_buff_end) private(ir,ibnd,ikq,ipol)
-!	DO ikq=1,nkqs
-!		DO ibnd=ibnd_buff_start,ibnd_buff_end
-!			DO ir=1,nrxxs*npol
-!				exxbuff(ir,ibnd,ikq)=(0.0_DP,0.0_DP)
-!			ENDDO
-!		ENDDO
-!	ENDDO
+	!assign buffer
+!$omp parallel do collapse(3) default(shared) firstprivate(npol,nrxxs,nkqs,ibnd_buff_start,ibnd_buff_end) private(ir,ibnd,ikq,ipol)
+	DO ikq=1,nkqs
+		DO ibnd=ibnd_buff_start,ibnd_buff_end
+			DO ir=1,nrxxs*npol
+				exxbuff(ir,ibnd,ikq)=(0.0_DP,0.0_DP)
+			ENDDO
+		ENDDO
+	ENDDO
 	
     !
     !   This is parallelized over pools. Each pool computes only its k-points

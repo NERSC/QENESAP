@@ -363,6 +363,8 @@ SUBROUTINE fwfft_x( grid_type, f, dfft, is_exx )
        CALL tg_cft3s( f, dfft, -2, dfft%have_task_groups, is_exx=Is_exx_ )
     END IF
 
+ ELSE
+
      CALL cfft3d( f, dfft%nr1, dfft%nr2, dfft%nr3, &
                      dfft%nr1x,dfft%nr2x,dfft%nr3x, -1)
   ENDIF
