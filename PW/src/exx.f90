@@ -905,16 +905,16 @@ MODULE exx
 						CALL gather_grid(exx_fft%dfftt, temppsic_nc(:,ipol), temppsic_all_nc(:,ipol))
 					ENDDO
 					IF ( me_egrp == 0 ) THEN
-!$omp parallel do default(shared) private(ir) firstprivate(npol,nrxxs)
-						DO ir=1,nrxxs
+!$omp parallel do default(shared) private(ir) firstprivate(npol,nxxs)
+						DO ir=1,nxxs
 							!DIR$ UNROLL_AND_JAM (2)
 							DO ipol=1,npol
 								psic_all_nc(ir,ipol) = (0.0_DP, 0.0_DP)
 							ENDDO
 						ENDDO
 !$omp end parallel do
-!$omp parallel do default(shared) private(ir) firstprivate(npol,isym,nrxxs) reduction(+:psic_all_nc)
-						DO ir=1,nrxxs
+!$omp parallel do default(shared) private(ir) firstprivate(npol,isym,nxxs) reduction(+:psic_all_nc)
+						DO ir=1,nxxs
 							!DIR$ UNROLL_AND_JAM (4)
 							DO ipol=1,npol
 								DO jpol=1,npol
@@ -928,16 +928,16 @@ MODULE exx
 						CALL scatter_grid(exx_fft%dfftt,psic_all_nc(:,ipol), psic_nc(:,ipol))
 					ENDDO
 #else
-!$omp parallel do default(shared) private(ir) firstprivate(npol,nrxxs)
-					DO ir=1,nrxxs
+!$omp parallel do default(shared) private(ir) firstprivate(npol,nxxs)
+					DO ir=1,nxxs
 						!DIR$ UNROLL_AND_JAM (2)
 						DO ipol=1,npol
 							psic_nc(ir,ipol) = (0._dp, 0._dp)
 						ENDDO
 					ENDDO
 !$omp end parallel do
-!$omp parallel do default(shared) private(ipol,jpol,ir) firstprivate(npol,isym,nrxxs) reduction(+:psic_nc)
-					DO ir=1,nrxxs
+!$omp parallel do default(shared) private(ipol,jpol,ir) firstprivate(npol,isym,nxxs) reduction(+:psic_nc)
+					DO ir=1,nxxs
 						!DIR$ UNROLL_AND_JAM (4)
 						DO ipol=1,npol
 							DO jpol=1,npol
@@ -958,7 +958,7 @@ MODULE exx
 					CALL gather_grid(exx_fft%dfftt,temppsic,temppsic_all)
 					IF ( me_egrp == 0 ) THEN
 !$omp parallel do default(shared) private(ir) firstprivate(isym)
-						DO ir=1,nrxxs
+						DO ir=1,nxxs
 							psic_all(ir) = temppsic_all(rir(ir,isym))
 						ENDDO
 !$omp end parallel do
@@ -1833,7 +1833,6 @@ MODULE exx
           !
           !   >>>> brings it to G-space
           CALL start_clock ('vexx_ffft')
-          !<<<
 #if defined(__USE_3D_FFT) & defined(__DFTI)
           CALL fwfftm ('Custom', rhoc, jcount, exx_fft%dfftt, is_exx=.TRUE.)
 #else
@@ -1841,7 +1840,6 @@ MODULE exx
              CALL fwfft('Custom', rhoc(:,jbnd-jstart+1), exx_fft%dfftt, is_exx=.TRUE.)
           ENDDO
 #endif
-          !>>>
           CALL stop_clock ('vexx_ffft')
           !
           !   >>>> add augmentation in G space HERE
