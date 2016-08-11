@@ -47,7 +47,7 @@ MODULE exx
   INTEGER :: ibnd_end = 0                ! ending band index used in bgrp parallelization
 
   COMPLEX(DP), ALLOCATABLE :: exxbuff(:,:,:)
-!DIR$ ATTRIBUTES FASTMEM :: exxbuff
+!!DIR$ ATTRIBUTES FASTMEM :: exxbuff
                                          ! temporary buffer for wfc storage
   !
   !
@@ -689,7 +689,7 @@ MODULE exx
     INTEGER :: ibnd_loop_start, ibnd_buff_start, ibnd_buff_end
     INTEGER :: ipol, jpol
     COMPLEX(DP),ALLOCATABLE :: temppsic(:)
-!DIR$ ATTRIBUTES FASTMEM :: temppsic
+!!DIR$ ATTRIBUTES FASTMEM :: temppsic
     COMPLEX(DP),ALLOCATABLE :: temppsic_nc(:,:), psic_nc(:,:)
     INTEGER :: nxxs, nrxxs
 #ifdef __MPI
@@ -700,7 +700,7 @@ MODULE exx
     INTEGER :: npw, current_ik
     integer :: find_current_k
     INTEGER :: ibnd_start_new, ibnd_end_new
-    INTEGER :: ibnd_exx
+    INTEGER :: ibnd_exx, istat
     IF (use_old_exx) THEN
        ! use the old band group parallelization
        CALL exxinit_old()
@@ -738,7 +738,11 @@ MODULE exx
     IF (noncolin) THEN
        ALLOCATE(temppsic_nc(nrxxs, npol), psic_nc(nrxxs, npol))
     ELSE IF ( .NOT. gamma_only ) THEN
-       ALLOCATE(temppsic(nrxxs))
+       ALLOCATE(temppsic(nrxxs), stat=istat)
+	   IF (istat .ne. 0) THEN
+		   !dir$ NOFASTMEM
+		   ALLOCATE(temppsic(nrxxs))
+	   ENDIF
     ENDIF
     !
     IF (.not.exx_is_active()) THEN 
@@ -792,18 +796,24 @@ MODULE exx
         ibnd_buff_end   = ibnd_end_new
     ENDIF
     !
-    IF (.NOT. allocated(exxbuff)) &
-        ALLOCATE( exxbuff(nrxxs*npol, ibnd_buff_start:ibnd_buff_end, nkqs))
+    IF (.NOT. allocated(exxbuff)) THEN
+        ALLOCATE( exxbuff(nrxxs*npol, ibnd_buff_start:ibnd_buff_end, nkqs), stat=istat)
+		IF(istat .ne. 0) THEN
+			!dir$ NOFASTMEM
+			ALLOCATE( exxbuff(nrxxs*npol, ibnd_buff_start:ibnd_buff_end, nkqs))
+		ENDIF
+	ENDIF
 
-!	!assign buffer
-!!$omp parallel do collapse(3) default(shared) firstprivate(npol,nrxxs,nkqs,ibnd_buff_start,ibnd_buff_end) private(ir,ibnd,ikq,ipol)
-!	DO ikq=1,nkqs
-!		DO ibnd=ibnd_buff_start,ibnd_buff_end
-!			DO ir=1,nrxxs*npol
-!				exxbuff(ir,ibnd,ikq)=(0.0_DP,0.0_DP)
-!			ENDDO
-!		ENDDO
-!	ENDDO
+	!assign buffer
+!$omp parallel do collapse(3) default(shared) firstprivate(npol,nrxxs,nkqs,ibnd_buff_start,ibnd_buff_end) private(ir,ibnd,ikq,ipol)
+	DO ikq=1,nkqs
+		DO ibnd=ibnd_buff_start,ibnd_buff_end
+			DO ir=1,nrxxs*npol
+				exxbuff(ir,ibnd,ikq)=(0.0_DP,0.0_DP)
+			ENDDO
+		ENDDO
+	ENDDO
+!$omp end parallel do
 	
     !
     !   This is parallelized over pools. Each pool computes only its k-points
@@ -870,6 +880,7 @@ MODULE exx
 					temppsic_nc(ir,1) = ( 0._dp, 0._dp )
 					temppsic_nc(ir,2) = ( 0._dp, 0._dp )
 				ENDDO
+!$omp end parallel do
 !$omp parallel do default(shared) private(ig) firstprivate(npw,ik,ibnd_exx)
 				DO ig=1,npw
                 	temppsic_nc(exx_fft%nlt(igk_exx(ig,ik)),1) = evc_exx(ig,ibnd_exx)
@@ -887,6 +898,7 @@ MODULE exx
 				DO ir=1,nrxxs
                 	temppsic(ir) = ( 0._dp, 0._dp )
 				ENDDO
+!$omp end parallel do
 !$omp parallel do default(shared) private(ig) firstprivate(npw,ik,ibnd_exx)
 				DO ig=1,npw
                 	temppsic(exx_fft%nlt(igk_exx(ig,ik))) = evc_exx(ig,ibnd_exx)
@@ -906,16 +918,16 @@ MODULE exx
 						CALL gather_grid(exx_fft%dfftt, temppsic_nc(:,ipol), temppsic_all_nc(:,ipol))
 					ENDDO
 					IF ( me_egrp == 0 ) THEN
-!$omp parallel do default(shared) private(ir) firstprivate(npol,nrxxs)
-						DO ir=1,nrxxs
+!$omp parallel do default(shared) private(ir) firstprivate(npol,nxxs)
+						DO ir=1,nxxs
 							!DIR$ UNROLL_AND_JAM (2)
 							DO ipol=1,npol
 								psic_all_nc(ir,ipol) = (0.0_DP, 0.0_DP)
 							ENDDO
 						ENDDO
 !$omp end parallel do
-!$omp parallel do default(shared) private(ir) firstprivate(npol,isym,nrxxs) reduction(+:psic_all_nc)
-						DO ir=1,nrxxs
+!$omp parallel do default(shared) private(ir) firstprivate(npol,isym,nxxs) reduction(+:psic_all_nc)
+						DO ir=1,nxxs
 							!DIR$ UNROLL_AND_JAM (4)
 							DO ipol=1,npol
 								DO jpol=1,npol
@@ -958,8 +970,8 @@ MODULE exx
 #ifdef __MPI
 					CALL gather_grid(exx_fft%dfftt,temppsic,temppsic_all)
 					IF ( me_egrp == 0 ) THEN
-!$omp parallel do default(shared) private(ir) firstprivate(isym)
-						DO ir=1,nrxxs
+!$omp parallel do default(shared) private(ir) firstprivate(isym,nxxs)
+						DO ir=1,nxxs
 							psic_all(ir) = temppsic_all(rir(ir,isym))
 						ENDDO
 !$omp end parallel do
@@ -1625,21 +1637,21 @@ MODULE exx
     !
     ! local variables
     COMPLEX(DP),ALLOCATABLE :: temppsic(:), result(:)
-!DIR$ ATTRIBUTES FASTMEM :: result
+!!DIR$ ATTRIBUTES FASTMEM :: result
     COMPLEX(DP),ALLOCATABLE :: temppsic_nc(:,:),result_nc(:,:)
     COMPLEX(DP),ALLOCATABLE :: result_g(:)
     COMPLEX(DP),ALLOCATABLE :: result_nc_g(:,:)
     INTEGER          :: request_send, request_recv
     !
     COMPLEX(DP),ALLOCATABLE :: rhoc(:,:), vc(:,:), deexx(:)
-!DIR$ ATTRIBUTES FASTMEM :: rhoc, vc
+!!DIR$ ATTRIBUTES FASTMEM :: rhoc, vc
     REAL(DP),   ALLOCATABLE :: fac(:), facb(:)
     INTEGER          :: ibnd, ik, im , ikq, iq, ipol
     INTEGER          :: ir, ig, ir_start, ir_end
 	INTEGER			 :: irt, nrt, nblock
     INTEGER          :: current_ik
     INTEGER          :: ibnd_loop_start
-    INTEGER          :: h_ibnd, nrxxs
+    INTEGER          :: h_ibnd, nrxxs, istart, istat
     REAL(DP) :: x1, x2, xkp(3), omega_inv, nqs_inv
     REAL(DP) :: xkq(3)
     ! <LMS> temp array for vcut_spheric
@@ -1660,8 +1672,13 @@ MODULE exx
        ALLOCATE( temppsic_nc(nrxxs,npol), result_nc(nrxxs,npol) )
        ALLOCATE( result_nc_g(n,npol) )
     ELSE
-       ALLOCATE( temppsic(nrxxs), result(nrxxs) )
+       ALLOCATE( temppsic(nrxxs) )
        ALLOCATE( result_g(n) )
+	   ALLOCATE(result(nrxxs), stat=istat)
+	   IF(istat .ne. 0)THEN
+		   !DIR$ NOFASTMEM
+		   ALLOCATE(result(nrxxs))
+	   ENDIF
     ENDIF
     !
     IF(okvan) ALLOCATE(deexx(nkb))
@@ -1674,7 +1691,11 @@ MODULE exx
     old_ibnd = 0
     !
 	!allocate arrays for rhoc and vc
-	ALLOCATE(rhoc(nrxxs,nbnd), vc(nrxxs,nbnd))
+	ALLOCATE(rhoc(nrxxs,nbnd), vc(nrxxs,nbnd), stat=istat)
+	IF(istat.ne.0) THEN
+		!DIR$ NOFASTMEM
+		ALLOCATE(rhoc(nrxxs,nbnd), vc(nrxxs,nbnd))
+	ENDIF
 	!
     CALL stop_clock ('vexx_init')
     !
@@ -1714,7 +1735,7 @@ MODULE exx
        !
        IF (noncolin) THEN
           !
-!$omp parallel do  default(shared), private(ig)
+!$omp parallel do  default(shared), private(ig) firstprivate(npwx,ibnd)
           DO ig = 1, n
              temppsic_nc(exx_fft%nlt(igk_exx(ig,current_k)),1) = psi(ig,ibnd)
 			 temppsic_nc(exx_fft%nlt(igk_exx(ig,current_k)),2) = psi(npwx+ig,ibnd)
@@ -1740,6 +1761,7 @@ MODULE exx
 		DO ir=1,nrxxs
 			result(ir) = 0.0_DP
 		ENDDO
+!$omp end parallel do
        !
        old_ibnd = ibnd
        !
@@ -2645,7 +2667,7 @@ MODULE exx
           !
           IF (noncolin) THEN
              !
-!$omp parallel do default(shared), private(ig)
+!$omp parallel do default(shared), private(ig) firstprivate(jbnd,npwx)
              DO ig = 1, npw
                 temppsic_nc(exx_fft%nlt(igk_exx(ig,ikk)),1) = evc_exx(ig,jbnd)
 				temppsic_nc(exx_fft%nlt(igk_exx(ig,ikk)),2) = evc_exx(npwx+ig,jbnd)
@@ -2655,7 +2677,7 @@ MODULE exx
              CALL invfftm ('CustomWave', temppsic_nc, 2, exx_fft%dfftt, is_exx=.TRUE.)
              !
           ELSE
-!$omp parallel do default(shared), private(ig)
+!$omp parallel do default(shared), private(ig) firstprivate(ikk,jbnd)
              DO ig = 1, npw
                 temppsic(exx_fft%nlt(igk_exx(ig,ikk))) = evc_exx(ig,jbnd)
              ENDDO
