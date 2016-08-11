@@ -920,7 +920,7 @@ MODULE exx
 					IF ( me_egrp == 0 ) THEN
 !$omp parallel do default(shared) private(ir) firstprivate(npol,nxxs)
 						DO ir=1,nxxs
-							!DIR$ UNROLL_AND_JAM (2)
+							!!DIR$ UNROLL_AND_JAM (2)
 							DO ipol=1,npol
 								psic_all_nc(ir,ipol) = (0.0_DP, 0.0_DP)
 							ENDDO
@@ -928,7 +928,7 @@ MODULE exx
 !$omp end parallel do
 !$omp parallel do default(shared) private(ir) firstprivate(npol,isym,nxxs) reduction(+:psic_all_nc)
 						DO ir=1,nxxs
-							!DIR$ UNROLL_AND_JAM (4)
+							!!DIR$ UNROLL_AND_JAM (4)
 							DO ipol=1,npol
 								DO jpol=1,npol
 									psic_all_nc(ir,ipol)=psic_all_nc(ir,ipol)+CONJG(d_spin(jpol,ipol,isym))* temppsic_all_nc(rir(ir,isym),jpol)
@@ -943,7 +943,7 @@ MODULE exx
 #else
 !$omp parallel do default(shared) private(ir) firstprivate(npol,nrxxs)
 					DO ir=1,nrxxs
-						!DIR$ UNROLL_AND_JAM (2)
+						!!DIR$ UNROLL_AND_JAM (2)
 						DO ipol=1,npol
 							psic_nc(ir,ipol) = (0._dp, 0._dp)
 						ENDDO
@@ -951,7 +951,7 @@ MODULE exx
 !$omp end parallel do
 !$omp parallel do default(shared) private(ipol,jpol,ir) firstprivate(npol,isym,nrxxs) reduction(+:psic_nc)
 					DO ir=1,nrxxs
-						!DIR$ UNROLL_AND_JAM (4)
+						!!DIR$ UNROLL_AND_JAM (4)
 						DO ipol=1,npol
 							DO jpol=1,npol
 								psic_nc(ir,ipol) = psic_nc(ir,ipol) + CONJG(d_spin(jpol,ipol,isym))* temppsic_nc(rir(ir,isym),jpol)
@@ -1731,6 +1731,7 @@ MODULE exx
 		DO ir = 1, nrxxs
 			temppsic(ir) = 0.0_DP
 		ENDDO
+!$omp end parallel do
        END IF
        !
        IF (noncolin) THEN
