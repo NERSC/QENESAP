@@ -1944,7 +1944,7 @@ MODULE exx
 			if (mod(nrxxs, nblock) .ne. 0) nrt = nrt + 1
 			!nrt = 64
 			!nblock = nrxxs / 63
-!$omp parallel do collapse(2) default(shared) firstprivate(jstart,jend,nblock,nrxxs) private(ir,ir_start,ir_end,jbnd)
+!$omp parallel do default(shared) firstprivate(jstart,jend,nblock,nrxxs) private(ir,ir_start,ir_end,jbnd)
 			DO irt = 1, nrt
 				DO jbnd=jstart, jend
 					ir_start = (irt - 1) * nblock + 1
