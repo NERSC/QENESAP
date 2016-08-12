@@ -222,7 +222,7 @@ END SUBROUTINE invfft_x
 !=---------------------------------------------------------------------------=!
 !
 !=---------------------------------------------------------------------------=!
-#ifdef __USE_3D_FFT
+#if defined(__USE_3D_FFT) & defined(__DFTI)
 SUBROUTINE invfft_xm( grid_type, f, howmany, dfft, is_exx )
   !! Compute G-space to R-space for a specific grid type
   !! 
@@ -405,7 +405,7 @@ END SUBROUTINE fwfft_x
 !=---------------------------------------------------------------------------=!
 !
 !=---------------------------------------------------------------------------=!
-#ifdef __USE_3D_FFT
+#if defined(__USE_3D_FFT) & defined(__DFTI)
 SUBROUTINE fwfft_xm( grid_type, f, howmany, dfft, is_exx )
   !! Compute R-space to G-space for a specific grid type
   !! 
