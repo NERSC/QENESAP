@@ -3461,7 +3461,9 @@ MODULE exx
     USE wvfct,          ONLY : npwx, igk, nbnd
     USE klist,          ONLY : nks, igk_k
     USE mp_exx,         ONLY : nproc_egrp, negrp, my_egrp_id, me_egrp, &
-                               intra_egrp_comm, inter_egrp_comm
+                               intra_egrp_comm, inter_egrp_comm, &
+                               ibands, nibands, init_index_over_band, &
+                               iexx_istart, iexx_iend
     USE mp_pools,       ONLY : nproc_pool, me_pool, intra_pool_comm
     USE mp,             ONLY : mp_sum
     USE gvect,          ONLY : ig_l2g
@@ -3487,6 +3489,10 @@ MODULE exx
     INTEGER :: egrp_base, total_lda_egrp(nks), prev_lda_egrp(nks)
     INTEGER :: igk_loc(npwx)
     CALL start_clock ('init_exxp')
+    !
+    ! initialize the pair assignments
+    !
+    CALL init_index_over_band(inter_egrp_comm,nbnd,m)
     !
     ! allocate bookeeping arrays
     !
@@ -3608,7 +3614,8 @@ MODULE exx
           IF (count.gt.0) THEN
              IF (.not.ALLOCATED(comm_recv(iproc+1,ik)%msg)) THEN
                 ALLOCATE(comm_recv(iproc+1,ik)%indices(count))
-                ALLOCATE(comm_recv(iproc+1,ik)%msg(count,m))
+                ALLOCATE(comm_recv(iproc+1,ik)%msg(count,&
+                     nibands(my_egrp_id+1)))
                 ALLOCATE(comm_recv(iproc+1,ik)%msg_evc(count,nbnd))
              END IF
           END IF
@@ -3646,7 +3653,8 @@ MODULE exx
           IF (count.gt.0) THEN
              IF (.not.ALLOCATED(comm_send(iproc+1,ik)%msg)) THEN
                 ALLOCATE(comm_send(iproc+1,ik)%indices(count))
-                ALLOCATE(comm_send(iproc+1,ik)%msg(count,m))
+                ALLOCATE(comm_send(iproc+1,ik)%msg(count,&
+                     nibands(my_egrp_id+1)))
                 ALLOCATE(comm_send(iproc+1,ik)%msg_evc(count,nbnd))
              END IF
           END IF
@@ -3789,7 +3797,8 @@ MODULE exx
              IF (count.gt.0) THEN
                 IF (.not.ALLOCATED(comm_send_reverse(iproc+1,iegrp,ik)%msg))THEN
                    ALLOCATE(comm_send_reverse(iproc+1,iegrp,ik)%indices(count))
-                   ALLOCATE(comm_send_reverse(iproc+1,iegrp,ik)%msg(count,m))
+                   ALLOCATE(comm_send_reverse(iproc+1,iegrp,ik)%msg(count,&
+                        iexx_iend(my_egrp_id+1)-iexx_istart(my_egrp_id+1)+1))
                 END IF
              END IF
              !
