@@ -4386,7 +4386,7 @@ MODULE exx
        !
 #if defined(__MPI)
        CALL MPI_IGATHERV(data(:,im), sendcount, MPI_DOUBLE_COMPLEX, &
-            recvbuf(:,ibuf), contrib_this(:,im), &
+            recvbuf(:,max(1,ibuf)), contrib_this(:,im), &
             displs(:,im), MPI_DOUBLE_COMPLEX, &
             root, inter_egrp_comm, request(im), ierr)
 #endif
