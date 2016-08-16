@@ -1621,7 +1621,8 @@ MODULE exx
     IMPLICIT NONE
     !
     INTEGER                  :: lda, n, m
-    COMPLEX(DP)              :: psi(lda*npol,m) 
+    COMPLEX(DP)              :: psi(lda*npol,&
+         CEILING(float(nbnd)/float(negrp)))
     COMPLEX(DP)              :: hpsi(lda*npol,m)
     TYPE(bec_type), OPTIONAL :: becpsi ! or call a calbec(...psi) instead
     !
@@ -1731,7 +1732,7 @@ MODULE exx
           !
 !$omp parallel do  default(shared), private(ig)
           DO ig = 1, n
-             temppsic( exx_fft%nlt(igk_exx(ig,current_k)) ) = psi(ig,ibnd)
+             temppsic( exx_fft%nlt(igk_exx(ig,current_k)) ) = psi(ig,ii)
           ENDDO
 !$omp end parallel do
           !
@@ -2589,7 +2590,6 @@ MODULE exx
     COMPLEX(DP), ALLOCATABLE :: temppsic_nc(:,:)
     COMPLEX(DP), ALLOCATABLE :: rhoc(:,:)
     REAL(DP),    ALLOCATABLE :: fac(:)
-    COMPLEX(DP), ALLOCATABLE :: vkb_exx(:,:)
     INTEGER  :: npw, jbnd, ibnd, ibnd_inner_start, ibnd_inner_end, ibnd_inner_count, ik, ikk, ig, ikq, iq, ir
     INTEGER  :: h_ibnd, nrxxs, current_ik, ibnd_loop_start, nblock, nrt, irt, ir_start, ir_end
     REAL(DP) :: x1, x2
@@ -2614,7 +2614,6 @@ MODULE exx
     ELSE
        ALLOCATE(temppsic(nrxxs)) 
     ENDIF
-    ALLOCATE( vkb_exx(npwx,nkb) )
     !
     energy=0.0_DP
     !
@@ -2639,12 +2638,12 @@ MODULE exx
        IF ( nks > 1 ) &
           CALL get_buffer (evc_exx, nwordwfc_exx, iunwfc_exx, ikk)
        !
-       ! prepare the |beta> function at k+q
-       CALL init_us_2(npw, igk_exx(:,ikk), xkp, vkb_exx)
        ! compute <beta_I|psi_j> at this k+q point, for all band and all projectors
        intra_bgrp_comm_ = intra_bgrp_comm
        intra_bgrp_comm = intra_egrp_comm
-       CALL calbec(npw, vkb_exx, evc_exx, becpsi, nbnd)
+       IF (okvan.or.okpaw) THEN
+          CALL compute_becpsi (npw, igk_exx(:,ikk), xkp, evc_exx, becpsi%k)
+       END IF
        intra_bgrp_comm = intra_bgrp_comm_
        !
        CALL stop_clock ('energy_ikk1')
@@ -3265,6 +3264,167 @@ MODULE exx
   END FUNCTION exx_stress
   !-----------------------------------------------------------------------
   !
+!----------------------------------------------------------------------
+SUBROUTINE compute_becpsi (npw_, igk_, q_, evc_exx, becpsi_k)
+  !----------------------------------------------------------------------
+  !
+  !   Calculates beta functions (Kleinman-Bylander projectors), with
+  !   structure factor, for all atoms, in reciprocal space. On input:
+  !      npw_       : number of PWs 
+  !      igk_(npw_) : indices of G in the list of q+G vectors
+  !      q_(3)      : q vector (2pi/a units)
+  !  On output:
+  !      vkb_(npwx,nkb) : beta functions (npw_ <= npwx)
+  !
+  USE kinds,      ONLY : DP
+  USE ions_base,  ONLY : nat, ntyp => nsp, ityp, tau
+  USE cell_base,  ONLY : tpiba
+  USE constants,  ONLY : tpi
+  USE gvect,      ONLY : eigts1, eigts2, eigts3, mill, g
+  USE wvfct,      ONLY : npwx, nbnd
+  USE us,         ONLY : nqx, dq, tab, tab_d2y, spline_ps
+  USE m_gth,      ONLY : mk_ffnl_gth
+  USE splinelib
+  USE uspp,       ONLY : nkb, nhtol, nhtolm, indv
+  USE uspp_param, ONLY : upf, lmaxkb, nhm, nh
+  USE becmod,     ONLY : calbec
+  !
+  implicit none
+  !
+  INTEGER, INTENT (IN) :: npw_, igk_ (npw_)
+  REAL(dp), INTENT(IN) :: q_(3)
+  COMPLEX(dp), INTENT(IN) :: evc_exx(npwx,nbnd)
+  COMPLEX(dp), INTENT(OUT) :: becpsi_k(nkb,nbnd)
+  COMPLEX(dp) :: vkb_ (npwx, 1)
+  !
+  !     Local variables
+  !
+  integer :: i0,i1,i2,i3, ig, lm, na, nt, nb, ih, jkb
+
+  real(DP) :: px, ux, vx, wx, arg
+  real(DP), allocatable :: gk (:,:), qg (:), vq (:), ylm (:,:), vkb1(:,:)
+
+  complex(DP) :: phase, pref
+  complex(DP), allocatable :: sk(:)
+
+  real(DP), allocatable :: xdata(:)
+  integer :: iq
+
+  !
+  !
+  if (lmaxkb.lt.0) return
+  allocate (vkb1( npw_,nhm))    
+  allocate (  sk( npw_))    
+  allocate (  qg( npw_))    
+  allocate (  vq( npw_))    
+  allocate ( ylm( npw_, (lmaxkb + 1) **2))    
+  allocate (  gk( 3, npw_))    
+  !
+!   write(*,'(3i4,i5,3f10.5)') size(tab,1), size(tab,2), size(tab,3), size(vq), q_
+
+  do ig = 1, npw_
+     gk (1,ig) = q_(1) + g(1, igk_(ig) )
+     gk (2,ig) = q_(2) + g(2, igk_(ig) )
+     gk (3,ig) = q_(3) + g(3, igk_(ig) )
+     qg (ig) = gk(1, ig)**2 +  gk(2, ig)**2 + gk(3, ig)**2
+  enddo
+  !
+  call ylmr2 ((lmaxkb+1)**2, npw_, gk, qg, ylm)
+  !
+  ! set now qg=|q+G| in atomic units
+  !
+  do ig = 1, npw_
+     qg(ig) = sqrt(qg(ig))*tpiba
+  enddo
+
+  if (spline_ps) then
+    allocate(xdata(nqx))
+    do iq = 1, nqx
+      xdata(iq) = (iq - 1) * dq
+    enddo
+  endif
+  ! |beta_lm(q)> = (4pi/omega).Y_lm(q).f_l(q).(i^l).S(q)
+  jkb = 0
+  do nt = 1, ntyp
+     ! calculate beta in G-space using an interpolation table f_l(q)=\int _0 ^\infty dr r^2 f_l(r) j_l(q.r)
+     do nb = 1, upf(nt)%nbeta
+        if ( upf(nt)%is_gth ) then
+           call mk_ffnl_gth( nt, nb, npw_, qg, vq )
+        else
+           do ig = 1, npw_
+              if (spline_ps) then
+                vq(ig) = splint(xdata, tab(:,nb,nt), tab_d2y(:,nb,nt), qg(ig))
+              else
+                px = qg (ig) / dq - int (qg (ig) / dq)
+                ux = 1.d0 - px
+                vx = 2.d0 - px
+                wx = 3.d0 - px
+                i0 = INT( qg (ig) / dq ) + 1
+                i1 = i0 + 1
+                i2 = i0 + 2
+                i3 = i0 + 3
+                vq (ig) = tab (i0, nb, nt) * ux * vx * wx / 6.d0 + &
+                          tab (i1, nb, nt) * px * vx * wx / 2.d0 - &
+                          tab (i2, nb, nt) * px * ux * wx / 2.d0 + &
+                          tab (i3, nb, nt) * px * ux * vx / 6.d0
+              endif
+           enddo
+        endif
+        ! add spherical harmonic part  (Y_lm(q)*f_l(q)) 
+        do ih = 1, nh (nt)
+           if (nb.eq.indv (ih, nt) ) then
+              !l = nhtol (ih, nt)
+              lm =nhtolm (ih, nt)
+              do ig = 1, npw_
+                 vkb1 (ig,ih) = ylm (ig, lm) * vq (ig)
+              enddo
+           endif
+        enddo
+     enddo
+     !
+     ! vkb1 contains all betas including angular part for type nt
+     ! now add the structure factor and factor (-i)^l
+     !
+     do na = 1, nat
+        ! ordering: first all betas for atoms of type 1
+        !           then  all betas for atoms of type 2  and so on
+        if (ityp (na) .eq.nt) then
+           arg = (q_(1) * tau (1, na) + &
+                  q_(2) * tau (2, na) + &
+                  q_(3) * tau (3, na) ) * tpi
+           phase = CMPLX(cos (arg), - sin (arg) ,kind=DP)
+           do ig = 1, npw_
+              sk (ig) = eigts1 (mill(1,igk_(ig)), na) * &
+                        eigts2 (mill(2,igk_(ig)), na) * &
+                        eigts3 (mill(3,igk_(ig)), na)
+           enddo
+           do ih = 1, nh (nt)
+              jkb = jkb + 1
+              pref = (0.d0, -1.d0) **nhtol (ih, nt) * phase
+              do ig = 1, npw_
+                 vkb_(ig, 1) = vkb1 (ig,ih) * sk (ig) * pref
+              enddo
+              do ig = npw_+1, npwx
+                 vkb_(ig, 1) = (0.0_dp, 0.0_dp)
+              enddo
+              !
+              CALL calbec(npw_, vkb_, evc_exx, becpsi_k(jkb:jkb,:), nbnd)
+              !
+           enddo
+        endif
+     enddo
+  enddo
+  deallocate (gk)
+  deallocate (ylm)
+  deallocate (vq)
+  deallocate (qg)
+  deallocate (sk)
+  deallocate (vkb1)
+
+  return
+END SUBROUTINE compute_becpsi
+  !-----------------------------------------------------------------------
+  !
   !-----------------------------------------------------------------------
   SUBROUTINE transform_evc_to_exx()
   !-----------------------------------------------------------------------
@@ -3361,7 +3521,7 @@ MODULE exx
        !
        ! transform evc to the EXX data structure
        !
-       CALL transform_to_exx(lda, n, nbnd, ik, evc, evc_exx, 1)
+       CALL transform_to_exx(lda, n, nbnd, nbnd, ik, evc, evc_exx, 1)
        !
        ! save evc to a buffer
        !
@@ -3376,7 +3536,8 @@ MODULE exx
   !-----------------------------------------------------------------------
   SUBROUTINE transform_psi_to_exx(lda, n, m, psi)
   !-----------------------------------------------------------------------
-    USE wvfct,        ONLY : current_k, npwx
+    USE wvfct,        ONLY : current_k, npwx, nbnd
+    USE mp_exx,       ONLY : negrp
     !
     !
     IMPLICIT NONE
@@ -3411,7 +3572,8 @@ MODULE exx
     !
     ! get psi_exx
     !
-    CALL transform_to_exx(lda, n, m, current_k, psi, psi_exx, 0)
+    CALL transform_to_exx(lda, n, m, CEILING(float(nbnd)/float(negrp)), &
+         current_k, psi, psi_exx, 0)
     !
     ! zero hpsi_exx
     !
@@ -3678,7 +3840,8 @@ MODULE exx
     ! allocate psi_exx and hpsi_exx
     !
     IF(allocated(psi_exx))DEALLOCATE(psi_exx)
-    ALLOCATE(psi_exx(npwx*npol,m))
+    ALLOCATE(psi_exx(npwx*npol,&
+         CEILING(float(nbnd)/float(negrp))))
     IF(allocated(hpsi_exx))DEALLOCATE(hpsi_exx)
     ALLOCATE(hpsi_exx(npwx*npol,m))
     !
@@ -3832,11 +3995,12 @@ MODULE exx
   !-----------------------------------------------------------------------
   !
   !-----------------------------------------------------------------------
-  SUBROUTINE transform_to_exx(lda, n, m, ik, psi, psi_out, type)
+  SUBROUTINE transform_to_exx(lda, n, m, m_out, ik, psi, psi_out, type)
   !-----------------------------------------------------------------------
     !
     ! transform psi into the EXX data structure, and place the result in psi_out
     !
+    USE wvfct,        ONLY : nbnd
     USE mp,           ONLY : mp_sum
     USE mp_pools,     ONLY : nproc_pool, me_pool
     USE mp_exx,       ONLY : intra_egrp_comm, inter_egrp_comm, &
@@ -3850,9 +4014,9 @@ MODULE exx
     IMPLICIT NONE
     !
     Integer :: lda
-    INTEGER :: n, m
+    INTEGER :: n, m, m_out
     COMPLEX(DP) :: psi(npwx_local*npol,m) 
-    COMPLEX(DP) :: psi_out(npwx_exx*npol,m)
+    COMPLEX(DP) :: psi_out(npwx_exx*npol,m_out)
     INTEGER, INTENT(in) :: type
 
     COMPLEX(DP), ALLOCATABLE :: psi_work(:,:,:), psi_gather(:,:)
@@ -4024,7 +4188,7 @@ MODULE exx
              !
              IF (type.eq.0) THEN !psi or hpsi
                 DO im=1, nibands(my_egrp_id+1)
-                   psi_out(ig,ibands(im,my_egrp_id+1)) = &
+                   psi_out(ig,im) = &
                         comm_recv(iproc+1,current_ik)%msg(i,im)
                 END DO
              ELSE IF (type.eq.1) THEN !evc
@@ -4555,7 +4719,7 @@ MODULE exx
     ! wait for everything to finish sending
     !
 #if defined(__MPI)
-    IF ( iexx_istart(my_egrp_id+1) ) THEN
+    IF ( iexx_istart(my_egrp_id+1).gt.0 ) THEN
        DO iproc=0, nproc_egrp-1
           DO iegrp=1, negrp
              IF ( comm_send_reverse(iproc+1,iegrp,current_ik)%size.gt.0 ) THEN
