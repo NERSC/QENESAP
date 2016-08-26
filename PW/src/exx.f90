@@ -1598,7 +1598,7 @@ MODULE exx
     USE control_flags,  ONLY : gamma_only
     USE klist,          ONLY : xk, nks, nkstot
     USE fft_interfaces, ONLY : fwfft, invfft
-#if defined(__USE_3D_FFT) & defined(__DFTI)
+#if defined(__USE_3D_FFT) & defined(__DFTI) & defined(__USE_MANY_FFT)
     USE fft_interfaces, ONLY : fwfftm, invfftm
 #endif
     USE becmod,         ONLY : bec_type
@@ -1615,6 +1615,9 @@ MODULE exx
 	
 	!DEBUG
 	USE itt_sde_fortran
+#ifdef __USE_LIKWID
+ USE likwid
+#endif
 	!DEBUG
     !
     !
@@ -1653,6 +1656,14 @@ MODULE exx
     INTEGER :: ii, jstart, jend, jcount, jind
 	
     !
+#ifdef __USE_VTUNE
+    call start_collection()
+#endif
+#ifdef __USE_LIKWID
+!$omp parallel
+    call likwid_markerStartRegion("region")
+!$omp end parallel
+#endif
     CALL start_clock ('vexx_init')
     !
     ALLOCATE( fac(exx_fft%ngmt) )
@@ -1796,7 +1807,6 @@ MODULE exx
           ELSE
 !IF ( ABS(x_occupation(jbnd,ik)) < eps_occ) CYCLE
 
-!call start_collection()
 
 			nblock=2048
 			nrt = nrxxs / nblock
@@ -1816,7 +1826,6 @@ MODULE exx
 			ENDDO
 !$omp end parallel do
 
-!call stop_collection()
 	ENDIF
 	
           CALL stop_clock ('vexx_rho')
@@ -1834,7 +1843,7 @@ MODULE exx
           !
           !   >>>> brings it to G-space
           CALL start_clock ('vexx_ffft')
-#if defined(__USE_3D_FFT) & defined(__DFTI)
+#if defined(__USE_3D_FFT) & defined(__DFTI) & defined(__USE_MANY_FFT)
           CALL fwfftm ('Custom', rhoc, jcount, exx_fft%dfftt, is_exx=.TRUE.)
 #else
           DO jbnd=jstart, jend
@@ -1857,7 +1866,6 @@ MODULE exx
           !
           CALL start_clock ('vexx_vc')
           !
-!call start_collection()
           nblock=2048
           nrt = nrxxs / nblock
           if (mod(nrxxs, nblock) .ne. 0) nrt = nrt + 1
@@ -1875,7 +1883,6 @@ MODULE exx
 				ENDDO
 			ENDDO
 !$omp end parallel do
-!call stop_collection()
           CALL stop_clock ('vexx_vc')
           !
           ! Add ultrasoft contribution (RECIPROCAL SPACE)
@@ -1892,7 +1899,7 @@ MODULE exx
           !
           !brings back v in real space
           CALL start_clock ('vexx_ifft')
-#if defined(__USE_3D_FFT) & defined(__DFTI)
+#if defined(__USE_3D_FFT) & defined(__DFTI) & defined(__USE_MANY_FFT)
           CALL invfftm ('Custom', vc, jcount, exx_fft%dfftt, is_exx=.TRUE.)
 #else
           DO jbnd=jstart, jend
@@ -1939,7 +1946,6 @@ MODULE exx
 		ELSE
 
 
-!call start_collection()
 			nblock=2048
 			nrt = nrxxs / nblock
 			if (mod(nrxxs, nblock) .ne. 0) nrt = nrt + 1
@@ -1957,7 +1963,6 @@ MODULE exx
 				ENDDO
 			ENDDO
 !$omp end parallel do
-!call stop_collection()
 		ENDIF
 		CALL stop_clock ('vexx_res')
           !
@@ -2034,6 +2039,14 @@ MODULE exx
     !
     IF(okvan) DEALLOCATE( deexx)
     CALL stop_clock ('vexx_deal')
+#ifdef __USE_VTUNE
+    call stop_collection()
+#endif
+#ifdef __USE_LIKWID
+!$omp parallel
+    call likwid_markerStopRegion("region")
+!$omp end parallel
+#endif
     !
     !------------------------------------------------------------------------
   END SUBROUTINE vexx_k

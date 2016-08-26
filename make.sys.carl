@@ -42,14 +42,14 @@ TOPDIR = /usr/common/software/espresso/5.4.0/intel
 #                  BEWARE: it does not work for IBM xlf! Manually edit FDFLAGS
 MANUAL_DFLAGS  =
 #DFLAGS         =  -D__INTEL -D__DFTI -D__MPI -D__PARA -D__ELPA  -D__OPENMP -D__NON_BLOCKING_SCATTER
-DFLAGS         =  -D__INTEL -D__DFTI -D__USE_3D_FFT -D__MPI -D__PARA -D__ELPA -D__USE_VTUNE -D__OPENMP -D__NON_BLOCKING_SCATTER 
+DFLAGS         =  -D__INTEL -D__DFTI -D__USE_3D_FFT -D__MPI -D__PARA -D__ELPA -D__OPENMP -D__NON_BLOCKING_SCATTER 
 FDFLAGS        = $(DFLAGS) $(MANUAL_DFLAGS)
 
 # IFLAGS = how to locate directories with *.h or *.f90 file to be included
 #          typically -I../include -I/some/other/directory/
 #          the latter contains .e.g. files needed by FFT libraries
 
-IFLAGS         = -I../include -I${MKLROOT}/include/fftw -I${VTUNE_AMPLIFIER_XE_2016_DIR}/include
+IFLAGS         = -I../include -I$(MKLROOT)/include/fftw -I${VTUNE_AMPLIFIER_XE_2016_DIR}/include
 
 # MOD_FLAGS = flag used by f90 compiler to locate modules
 # Each Makefile defines the list of needed modules in MODFLAGS

@@ -16,9 +16,23 @@ PROGRAM pwscf
   USE read_input,        ONLY : read_input_file
   USE command_line_options, ONLY: input_file_
   !
+#ifdef __USE_LIKWID
+  USE likwid
+#endif
+  !
   IMPLICIT NONE
   INTEGER :: exit_status
   !
+
+  !DEBUG
+#ifdef __USE_LIKWID
+  call likwid_markerInit()
+  !$omp parallel
+  call likwid_markerthreadInit()
+  !$omp end parallel
+#endif
+  !DEBUG
+
   !
   CALL mp_startup ( diag_in_band_group = .true. )
   CALL environment_start ( 'PWSCF' )
@@ -29,6 +43,14 @@ PROGRAM pwscf
   !
   CALL run_pwscf  ( exit_status )
   !
+
+  !DEBUG
+#ifdef __USE_LIKWID
+  call likwid_markerClose()
+#endif
+  !DEBUG
+
+!
   CALL stop_run( exit_status )
   CALL do_stop( exit_status )
   !
