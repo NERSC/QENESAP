@@ -1621,8 +1621,7 @@ MODULE exx
     IMPLICIT NONE
     !
     INTEGER                  :: lda, n, m
-    COMPLEX(DP)              :: psi(lda*npol,&
-         CEILING(float(nbnd)/float(negrp)))
+    COMPLEX(DP)              :: psi(lda*npol,nibands(my_egrp_id+1))
     COMPLEX(DP)              :: hpsi(lda*npol,m)
     TYPE(bec_type), OPTIONAL :: becpsi ! or call a calbec(...psi) instead
     !
@@ -3537,7 +3536,7 @@ END SUBROUTINE compute_becpsi
   SUBROUTINE transform_psi_to_exx(lda, n, m, psi)
   !-----------------------------------------------------------------------
     USE wvfct,        ONLY : current_k, npwx, nbnd
-    USE mp_exx,       ONLY : negrp
+    USE mp_exx,       ONLY : negrp, nibands, my_egrp_id
     !
     !
     IMPLICIT NONE
@@ -3572,7 +3571,7 @@ END SUBROUTINE compute_becpsi
     !
     ! get psi_exx
     !
-    CALL transform_to_exx(lda, n, m, CEILING(float(nbnd)/float(negrp)), &
+    CALL transform_to_exx(lda, n, m, nibands(my_egrp_id+1), &
          current_k, psi, psi_exx, 0)
     !
     ! zero hpsi_exx
@@ -3840,8 +3839,7 @@ END SUBROUTINE compute_becpsi
     ! allocate psi_exx and hpsi_exx
     !
     IF(allocated(psi_exx))DEALLOCATE(psi_exx)
-    ALLOCATE(psi_exx(npwx*npol,&
-         CEILING(float(nbnd)/float(negrp))))
+    ALLOCATE(psi_exx(npwx*npol, nibands(my_egrp_id+1) ))
     IF(allocated(hpsi_exx))DEALLOCATE(hpsi_exx)
     ALLOCATE(hpsi_exx(npwx*npol,m))
     !
