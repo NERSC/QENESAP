@@ -4505,7 +4505,7 @@ END SUBROUTINE compute_becpsi
 #if defined(__MPI)
     INTEGER :: istatus(MPI_STATUS_SIZE)
 #endif
-    COMPLEX(DP) :: recvbuf(n*max_contributors,(iexx_end-iexx_start+1))
+    COMPLEX(DP), ALLOCATABLE :: recvbuf(:,:)
     COMPLEX(DP) :: data_sum(n,m), test(negrp)
     INTEGER :: im, iegrp, ibuf, i, j, nsending(m)
     INTEGER :: ncontributing(m)
@@ -4519,6 +4519,7 @@ END SUBROUTINE compute_becpsi
     ! gather data onto the correct nodes
     !
     CALL start_clock ('sum1')
+    ALLOCATE( recvbuf( n*max_contributors, max(1,iexx_end-iexx_start+1) ) )
     displs = 0
     ibuf = 0
     nsending = 0
