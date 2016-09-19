@@ -1603,7 +1603,8 @@ MODULE exx
 #endif
     USE becmod,         ONLY : bec_type
     USE mp_exx,       ONLY : inter_egrp_comm, intra_egrp_comm, my_egrp_id, &
-         negrp, max_pairs, egrp_pairs, ibands, nibands, max_ibands
+                             negrp, max_pairs, egrp_pairs, ibands, nibands, &
+                             max_ibands, iexx_istart, iexx_iend
     USE mp,             ONLY : mp_sum, mp_barrier, mp_bcast
     USE uspp,           ONLY : nkb, okvan
     USE paw_variables,  ONLY : okpaw
@@ -1622,7 +1623,7 @@ MODULE exx
     !
     INTEGER                  :: lda, n, m
     COMPLEX(DP)              :: psi(lda*npol,max_ibands)
-    COMPLEX(DP)              :: hpsi(lda*npol,m)
+    COMPLEX(DP)              :: hpsi(lda*npol,max_ibands)
     TYPE(bec_type), OPTIONAL :: becpsi ! or call a calbec(...psi) instead
     !
     ! local variables
@@ -2006,13 +2007,15 @@ MODULE exx
     CALL result_sum(n, m, big_result)
     CALL stop_clock ('vexx_sum')
 	CALL start_clock ('vexx_hpsi')
-	DO im=1, m
+    IF (iexx_istart(my_egrp_id+1).gt.0) THEN
+       DO im=1, iexx_iend(my_egrp_id+1) - iexx_istart(my_egrp_id+1) + 1
 !$omp parallel do default(shared), private(ig) firstprivate(im,n)
 		DO ig = 1, n
-          hpsi(ig,im)=hpsi(ig,im) + big_result(ig,im)
+          hpsi(ig,im)=hpsi(ig,im) + big_result(ig,im+iexx_istart(my_egrp_id+1)-1)
        ENDDO
 !$omp end parallel do
 	ENDDO
+    END IF
 	CALL stop_clock ('vexx_hpsi')
 	
 	!print hpsi:
@@ -3586,6 +3589,7 @@ END SUBROUTINE compute_becpsi
   !-----------------------------------------------------------------------
   SUBROUTINE transform_hpsi_to_local(lda, n, m, hpsi)
   !-----------------------------------------------------------------------
+    USE mp_exx,         ONLY : iexx_istart, iexx_iend, my_egrp_id
     !
     IMPLICIT NONE
     !
@@ -3593,6 +3597,7 @@ END SUBROUTINE compute_becpsi
     INTEGER, INTENT(in) :: m
     INTEGER, INTENT(inout) :: n
     COMPLEX(DP), INTENT(out) :: hpsi(lda_original*npol,m)
+    INTEGER :: m_exx
     CALL start_clock ('end_exxp')
     !
     ! change to the local data structure
@@ -3606,7 +3611,8 @@ END SUBROUTINE compute_becpsi
     !
     ! transform hpsi_exx to the local data structure
     !
-    CALL transform_to_local(m,hpsi_exx,hpsi)
+    m_exx = iexx_iend(my_egrp_id+1) - iexx_istart(my_egrp_id+1) + 1
+    CALL transform_to_local(m,m_exx,hpsi_exx,hpsi)
     CALL stop_clock ('end_exxp')
     !
     !-----------------------------------------------------------------------
@@ -3839,7 +3845,7 @@ END SUBROUTINE compute_becpsi
     IF(allocated(psi_exx))DEALLOCATE(psi_exx)
     ALLOCATE(psi_exx(npwx*npol, max_ibands ))
     IF(allocated(hpsi_exx))DEALLOCATE(hpsi_exx)
-    ALLOCATE(hpsi_exx(npwx*npol,m))
+    ALLOCATE(hpsi_exx(npwx*npol, max_ibands ))
     !
     ! allocate communication arrays for the exx to local transformation
     !
@@ -4590,7 +4596,7 @@ END SUBROUTINE compute_becpsi
   !-----------------------------------------------------------------------
   !
   !-----------------------------------------------------------------------
-  SUBROUTINE transform_to_local(m, psi, psi_out)
+  SUBROUTINE transform_to_local(m, m_exx, psi, psi_out)
   !-----------------------------------------------------------------------
     USE mp,           ONLY : mp_sum
     USE mp_pools,     ONLY : nproc_pool, me_pool, intra_pool_comm
@@ -4605,8 +4611,8 @@ END SUBROUTINE compute_becpsi
     !
     IMPLICIT NONE
     !
-    INTEGER :: m
-    COMPLEX(DP) :: psi(npwx_exx*npol,m) 
+    INTEGER :: m, m_exx
+    COMPLEX(DP) :: psi(npwx_exx*npol,m_exx)
     COMPLEX(DP) :: psi_out(npwx_local*npol,m)
     !
     INTEGER :: i, j, im, iproc, ig, ik, current_ik, iegrp
@@ -4636,8 +4642,7 @@ END SUBROUTINE compute_becpsi
                    ig = ig - prev_lda_exx
                    !
                    DO im=1, my_bands
-                      comm_send_reverse(iproc+1,iegrp,current_ik)%msg(i,im) = &
-                           psi(ig,im+iexx_istart(my_egrp_id+1)-1)
+                      comm_send_reverse(iproc+1,iegrp,current_ik)%msg(i,im) = psi(ig,im)
                    END DO
                    !
                 END DO
