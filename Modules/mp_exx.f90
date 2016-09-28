@@ -39,6 +39,8 @@ MODULE mp_exx
   ! variables for the pair parallelization
   !
   INTEGER :: max_pairs ! maximum pairs per band group
+  INTEGER :: n_underloaded ! number of band groups that are under max load
+  !
   INTEGER, ALLOCATABLE :: egrp_pairs(:,:,:) ! pairs for each band group
   INTEGER, ALLOCATABLE :: band_roots(:) ! root for each band
   LOGICAL, ALLOCATABLE :: contributed_bands(:,:) ! bands for which the bgroup has a pair
@@ -59,6 +61,12 @@ MODULE mp_exx
   ! maximum number of bands for psi
   !
   INTEGER :: max_ibands
+  !
+  ! size of a single j-block
+  !
+  INTEGER :: jblock
+  INTEGER, ALLOCATABLE :: send_exxbuff(:,:,:)
+  INTEGER, ALLOCATABLE :: recv_exxbuff(:,:)
 CONTAINS
   !
   !----------------------------------------------------------------------------
@@ -155,8 +163,11 @@ CONTAINS
     INTEGER :: npe, myrank, rest, k, rest_i, k_i
     INTEGER :: i, j, ipair, iegrp, root
     INTEGER :: ibnd, npairs, ncontributing
-    INTEGER :: n_underloaded ! number of band groups that are under max load
     INTEGER :: pair_bands(nbnd,nbnd)
+    INTEGER :: jbnd
+    INTEGER :: nr(negrp)
+
+    jblock = 7
     
     max_ibands = CEILING(float(nbnd)/float(negrp))+2
     IF (ALLOCATED(all_start)) THEN
@@ -326,6 +337,72 @@ CONTAINS
        END DO       
     END DO
     !
+    !create a list of all of the exxbuff values to recieve
+    IF(.not.ALLOCATED(recv_exxbuff))ALLOCATE(recv_exxbuff(3,max_pairs))
+    IF(.not.ALLOCATED(send_exxbuff))ALLOCATE(send_exxbuff(3,max_ibands*nbnd,negrp))
+    recv_exxbuff = 0
+    send_exxbuff = 0
+    ipair = 0
+    DO i=1, max_pairs
+       jbnd = egrp_pairs(2,i,my_egrp_id+1)
+
+       IF(jbnd.eq.0) cycle
+
+       !which band group does this come from?
+       DO j=1, negrp
+          IF( all_end(j).ge.jbnd )exit
+       END DO
+       iegrp = j
+
+       !set the pair index
+       IF(ipair.eq.0)THEN
+          ipair = ipair + 1
+          recv_exxbuff(1,ipair) = jbnd
+          recv_exxbuff(2,ipair) = 1
+          recv_exxbuff(3,ipair) = iegrp
+       ELSE IF (recv_exxbuff(3,ipair).eq.iegrp.and.&
+            MODULO(i,jblock).ne.1) THEN
+          recv_exxbuff(2,ipair) = recv_exxbuff(2,ipair) + 1
+       ELSE
+          ipair = ipair + 1
+          recv_exxbuff(1,ipair) = jbnd
+          recv_exxbuff(2,ipair) = 1
+          recv_exxbuff(3,ipair) = iegrp
+       END IF
+       
+    END DO
+
+
+
+
+
+    nr = 0
+    DO iegrp=1, negrp
+       DO i=1, max_pairs
+          jbnd = egrp_pairs(2,i,iegrp)
+
+          IF(jbnd.eq.0) cycle
+
+          IF(jbnd.lt.all_start(my_egrp_id+1).or.jbnd.gt.all_end(my_egrp_id+1)) cycle
+
+          IF(nr(iegrp).eq.0)THEN
+             nr(iegrp) = nr(iegrp) + 1
+             send_exxbuff(1,nr(iegrp),iegrp) = i
+             send_exxbuff(2,nr(iegrp),iegrp) = jbnd
+             send_exxbuff(3,nr(iegrp),iegrp) = 1
+          ELSE IF(send_exxbuff(2,nr(iegrp),iegrp).eq.(jbnd-send_exxbuff(3,nr(iegrp),iegrp)).and.&
+               MODULO(i,jblock).ne.1) THEN
+             send_exxbuff(3,nr(iegrp),iegrp) = send_exxbuff(3,nr(iegrp),iegrp) + 1
+          ELSE
+             nr(iegrp) = nr(iegrp) + 1
+             send_exxbuff(1,nr(iegrp),iegrp) = i
+             send_exxbuff(2,nr(iegrp),iegrp) = jbnd
+             send_exxbuff(3,nr(iegrp),iegrp) = 1
+          END IF
+          
+       END DO
+    END DO
+
   END SUBROUTINE init_index_over_band
   !
   SUBROUTINE set_egrp_indices(nbnd, ib_start, ib_end)
