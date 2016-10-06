@@ -2693,6 +2693,8 @@ MODULE exx
     !
     CALL start_clock ('energy_init')
     !
+    CALL init_index_over_band(inter_egrp_comm,nbnd,nbnd)
+    !
     CALL transform_evc_to_exx()
     !
     nrxxs = exx_fft%dfftt%nnr
@@ -2962,6 +2964,7 @@ MODULE exx
     CALL mp_sum( energy, inter_pool_comm )
     !
     exxenergy2_k = energy
+    !
     CALL change_data_structure(.FALSE.)
     !
     CALL stop_clock ('energy_deal')
