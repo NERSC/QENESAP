@@ -2689,8 +2689,6 @@ MODULE exx
     INTEGER :: jcount, base_ipair, jpair, ii, current_ipair
     INTEGER :: ipair(nkqs)
     !
-    ipair = 0
-    !
     CALL start_clock ('energy_init')
     !
     CALL init_index_over_band(inter_egrp_comm,nbnd,nbnd)
@@ -2738,6 +2736,7 @@ MODULE exx
        !
        CALL stop_clock ('energy_ikk1')
        !
+       ipair = 0
        !
           IQ_LOOP : &
           DO iq = 1,nqs
