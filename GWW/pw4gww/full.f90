@@ -17,7 +17,7 @@
    USE gvect
    USE constants, ONLY : e2, pi, tpi, fpi
    USE cell_base, ONLY: at, alat, tpiba, omega, tpiba2
-   USE wvfct,    ONLY : igk, npwx, npw, nbnd
+   USE wvfct,    ONLY : npwx, npw, nbnd
    USE wavefunctions_module, ONLY : evc, psic
    USE mp, ONLY : mp_sum, mp_barrier, mp_bcast
    USE mp_pools, ONLY : intra_pool_comm
@@ -92,7 +92,7 @@
 
     ii=0
     do iw=1,numpw,2
-       psic(1:dfftp%nnr)=(0.d0,0.d0)
+       psic=0.d0!(1:dfftp%nnr)=(0.d0,0.d0)
        if(iw<numpw) then
           psic(nls(1:npw))  = p_basis(1:npw,iw) + ( 0.D0, 1.D0 ) * p_basis(1:npw,iw+1)
           psic(nlsm(1:npw))  = conjg(p_basis(1:npw,iw) - ( 0.D0, 1.D0 ) * p_basis(1:npw,iw+1))

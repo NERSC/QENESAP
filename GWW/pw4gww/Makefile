@@ -1,7 +1,7 @@
 # Makefile for pw4gww (PW4GWW)
 # Author G. Stenuit and L. Martin-Samos
 
-include ../../make.sys
+include ../../make.inc
 
 # location of include files
 IFLAGS=-I../../include
@@ -9,9 +9,6 @@ IFLAGS=-I../../include
 # location of needed modules
 MODFLAGS= $(MOD_FLAG)../../iotk/src $(MOD_FLAG)../../Modules \
           $(MOD_FLAG)../../PW/src $(MOD_FLAG)../../FFTXlib $(MOD_FLAG)../../LAXlib $(MOD_FLAG).
-
-#location of needed libraries
-LIBOBJS= ../../iotk/src/libiotk.a ../../clib/clib.a 
 
 PW4GWWOBJS = \
 allocate_wannier.o \
@@ -61,7 +58,7 @@ TLDEPS= bindir libs pw
 
 all : tldeps pw4gww.x
 
-pw4gww.x : pw4gww.o libpw4gww.a  $(PW4GWWOBJS) $(PWOBJS) $(QEMODS)  $(LIBMIN) 
+pw4gww.x : pw4gww.o libpw4gww.a  $(PW4GWWOBJS) $(PWOBJS) $(QEMODS)  $(LIBOBJS) $(LIBMIN) 
 	$(LD) $(LDFLAGS) -o $@ \
 	pw4gww.o libpw4gww.a $(PWOBJS) $(QEMODS) $(LIBOBJS) $(LIBMIN) $(LIBS)
 	- ( cd ../../bin ; ln -fs ../GWW/pw4gww/$@ . )

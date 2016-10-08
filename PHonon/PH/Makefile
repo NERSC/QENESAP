@@ -1,6 +1,6 @@
 # Makefile for phonon (PH)
 
-include ../../make.sys
+include ../../make.inc
 
 # location of needed modules and included files (if any)
 MODFLAGS= $(MOD_FLAG)../../iotk/src $(MOD_FLAG)../../Modules $(MOD_FLAG)../../LAXlib \
@@ -27,7 +27,6 @@ yambo.o \
 bcast_ph_input.o \
 cch_psi_all.o \
 ccg_psi.o \
-cgsolve_all_imfreq.o \
 check_if_partial_dyn.o \
 check_initial_status.o \
 check_q_points_sym.o \
@@ -185,9 +184,7 @@ LRMODS = ../../LR_Modules/liblrmod.a
 PWOBJS = ../../PW/src/libpw.a
 QEMODS = ../../Modules/libqemod.a ../../FFTXlib/libqefft.a ../../LAXlib/libqela.a
 
-LIBOBJS	= ../../clib/clib.a ../../iotk/src/libiotk.a
-
-TLDEPS= bindir mods libs pw-lib lr-lib
+TLDEPS= bindir mods libs pw-lib lrmods
 
 all : tldeps libs-ph ph.x dynmat.x matdyn.x q2r.x q2trans.x q2trans_fd.x lambda.x fqha.x q2qstar.x 
 

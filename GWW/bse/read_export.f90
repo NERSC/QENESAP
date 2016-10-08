@@ -26,6 +26,7 @@ subroutine read_export (pp_file,kunit,uspp_spsi, ascii, single_file, raw)
 !  use ldaU,           ONLY : swfcatom, lda_plus_u
   use ldaU,           ONLY :  lda_plus_u
   USE gvecw,              ONLY :  ecutwfc
+  USE klist, ONLY : igk_k
 
   implicit none
 
@@ -39,8 +40,7 @@ subroutine read_export (pp_file,kunit,uspp_spsi, ascii, single_file, raw)
   integer :: i, j, k, ig, ik, ibnd, na, ngg,ig_, ierr
   integer, allocatable :: kisort(:)
   real(DP) :: xyz(3), tmp(3)
-  integer :: npool, nkbl, nkl, nkr, npwx_g
-  integer :: ike, iks, npw_g, ispin, local_pw
+  integer :: ike, iks, npw_g, npwx_g, ispin, local_pw
   integer, allocatable :: ngk_g( : )
   integer, allocatable :: itmp_g( :, : )
   real(DP),allocatable :: rtmp_g( :, : )
@@ -49,7 +49,7 @@ subroutine read_export (pp_file,kunit,uspp_spsi, ascii, single_file, raw)
   integer, allocatable :: igwk( :, : )
   integer, allocatable :: l2g_new( : )
   integer, allocatable :: igk_l2g( :, : )
-
+  integer, external :: global_kpoint_index
 
   real(DP) :: wfc_scal 
   logical :: twf0, twfm
@@ -67,27 +67,8 @@ subroutine read_export (pp_file,kunit,uspp_spsi, ascii, single_file, raw)
      IF( ( nproc_pool > nproc ) .OR. ( MOD( nproc, nproc_pool ) /= 0 ) ) &
        CALL errore( ' write_export ',' nproc_pool ', 1 )
 
-     !  find out the number of pools
-     npool = nproc / nproc_pool
-
-     !  find out number of k points blocks
-     nkbl = nkstot / kunit
-
-     !  k points per pool
-     nkl = kunit * ( nkbl / npool )
-
-     !  find out the reminder
-     nkr = ( nkstot - nkl * npool ) / kunit
-
-     !  Assign the reminder to the first nkr pools
-     IF( my_pool_id < nkr ) nkl = nkl + kunit
-
-     !  find out the index of the first k point in this pool
-     iks = nkl * my_pool_id + 1
-     IF( my_pool_id >= nkr ) iks = iks + nkr * kunit
-
-     !  find out the index of the last k point in this pool
-     ike = iks + nkl - 1
+     iks = global_kpoint_index (nkstot, 1)
+     ike = iks + nks - 1
 
   END IF
 
@@ -259,10 +240,10 @@ subroutine read_export (pp_file,kunit,uspp_spsi, ascii, single_file, raw)
            local_pw = 0
            IF( (ik >= iks) .AND. (ik <= ike) ) THEN
                
-               CALL gk_sort (xk (1, ik+iks-1), ngm, g, ecutwfc / tpiba2, npw, igk, g2kin)
+               CALL gk_sort (xk (1, ik+iks-1), ngm, g, ecutwfc / tpiba2, npw, igk_k(1,1), g2kin)
                CALL davcio (evc, 2*nwordwfc, iunwfc, (ik-iks+1), - 1)
 
-               CALL init_us_2(npw, igk, xk(1, ik), vkb)
+               CALL init_us_2(npw, igk_k(1,1), xk(1, ik), vkb)
                local_pw = ngk(ik-iks+1)
                             
                IF ( gamma_only ) THEN
