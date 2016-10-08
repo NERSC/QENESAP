@@ -156,7 +156,7 @@ MODULE exx
   REAL(DP), ALLOCATABLE :: coulomb_fac(:,:,:)
   !list of which coulomb factors have been calculated already
   LOGICAL, ALLOCATABLE :: coulomb_done(:,:)
-
+  
   TYPE(fft_dlay_descriptor) :: dfftp_loc, dffts_loc
   TYPE(fft_dlay_descriptor) :: dfftp_exx, dffts_exx
   INTEGER :: ngw_loc, ngs_loc
@@ -787,12 +787,8 @@ MODULE exx
         ibnd_buff_end = ibnd_end_new/2
         IF(MOD(ibnd_end_new,2)==1) ibnd_buff_end = ibnd_buff_end +1
     ELSE
-        !<<<
-        !ibnd_buff_start = ibnd_start_new
-        !ibnd_buff_end   = ibnd_end_new
         ibnd_buff_start = iexx_start
         ibnd_buff_end   = iexx_end
-        !>>>
     ENDIF
     !
     IF (.NOT. allocated(exxbuff)) &
@@ -1661,6 +1657,7 @@ MODULE exx
     COMPLEX(DP),ALLOCATABLE :: psibuff(:,:,:,:)
     INTEGER :: residual_pairs, njt, ijt, jbnd_start, jbnd_end
     INTEGER :: current_ipair, base_ipair
+    INTEGER :: exxbuff_calls(nkqs), psibuff_i
     !
     CALL start_clock ('vexx_init')
     !
@@ -1700,6 +1697,9 @@ MODULE exx
           ikq  = index_xkq(current_ik,iq)
           ik   = index_xk(ikq)
           xkq  = xkq_collect(:,ikq)
+          !
+          exxbuff_calls(ikq) = 1
+          CALL communicate_exxbuff(1,ikq,nrxxs,psibuff,exxbuff_calls(ikq))
           !
           ! calculate the 1/|r-r'| (actually, k+q+g) factor and place it in fac
           CALL start_clock ('vexx_g2')
@@ -1812,7 +1812,11 @@ MODULE exx
              base_ipair = ipair(ikq)
              DO jbnd=jbnd_start, jbnd_end
                 ipair(ikq) = ipair(ikq) + 1
-                CALL communicate_exxbuff(ipair(ikq),ikq,nrxxs,psibuff(:,:,ikq,1))
+                IF(MOD(ipair(ikq),jblock).eq.1) THEN
+                   exxbuff_calls(ikq) = exxbuff_calls(ikq) + 1
+                   psibuff_i = MOD(exxbuff_calls(ikq)+1,2) + 1
+                   CALL communicate_exxbuff(ipair(ikq)+jblock,ikq,nrxxs,psibuff,exxbuff_calls(ikq))
+                END IF
              END DO
 
          
@@ -1825,7 +1829,7 @@ MODULE exx
                 DO jbnd=jbnd_start, jbnd_end
                    DO ir = 1, nrxxs
                       current_ipair = base_ipair + jbnd - jbnd_start + 1
-                      rhoc(ir,jbnd-jstart+1) = ( CONJG(psibuff(ir,mod(current_ipair-1,jblock)+1,ikq,1))*temppsic_nc(ir,1) + CONJG(psibuff(nrxxs+ir,mod(current_ipair-1,jblock)+1,ikq,1))*temppsic_nc(ir,2) )/omega
+                      rhoc(ir,jbnd-jstart+1) = ( CONJG(psibuff(ir,mod(current_ipair-1,jblock)+1,ikq,psibuff_i))*temppsic_nc(ir,1) + CONJG(psibuff(nrxxs+ir,mod(current_ipair-1,jblock)+1,ikq,psibuff_i))*temppsic_nc(ir,2) )/omega
                    ENDDO
                 ENDDO
 !$omp end parallel do
@@ -1845,7 +1849,7 @@ MODULE exx
                       ir_end = min(ir_start+nblock-1,nrxxs)
 !DIR$ vector nontemporal (rhoc)
                       DO ir = ir_start, ir_end
-                         rhoc(ir,jbnd-jstart+1)=CONJG(psibuff(ir,mod(current_ipair-1,jblock)+1,ikq,1))*temppsic(ir)*omega_inv
+                         rhoc(ir,jbnd-jstart+1)=CONJG(psibuff(ir,mod(current_ipair-1,jblock)+1,ikq,psibuff_i))*temppsic(ir)*omega_inv
                       ENDDO
                    ENDDO
                 ENDDO
@@ -1965,8 +1969,8 @@ MODULE exx
                 DO ir = 1, nrxxs
                    DO jbnd=jbnd_start, jbnd_end
                       current_ipair = base_ipair + jbnd - jbnd_start + 1
-                      result_nc(ir,1)= result_nc(ir,1) + vc(ir,jbnd-jstart+1) * psibuff(ir,mod(current_ipair-1,jblock)+1,ikq,1)
-                      result_nc(ir,2)= result_nc(ir,2) + vc(ir,jbnd-jstart+1) * psibuff(ir+nrxxs,mod(current_ipair-1,jblock)+1,ikq,1)
+                      result_nc(ir,1)= result_nc(ir,1) + vc(ir,jbnd-jstart+1) * psibuff(ir,mod(current_ipair-1,jblock)+1,ikq,psibuff_i)
+                      result_nc(ir,2)= result_nc(ir,2) + vc(ir,jbnd-jstart+1) * psibuff(ir+nrxxs,mod(current_ipair-1,jblock)+1,ikq,psibuff_i)
                    ENDDO
                 ENDDO
 !$omp end parallel do
@@ -1985,7 +1989,7 @@ MODULE exx
                       ir_end = min(ir_start+nblock-1,nrxxs)
 !!dir$ vector nontemporal (result)
                       DO ir = ir_start, ir_end
-                         result(ir) = result(ir) + vc(ir,jbnd-jstart+1)*psibuff(ir,mod(current_ipair-1,jblock)+1,ikq,1)
+                         result(ir) = result(ir) + vc(ir,jbnd-jstart+1)*psibuff(ir,mod(current_ipair-1,jblock)+1,ikq,psibuff_i)
                       ENDDO
                    ENDDO
                 ENDDO
@@ -2064,12 +2068,12 @@ MODULE exx
 
        !finish communicating exxbuff
        !needed if this band group has fewer pairs than others
-       !DO iq=1, nqs
-       !   ikq  = index_xkq(current_ik,iq)
-          DO jbnd=ipair(ikq)+1, max_pairs
-             CALL communicate_exxbuff(jbnd,ikq,nrxxs,psibuff(:,:,ikq,1))
+          DO jbnd=ipair(ikq)+1+jblock, max_pairs
+             IF(MOD(ipair(ikq),jblock).eq.1) THEN
+                exxbuff_calls(ikq) = exxbuff_calls(ikq) + 1
+                CALL communicate_exxbuff(jbnd,ikq,nrxxs,psibuff,exxbuff_calls(ikq))
+             END IF
           END DO
-       !END DO
 
 !         CALL start_clock ('vexx_qcln')
           IF ( okvan .AND..NOT.tqr ) CALL qvan_clean ()
@@ -2688,6 +2692,7 @@ MODULE exx
     INTEGER :: njt, ijt, residual_pairs, jbnd_start, jbnd_end
     INTEGER :: jcount, base_ipair, jpair, ii, current_ipair
     INTEGER :: ipair(nkqs)
+    INTEGER :: exxbuff_calls(nkqs), psibuff_i
     !
     CALL start_clock ('energy_init')
     !
@@ -2737,6 +2742,7 @@ MODULE exx
        CALL stop_clock ('energy_ikk1')
        !
        ipair = 0
+       exxbuff_calls = 0
        !
           IQ_LOOP : &
           DO iq = 1,nqs
@@ -2745,6 +2751,9 @@ MODULE exx
              ik   = index_xk(ikq)
              !
              xkq = xkq_collect(:,ikq)
+             !
+             exxbuff_calls(ikq) = 1
+             CALL communicate_exxbuff(1,ikq,nrxxs,psibuff,exxbuff_calls(ikq))
              !
              CALL g2_convolution(exx_fft%ngmt, exx_fft%gt, xkp, xkq, iq, ikk)
              IF ( okvan .AND..NOT.tqr ) CALL qvan_init (exx_fft%ngmt, xkq, xkp)
@@ -2772,8 +2781,6 @@ MODULE exx
              END IF
           END DO
           ibnd_inner_count = ibnd_inner_end - ibnd_inner_start + 1
-          !
-          IF ( ABS(wg(jbnd,ikk)) < eps_occ) CYCLE
           !
           IF (noncolin) THEN
              temppsic_nc = 0.0_DP
@@ -2828,7 +2835,11 @@ MODULE exx
                 base_ipair = ipair(ikq)
                 DO ibnd=jbnd_start, jbnd_end
                    ipair(ikq) = ipair(ikq) + 1
-                   CALL communicate_exxbuff(ipair(ikq),ikq,nrxxs,psibuff(:,:,ikq,1))
+                   IF(MOD(ipair(ikq),jblock).eq.1) THEN
+                         exxbuff_calls(ikq) = exxbuff_calls(ikq) + 1
+                         psibuff_i = MOD(exxbuff_calls(ikq)+1,2) + 1
+                         CALL communicate_exxbuff(ipair(ikq)+jblock,ikq,nrxxs,psibuff,exxbuff_calls(ikq))
+                   END IF
                 END DO
 
 
@@ -2843,8 +2854,8 @@ MODULE exx
                 DO ibnd = jbnd_start, jbnd_end
                    DO ir = 1, nrxxs
                       current_ipair = base_ipair + ibnd - jbnd_start + 1
-                      rhoc(ir,ibnd-jbnd_start+1)=(CONJG(psibuff(ir,mod(current_ipair-1,jblock)+1,ikq,1))*temppsic_nc(ir,1) + &
-                           CONJG(psibuff(ir+nrxxs,mod(current_ipair-1,jblock)+1,ikq,1))*temppsic_nc(ir,2) ) * omega_inv
+                      rhoc(ir,ibnd-jbnd_start+1)=(CONJG(psibuff(ir,mod(current_ipair-1,jblock)+1,ikq,psibuff_i))*temppsic_nc(ir,1) + &
+                           CONJG(psibuff(ir+nrxxs,mod(current_ipair-1,jblock)+1,ikq,psibuff_i))*temppsic_nc(ir,2) ) * omega_inv
                    ENDDO
                 ENDDO
 !$omp end parallel do
@@ -2861,7 +2872,7 @@ MODULE exx
                       ir_end = min(ir_start+nblock-1,nrxxs)
 !DIR$ vector nontemporal (rhoc)
                       DO ir = ir_start, ir_end
-                         rhoc(ir,ibnd-jbnd_start+1)=CONJG(psibuff(ir,mod(current_ipair-1,jblock)+1,ikq,1))*temppsic(ir)*omega_inv
+                         rhoc(ir,ibnd-jbnd_start+1)=CONJG(psibuff(ir,mod(current_ipair-1,jblock)+1,ikq,psibuff_i))*temppsic(ir)*omega_inv
                       ENDDO
                    ENDDO
                 ENDDO
@@ -2937,8 +2948,11 @@ MODULE exx
        !
        !finish communicating exxbuff
        !needed if this band group has fewer pairs than others
-       DO ibnd=ipair(ikq)+1, max_pairs
-          CALL communicate_exxbuff(ibnd,ikq,nrxxs,psibuff(:,:,ikq,1))
+       DO ibnd=ipair(ikq)+1+jblock, max_pairs
+          IF(MOD(ipair(ikq),jblock).eq.1) THEN
+             exxbuff_calls(ikq) = exxbuff_calls(ikq) + 1
+             CALL communicate_exxbuff(ibnd,ikq,nrxxs,psibuff,exxbuff_calls(ikq))
+          END IF
        END DO
              !deallocate memory
              IF ( okvan .AND..NOT.tqr ) CALL qvan_clean ( )
@@ -3564,12 +3578,13 @@ END SUBROUTINE compute_becpsi
   !-----------------------------------------------------------------------
   !
   !-----------------------------------------------------------------------
-  SUBROUTINE communicate_exxbuff(ipair,ikq,nrxxs,psibuff)
+  SUBROUTINE communicate_exxbuff(ipair,ikq,nrxxs,psibuff,exxbuff_calls)
   !-----------------------------------------------------------------------
     USE mp_exx,               ONLY : negrp, send_exxbuff, recv_exxbuff, &
                                      jblock, inter_egrp_comm, nproc_egrp, &
                                      me_egrp, my_egrp_id, n_underloaded, &
-                                     max_pairs
+                                     max_pairs, exxbuff_nsend, exxbuff_nrecv, &
+                                     exxbuff_send_request, exxbuff_recv_request
     USE mp_pools,             ONLY : intra_pool_comm
     USE mp,                   ONLY : mp_sum
     USE wvfct,                ONLY : nbnd
@@ -3578,8 +3593,8 @@ END SUBROUTINE compute_becpsi
 #endif
     COMPLEX(DP) :: test(10)
     COMPLEX(DP), ALLOCATABLE :: exxbuff_test(:,:)
-    INTEGER, INTENT(in) :: ipair, ikq, nrxxs
-    COMPLEX(DP), INTENT(out) :: psibuff(nrxxs,jblock)
+    INTEGER, INTENT(in) :: ipair, ikq, nrxxs, exxbuff_calls
+    COMPLEX(DP), INTENT(out) :: psibuff(nrxxs,jblock,nkqs,2)
     INTEGER :: iegrp, ibnd, ii, jpair, j, ierr, iproc
     INTEGER :: request_send(negrp), request_recv(negrp)
     INTEGER :: nsend, nrecv, isend, irecv
@@ -3587,24 +3602,28 @@ END SUBROUTINE compute_becpsi
     INTEGER :: istatus(MPI_STATUS_SIZE)
 #endif
     INTEGER :: my_pairs
+    INTEGER :: psibuff_i
     
-    IF(MODULO(ipair,jblock).ne.1) return
-    !NOTE: ALSO NEED TO COMMUNICATE IF IKQ CHANGED
+    IF(ipair.gt.max_pairs) THEN
+       CALL communicate_exxbuff_wait(exxbuff_calls)
+       RETURN
+    END IF
 
-    !CALL mp_sum( test, inter_egrp_comm )
-
-    !nrxxs = exx_fft%dfftt%nnr
+    CALL start_clock('comm_buff')
+    
+    IF(.not.ALLOCATED(exxbuff_send_request))ALLOCATE(exxbuff_send_request(negrp,2))
+    IF(.not.ALLOCATED(exxbuff_recv_request))ALLOCATE(exxbuff_recv_request(negrp,2))
+    
+    psibuff_i = MOD(exxbuff_calls,2) + 1
 
     my_pairs = max_pairs
     IF((my_egrp_id+1).le.n_underloaded) my_pairs = my_pairs - 1
 
-    !WRITE(6,*)'start of communicate_exxbuff'
-    !WRITE(6,*)'ipair: ',ipair
     ALLOCATE(exxbuff_test(nrxxs,nbnd))
     !
     ! send exxbuff
     !
-    nsend = 0
+    exxbuff_nsend(psibuff_i) = 0
     DO iegrp=1, negrp
 
        !this is the processor to send to
@@ -3622,19 +3641,13 @@ END SUBROUTINE compute_becpsi
        ibnd = send_exxbuff(2,ii,iegrp)
 
        !send exxbuff
-       nsend = nsend + 1
+       exxbuff_nsend(psibuff_i) = exxbuff_nsend(psibuff_i) + 1
        CALL MPI_ISEND( exxbuff(:,ibnd,ikq), &
             nrxxs*send_exxbuff(3,ii,iegrp), &
             MPI_DOUBLE_COMPLEX, &
             iproc, 101, &
-            intra_pool_comm, request_send(nsend), ierr )
-!       IF (my_egrp_id.eq.0) THEN
-!          CALL MPI_ISEND( exxbuff(:,1,ikq), &
-!               nrxxs*1, &
-!               MPI_DOUBLE_COMPLEX, &
-!               (iegrp-1)*nproc_egrp + me_egrp, 101, &
-!               intra_pool_comm, request_send(nsend), ierr )
-!       END IF
+            intra_pool_comm, &
+            exxbuff_send_request(exxbuff_nsend(psibuff_i),psibuff_i), ierr )
        
     END DO
     !
@@ -3642,7 +3655,7 @@ END SUBROUTINE compute_becpsi
     !
     j = 0
     jpair = 0
-    nrecv = 0
+    exxbuff_nrecv(psibuff_i) = 0
     DO WHILE (jpair.lt.min(my_pairs,ipair+jblock-1))
        j = j + 1
        jpair = jpair + recv_exxbuff(2,j)
@@ -3654,34 +3667,59 @@ END SUBROUTINE compute_becpsi
           iegrp = recv_exxbuff(3,j)
           iproc = (iegrp-1)*nproc_egrp + me_egrp
 
-          nrecv = nrecv + 1
+          exxbuff_nrecv(psibuff_i) = exxbuff_nrecv(psibuff_i) + 1
           ibnd = jpair - ipair - recv_exxbuff(2,j) + 2
-          CALL MPI_IRECV( psibuff(:,ibnd), &
+          CALL MPI_IRECV( psibuff(:,ibnd,ikq,psibuff_i), &
                nrxxs*recv_exxbuff(2,j), &
                MPI_DOUBLE_COMPLEX, &
                iproc, 101, &
-               intra_pool_comm, request_recv(nrecv), ierr )
+               intra_pool_comm, &
+               exxbuff_recv_request(exxbuff_nrecv(psibuff_i),psibuff_i), ierr )
        END IF
        
     END DO
 
 
-    !
-    ! wait for all messages to finish being received
-    !
-    DO irecv=1, nrecv
-       CALL MPI_WAIT(request_recv(irecv), istatus, ierr)
-    END DO
-    !
-    ! wait for all messages to finish sending
-    !
-    DO isend=1, nsend
-       !WRITE(6,*)'waiting for send ',isend
-       CALL MPI_WAIT(request_send(isend), istatus, ierr)
-    END DO
-    !WRITE(6,*)'at end of communicate_exxbuff'
+    CALL communicate_exxbuff_wait(exxbuff_calls)
+    
+    CALL stop_clock('comm_buff')
   
   END SUBROUTINE communicate_exxbuff
+  !-----------------------------------------------------------------------
+  !
+  !-----------------------------------------------------------------------
+  SUBROUTINE communicate_exxbuff_wait(exxbuff_calls)
+  !-----------------------------------------------------------------------
+    USE mp_exx,               ONLY : exxbuff_nsend, exxbuff_nrecv, &
+                                     exxbuff_send_request, exxbuff_recv_request
+#if defined(__MPI)
+    USE parallel_include, ONLY : MPI_STATUS_SIZE, MPI_DOUBLE_COMPLEX
+#endif
+    INTEGER, intent(in) :: exxbuff_calls
+    INTEGER :: isend, irecv, ierr
+#if defined(__MPI)
+    INTEGER :: istatus(MPI_STATUS_SIZE)
+#endif
+    INTEGER :: psibuff_i
+    
+    IF (exxbuff_calls.gt.1) THEN
+       psibuff_i = MOD(exxbuff_calls+1,2) + 1
+       !
+       ! wait for all messages to finish being received
+       !
+       DO irecv=1, exxbuff_nrecv(psibuff_i)
+          CALL MPI_WAIT(exxbuff_recv_request(irecv,psibuff_i), istatus, ierr)
+       END DO
+       !
+       ! wait for all messages to finish sending
+       !
+       DO isend=1, exxbuff_nsend(psibuff_i)
+          CALL MPI_WAIT(exxbuff_send_request(isend,psibuff_i), istatus, ierr)
+       END DO
+       !
+    END IF
+    
+  END SUBROUTINE communicate_exxbuff_wait
   !-----------------------------------------------------------------------
   !
   !-----------------------------------------------------------------------

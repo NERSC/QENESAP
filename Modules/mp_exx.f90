@@ -67,6 +67,13 @@ MODULE mp_exx
   INTEGER :: jblock
   INTEGER, ALLOCATABLE :: send_exxbuff(:,:,:)
   INTEGER, ALLOCATABLE :: recv_exxbuff(:,:)
+  !
+  ! variables for handling the communication of exxbuff
+  !
+  INTEGER :: exxbuff_nsend(2)
+  INTEGER :: exxbuff_nrecv(2)
+  INTEGER, ALLOCATABLE :: exxbuff_send_request(:,:)
+  INTEGER, ALLOCATABLE :: exxbuff_recv_request(:,:)
 CONTAINS
   !
   !----------------------------------------------------------------------------
