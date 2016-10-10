@@ -1320,10 +1320,10 @@ MODULE exx
     IF(gamma_only) THEN
        CALL vexx_gamma(lda, n, m, psi, hpsi, becpsi) 
     ELSE
+       CALL init_index_over_band(inter_egrp_comm,nbnd,m)
        IF(negrp.eq.1)THEN
           CALL vexx_k(lda, n, m, psi, hpsi, becpsi)
        ELSE
-          CALL init_index_over_band(inter_egrp_comm,nbnd,m)
           !
           ! transform psi to the EXX data structure
           !
