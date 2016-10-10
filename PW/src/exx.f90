@@ -308,9 +308,6 @@ MODULE exx
     END IF
     !
     CALL start_clock ('exx_grid')
-    !<<<
-    WRITE(6,*)'nks: ',nks
-    !>>>
     !
     IF(nq1<=0) nq1 = nk1
     IF(nq2<=0) nq2 = nk2
@@ -337,11 +334,6 @@ MODULE exx
     ALLOCATE(xk_collect(3,nkstot))
     xk_collect(:,1:nks) = xk(:,1:nks)
     !<<<
-    WRITE(6,*)'before poolcollect'
-    WRITE(6,*)'   nks: ',nks
-    WRITE(6,*)'   nkstot: ',nkstot
-    WRITE(6,*)'   xk_collect: '
-    WRITE(6,*)xk_collect
     CALL poolcollect(3, nks, xk, nkstot, xk_collect)
     !CALL poolcollect(xk_collect, 3, nkstot, nks)
     !>>>
@@ -1081,6 +1073,11 @@ MODULE exx
     !
     CALL change_data_structure(.FALSE.)
     CALL stop_clock ('exxinit')  
+!<<<
+#if defined(__EXX_ACE)
+    CALL aceinit ( )
+#endif
+!>>>
     !
     !-----------------------------------------------------------------------
   END SUBROUTINE exxinit
@@ -7950,7 +7947,72 @@ IMPLICIT NONE
 
 END SUBROUTINE
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!<<<
+
+
+
+
+
+
+
+
+
+
+
 SUBROUTINE vexxace_k(nnpw,nbnd,phi,exxe,vphi)
+USE becmod,               ONLY : calbec
+USE wvfct,                ONLY : current_k, npwx
+USE noncollin_module,     ONLY : npol
+USE mp_exx,               ONLY : negrp, inter_egrp_comm, init_index_over_band, &
+                                 use_old_exx
+!
+! do the ACE potential and
+! (optional) print the ACE matrix representation
+!
+IMPLICIT NONE
+  real(DP) :: exxe
+  INTEGER :: nnpw,nbnd,i
+  COMPLEX(DP) :: phi(npwx*npol,nbnd)
+  COMPLEX(DP),OPTIONAL :: vphi(npwx*npol,nbnd)
+  COMPLEX(DP),ALLOCATABLE :: cmexx(:,:), vv(:,:)
+  real*8, PARAMETER :: Zero=0.0d0, One=1.0d0, Two=2.0d0, Pt5=0.50d0
+
+!  IF(negrp.eq.1)THEN
+     CALL vexxace_k_work(nnpw,nbnd,phi,exxe,vphi)
+     !CALL vexx_k(lda, n, m, psi, hpsi, becpsi)
+!  ELSE
+!     CALL init_index_over_band(inter_egrp_comm,nbnd,nbnd)
+     !
+     ! transform psi to the EXX data structure
+     !
+!     CALL transform_psi_to_exx(npwx,nnpw,nbnd,phi)
+     !
+     ! calculate the EXX contribution to hpsi
+     !
+!     CALL vexxace_k_work(nnpw,nbnd,psi_exx,exxe,hpsi_exx)
+     !
+     ! transform hpsi to the local data structure
+     !
+!     CALL transform_hpsi_to_local(npwx,nnpw,nbnd,vphi)
+!  END IF
+
+END SUBROUTINE vexxace_k
+
+
+
+
+
+
+
+
+
+
+
+
+
+!SUBROUTINE vexxace_k(nnpw,nbnd,phi,exxe,vphi)
+SUBROUTINE vexxace_k_work(nnpw,nbnd,phi,exxe,vphi)
+!>>>
 USE becmod,               ONLY : calbec
 USE wvfct,                ONLY : current_k, npwx
 USE noncollin_module,     ONLY : npol
