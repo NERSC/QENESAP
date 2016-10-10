@@ -12,22 +12,24 @@ SUBROUTINE lr_dvpsi_e(ik,ipol,dvpsi)
   ! On output: dvpsi contains P_c^+ x | psi_ik > in crystal axis
   !            (projected on at(*,ipol) )
   !
-  ! dvpsi is COMPUTED and WRITTEN on file (vkb,evc,igk must be set) 
-  ! OBM:                  ^ This is now handled elesewhere
+  ! dvpsi is computed here (vkb and evc must be set) 
+  ! and it is written on file in the routine lr_solve_e.
   !
-  ! See J. Tobik and A. Dal Corso, JCP 120, 9934 (2004)
+  ! See Ref.[1] : J. Tobik and A. Dal Corso, JCP 120, 9934 (2004)
   ! for the details of the theory implemented in this routine.
   !
   ! Modified by Osman Baris Malcioglu (2009)
   ! Rebased wrt PHONON routines. S J Binnie (2011)
+  ! Modified by Iurii Timrov (2016)
   !
   USE kinds,                ONLY : DP
-  USE cell_base,            ONLY : tpiba, at
+  USE cell_base,            ONLY : tpiba2, at
   USE ions_base,            ONLY : ntyp => nsp
   USE io_global,            ONLY : stdout
-  USE klist,                ONLY : xk, ngk
-  USE wvfct,                ONLY : npw, npwx, nbnd, igk, g2kin, et
+  USE klist,                ONLY : xk, ngk, igk_k
+  USE wvfct,                ONLY : npwx, nbnd, g2kin, et
   USE wavefunctions_module, ONLY : evc
+  USE gvect,                ONLY : g
   USE noncollin_module,     ONLY : noncolin, npol
   USE becmod,               ONLY : allocate_bec_type, calbec, becp, &
                                    & deallocate_bec_type,  bec_type
@@ -37,7 +39,6 @@ SUBROUTINE lr_dvpsi_e(ik,ipol,dvpsi)
   USE control_lr,           ONLY : nbnd_occ
   USE lr_variables,         ONLY : lr_verbosity, sevc0
   USE io_global,            ONLY : stdout
-  USE qpoint,               ONLY : igkq
   USE lrus,                 ONLY : dpqq
   !
   IMPLICIT NONE
@@ -47,11 +48,12 @@ SUBROUTINE lr_dvpsi_e(ik,ipol,dvpsi)
   !
   ! Local variables
   !  
-  INTEGER :: ig, ibnd, lter
+  INTEGER :: ig, ibnd, lter, npw
   ! counters
+  ! npw: number of plane-waves at point ik
   REAL(kind=dp) :: atnorm
   COMPLEX(kind=dp),ALLOCATABLE :: d0psi(:,:)
-  REAL(DP), ALLOCATABLE  :: h_diag (:,:), eprec(:)
+  REAL(DP), ALLOCATABLE  :: h_diag (:,:)
   ! diagonal part of h_scf
   real(DP) ::   anorm
   ! preconditioning cut-off
@@ -68,78 +70,61 @@ SUBROUTINE lr_dvpsi_e(ik,ipol,dvpsi)
   !
   CALL start_clock ('lr_dvpsi_e')
   !
-  IF (lr_verbosity > 5) WRITE(stdout,'("<lr_dvpsi_e>")')
-  !
   conv_root = .TRUE.
   !
-  ALLOCATE(d0psi(npwx*npol,nbnd))
+  ALLOCATE ( d0psi(npwx*npol,nbnd) )
   d0psi = (0.d0, 0.d0)
   dvpsi = (0.d0, 0.d0)
   !
-  ALLOCATE (h_diag( npwx*npol, nbnd))
-  h_diag = 0.d0
+  npw = ngk(ik)
   !
   CALL allocate_bec_type ( nkb, nbnd, becp1 )
   !
-  CALL calbec ( ngk(ik), vkb, evc, becp1 )
+  CALL calbec ( npw, vkb, evc, becp1 )
   !
   CALL allocate_bec_type ( nkb, nbnd, becp2 )
   !
   CALL commutator_Hx_psi (ik, nbnd_occ(ik), becp1, becp2, ipol, d0psi )
   !
-  IF (okvan) CALL calbec ( ngk(ik), vkb, evc, becp, nbnd)
+  IF (okvan) CALL calbec ( npw, vkb, evc, becp, nbnd)
   !
   ! Orthogonalize d0psi to the valence subspace. Apply P_c^+
   !
-  CALL orthogonalize(d0psi, evc, ik, ik, sevc0(:,:,ik), ngk(ik), .true.)
+  CALL orthogonalize(d0psi, evc, ik, ik, sevc0(:,:,ik), npw, .true.)
   d0psi = -d0psi
   !
-  !   d0psi contains P^+_c [H-eS,x] psi_v for the polarization direction ipol
-  !   Now solve the linear systems (H-e_vS)*P_c(x*psi_v)=P_c^+ [H-e_vS,x]*psi_v
+  ! Calculate the kinetic energy g2kin: (k+G)^2
   !
-  ! eprec is now calculated on the fly for each k point
+  CALL g2_kin(ik)
   !
-  ALLOCATE(eprec(nbnd))
-  CALL lr_calc_eprec(eprec)
+  ! Calculate the preconditioning matrix h_diag used by cgsolve_all
   !
-  DO ibnd = 1, nbnd_occ (ik)
-     DO ig = 1, ngk(ik)
-        h_diag (ig, ibnd) = 1.d0 / max (1.0d0, g2kin (ig) / eprec (ibnd) )
-     ENDDO
-     IF (noncolin) THEN
-        DO ig = 1, ngk(ik)
-           h_diag (ig+npwx, ibnd) = 1.d0/max(1.0d0,g2kin(ig)/eprec(ibnd))
-        ENDDO
-     ENDIF
-  ENDDO
+  ALLOCATE ( h_diag(npwx*npol, nbnd) )
+  CALL h_prec(ik, evc, h_diag)
   !
-  igkq => igk ! PG: needed by h_psi, called by ch_psi_all
+  ! d0psi contains P^+_c [H-eS,x] psi_v for the polarization direction ipol
+  ! Now solve the linear systems (H+Q-e_vS)*P_c(x*psi_v)=P_c^+ [H-e_vS,x]*psi_v
+  ! See Eq.(9) in Ref. [1]
   !
   CALL cgsolve_all (ch_psi_all, cg_psi, et (1, ik), d0psi, dvpsi, &
-       h_diag, npwx, ngk(ik), thresh, ik, lter, conv_root, anorm, &
-       nbnd_occ(ik), 1)
+       h_diag, npwx, npw, thresh, ik, lter, conv_root, anorm, nbnd_occ(ik), 1)
   !
   IF (.not.conv_root) WRITE( stdout, '(5x,"ik",i4," ibnd",i4, &
-       & " linter: root not converged ",e10.3)') &
+       & " lr_dvpsi_e: root not converged ",e10.3)') &
        ik, ibnd, anorm
   !
   FLUSH( stdout )
-  !
-  ! we have now obtained P_c x |psi>.
-  ! In the case of USPP this quantity is needed for the Born
-  ! effective charges, so we save it to disc
+  DEALLOCATE (h_diag)
   !
   ! In the US case we obtain P_c x |psi>, but we need P_c^+ x | psi>,
   ! therefore we apply S again, and then subtract the additional term
   ! furthermore we add the term due to dipole of the augmentation charges.
+  ! See Eq.(10) in Ref. [1]
   !
   IF (okvan) THEN
-     !
-     ! for effective charges
-     !
      ALLOCATE (spsi ( npwx*npol, nbnd))
-     CALL calbec (ngk(ik), vkb, dvpsi, becp )
-     CALL s_psi(npwx,ngk(ik),nbnd,dvpsi,spsi)
+     CALL calbec (npw, vkb, dvpsi, becp )
+     CALL s_psi(npwx,npw,nbnd,dvpsi,spsi)
      CALL DCOPY(2*npwx*npol*nbnd,spsi,1,dvpsi,1)
      DEALLOCATE (spsi)
      ALLOCATE (dpqq( nhm, nhm, 3, ntyp))
@@ -147,21 +132,18 @@ SUBROUTINE lr_dvpsi_e(ik,ipol,dvpsi)
      CALL qdipol_cryst()
      CALL adddvepsi_us(becp1,becp2,ipol,ik,dvpsi)
      DEALLOCATE (dpqq)
-     !
   ENDIF
   !
-  IF (okvan) CALL calbec ( ngk(ik), vkb, evc, becp, nbnd)
+  IF (okvan) CALL calbec ( npw, vkb, evc, becp, nbnd)
   !
   ! Orthogonalize dvpsi to the valence subspace. Apply P_c^+
   !
-  CALL orthogonalize(dvpsi, evc, ik, ik, sevc0(:,:,ik), ngk(ik), .true.)
+  CALL orthogonalize(dvpsi, evc, ik, ik, sevc0(:,:,ik), npw, .true.)
   dvpsi = -dvpsi
   !
-  DEALLOCATE (h_diag)
-  DEALLOCATE (eprec)
   DEALLOCATE (d0psi)
   !
-  ! OBM: Addendum to PH dvpsi
+  ! US case: apply the S^{-1} operator
   !
   IF (okvan) THEN
      ALLOCATE (spsi ( npwx*npol, nbnd))
@@ -174,13 +156,9 @@ SUBROUTINE lr_dvpsi_e(ik,ipol,dvpsi)
   ! Here we include the correct normalization
   ! for Lanczos initial wfcs
   !
-  atnorm = dsqrt(at(1,ipol)**2+at(2,ipol)**2+at(3,ipol)**2)
+  atnorm = DSQRT(at(1,ipol)**2 + at(2,ipol)**2 + at(3,ipol)**2)
   !
-  dvpsi(:,:) = dvpsi(:,:)/atnorm
-  !
-  ! nrec = (ipol - 1)*nksq + ik
-  ! call davcio(dvpsi, lrebar, iuebar, nrec, 1)
-  ! this_pcxpsi_is_on_file(ik,ipol) = .true.
+  dvpsi(:,:) = dvpsi(:,:) / atnorm
   !
   CALL deallocate_bec_type ( becp1 )
   IF (nkb > 0) CALL deallocate_bec_type ( becp2 )
@@ -189,62 +167,6 @@ SUBROUTINE lr_dvpsi_e(ik,ipol,dvpsi)
   !
   RETURN
   !
-CONTAINS
-
-  SUBROUTINE lr_calc_eprec(eprec)
-
-    USE kinds,                ONLY : DP
-    USE gvect,                ONLY : gstart
-    USE wvfct,                ONLY : npw, npwx, nbnd, g2kin
-    USE wavefunctions_module, ONLY : evc
-    USE klist,                ONLY : ngk
-    USE mp,                   ONLY : mp_sum
-    USE mp_global,            ONLY : intra_bgrp_comm
-
-    IMPLICIT NONE
-
-    REAL(KIND=DP), INTENT(INOUT) :: eprec(nbnd)
-    COMPLEX(KIND=DP), ALLOCATABLE :: work (:,:)
-    REAL(KIND=DP), EXTERNAL :: ddot
-    COMPLEX(KIND=DP), EXTERNAL :: ZDOTC
-    ! the scalar products
-    !
-    ALLOCATE (work(npwx,nbnd))
-    !
-    DO ibnd=1,nbnd
-       !
-       work = 0.d0
-       !
-       DO ig = 1, ngk(ik)
-          work(ig,1) = g2kin(ig)*evc(ig,ibnd)
-       ENDDO
-       !
-       IF (gamma_only) THEN
-          !
-          eprec(ibnd) = 2.0d0*DDOT(2*npw,evc(1,ibnd),1,work,1)
-          !
-          IF (gstart==2) THEN
-             eprec(ibnd) = eprec(ibnd)-DBLE(evc(1,ibnd))*DBLE(work(1,ibnd))
-          ENDIF
-          !
-          eprec(ibnd) = 1.35d0*eprec(ibnd)
-          !
-       ELSE
-          eprec(ibnd) = 1.35d0*ZDOTC(ngk(ik),evc(1,ibnd),1,work,1)
-       ENDIF
-       !
-    ENDDO
-    !
-#ifdef __MPI
-    CALL mp_sum(eprec, intra_bgrp_comm)
-#endif
-    !
-    DEALLOCATE(work)
-    !
-    RETURN
-    !
-  END SUBROUTINE lr_calc_eprec
-
 END SUBROUTINE lr_dvpsi_e
 
 

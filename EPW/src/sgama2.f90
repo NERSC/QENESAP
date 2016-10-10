@@ -106,10 +106,10 @@
   !    Here we find the true symmetries of the crystal
   !
   IF ( magnetic_sym ) THEN
-     CALL sgam_at_mag (nrot, s, nat, tau, ityp, at, bg, &
+     CALL sgam_at_mag (nrot, s, nat, tau, ityp, bg, &
                   nr1, nr2, nr3, sym, irt, ftau, m_loc, sname, t_rev)
   ELSE
-     CALL sgam_at (nrot, s, nat, tau, ityp, at, bg, nr1, nr2, nr3, sym, &
+     CALL sgam_at (nrot, s, nat, tau, ityp, bg, nr1, nr2, nr3, sym, &
        irt, ftau)
   END IF
   !
@@ -216,7 +216,7 @@ end subroutine sgama2
 !
 !
 !-----------------------------------------------------------------------
-subroutine sgam_at_mag (nrot, s, nat, tau, ityp, at, bg, nr1, nr2, &
+subroutine sgam_at_mag (nrot, s, nat, tau, ityp, bg, nr1, nr2, &
      nr3, sym, irt, ftau, m_loc, sname, t_rev)
   !-----------------------------------------------------------------------
   !
@@ -236,7 +236,7 @@ subroutine sgam_at_mag (nrot, s, nat, tau, ityp, at, bg, nr1, nr2, &
   !     input variables
   !
   integer :: nrot, s (3, 3, 48), nat, ityp (nat), nr1, nr2, nr3
-  REAL(DP) :: m_loc(3,nat), tau (3, nat), at (3, 3), bg (3, 3)
+  REAL(DP) :: m_loc(3,nat), tau (3, nat), bg (3, 3)
   ! nrot : order of the parent group
   ! s    : symmetry operations of parent group
   ! nat  : number of atoms in the unit cell
@@ -515,7 +515,7 @@ END SUBROUTINE checksym_mag
 !
 !
 !-----------------------------------------------------------------------
-subroutine sgam_at (nrot, s, nat, tau, ityp, at, bg, nr1, nr2, &
+subroutine sgam_at (nrot, s, nat, tau, ityp, bg, nr1, nr2, &
      nr3, sym, irt, ftau)
   !-----------------------------------------------------------------------
   !
@@ -535,14 +535,13 @@ subroutine sgam_at (nrot, s, nat, tau, ityp, at, bg, nr1, nr2, &
   !     input variables
   !
   integer :: nrot, s (3, 3, 48), nat, ityp (nat), nr1, nr2, nr3
-  real(DP) :: tau (3, nat), at (3, 3), bg (3, 3)
+  real(DP) :: tau (3, nat), bg (3, 3)
   ! nrot : order of the parent group
   ! s    : symmetry operations of parent group
   ! nat  : number of atoms in the unit cell
   ! ityp : species of each atom in the unit cell
   ! nr*  : dimensions of the FFT mesh
   ! tau  : cartesian coordinates of the atoms
-  ! at   : basis of the real-space lattice
   ! bg   :  "   "   "  reciprocal-space lattice
   !
   !     output variables
@@ -781,9 +780,9 @@ subroutine mode_group (modenum, xq, at, bg, nat, nrot, s, irt, &
            enddo
            arg = arg * tpi
            if (isym.eq.nrot.and.minus_q) then
-              fase = CMPLX (cos (arg), sin (arg) )
+              fase = CMPLX (cos (arg), sin (arg), kind=DP )
            else
-              fase = CMPLX (cos (arg), - sin (arg) )
+              fase = CMPLX (cos (arg), - sin (arg), kind=DP )
            endif
            do ipol = 1, 3
               do jpol = 1, 3
@@ -1184,3 +1183,69 @@ subroutine irrek (npk, nks, xk, wk, at, bg, nrot, invs, nsym, irg, &
   return
 end subroutine irrek
 
+!-----------------------------------------------------------------------
+subroutine checksym (ir, nat, ityp, xau, rau, ft, sym, irt)
+  !-----------------------------------------------------------------------
+  !
+  !   This routine receives as input all the atomic positions xau,
+  !   and the rotated rau by the symmetry operation ir. It sets to true
+  !   sym(ir) if for each atom na, it is possible to find an atom nb
+  !   which is of the same type of na, and coincide with it after the
+  !   symmetry operation. Fractional translations are allowed.
+  !
+  !   Revised layout 1 may 1995 by A. Dal Corso
+  !
+  USE kinds
+!  USE symm_base,        ONLY : accep
+  implicit none
+  !
+  !     first the dummy variables
+  !
+  integer :: nat, ityp (nat), irt (48, nat), ir
+  ! input: the total number of atoms
+  ! input: the type of each atom
+  ! output: the rotated of each atom
+  ! input: the rotation to be tested
+  real(DP) :: xau (3, nat), rau (3, nat), ft (3)
+  ! input: the initial vectors
+  ! input: the rotated vectors
+  ! input: the possible fractionary translat
+  logical :: sym (48)
+  ! output: if true this is a symmetry opera
+  !
+  !  few local variables
+  !
+  integer :: na, nb
+  ! counter on atoms
+  ! counter on atoms
+  logical :: eqvect
+  ! the testing function
+
+  external eqvect
+  do na = 1, nat
+     do nb = 1, nat
+      !  sym (ir) = ityp (na) .eq.ityp (nb) .and.eqvect (rau (1, na), &
+      !       xau (1, nb), ft,accep)
+        sym (ir) = ityp (na) .eq.ityp (nb) .and.eqvect (rau (1, na), &
+             xau (1, nb), ft,1.0d-5)
+        if (sym (ir) ) then
+           !
+           ! the rotated atom does coincide with one of the like atoms
+           ! keep track of which atom the rotated atom coincides with
+           !
+           irt (ir, na) = nb
+           goto 10
+        endif
+     enddo
+     !
+     ! the rotated atom does not coincide with any of the like atoms
+     ! s(ir) + ft is not a symmetry operation
+     !
+     return
+10   continue
+  enddo
+  !
+  ! s(ir) + ft is a symmetry operation
+  !
+  return
+end subroutine checksym

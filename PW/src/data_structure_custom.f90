@@ -7,20 +7,33 @@
 !
 !
 !-----------------------------------------------------------------------
-SUBROUTINE data_structure_custom(fc, gamma_only)
+!<<<
+!SUBROUTINE data_structure_custom(fc, gamma_only)
+SUBROUTINE data_structure_custom(fc, smap_exx, gamma_only)
+!>>>
   !-----------------------------------------------------------------------
   ! this routine sets the data structure for the custom fft array
   ! In the parallel case, it distributes columns to processes, too
   !
   USE kinds,      ONLY : DP
-  USE cell_base,  ONLY : bg, tpiba, tpiba2
+  USE cell_base,  ONLY : at, bg, tpiba, tpiba2
   USE klist,      ONLY : xk, nks
   USE mp,         ONLY : mp_sum, mp_max,mp_barrier
-  USE mp_exx,   ONLY : me_egrp, nproc_egrp, inter_egrp_comm, &
+  !<<<
+!<<<<<<< HEAD
+  USE mp_exx,     ONLY : me_egrp, nproc_egrp, inter_egrp_comm, &
                          intra_egrp_comm, root_egrp, ntask_groups 
-  USE stick_set,  ONLY : pstickset_custom
+!  USE stick_set,  ONLY : pstickset_custom
+  USE fft_types,  ONLY : fft_type_init
+  USE stick_base, ONLY : sticks_map
+!=======
+!  USE mp_bands,   ONLY : me_bgrp, nproc_bgrp, inter_bgrp_comm, &
+!                         intra_bgrp_comm, root_bgrp, ntask_groups 
+!  USE fft_types,  ONLY : fft_type_init
+!>>>>>>> main-dev
+  !>>>
   USE fft_custom, ONLY : fft_cus, gvec_init
-  USE fft_base,   ONLY : dfftp
+  USE fft_base,   ONLY : dfftp, smap
   USE gvect,      ONLY : gcutm
   !
   !
@@ -31,8 +44,17 @@ SUBROUTINE data_structure_custom(fc, gamma_only)
   REAL (DP) :: gkcut
   INTEGER :: ik, ngm_, ngs_, ngw_
   INTEGER :: me, nproc, inter_comm, intra_comm, root
+  !<<<
+  TYPE (sticks_map) :: smap_exx ! Stick map descriptor
+  !>>>
 
   INTEGER :: kpoint
+#if defined (__MPI) && !defined (__USE_3D_FFT)
+  LOGICAL :: lpara = .true.
+#else
+  LOGICAL :: lpara = .false.
+#endif
+
   ! sticks coordinates
   
   !
@@ -72,9 +94,19 @@ SUBROUTINE data_structure_custom(fc, gamma_only)
   !
   ! ... set up fft descriptors, including parallel stuff: sticks, planes, etc.
   !
-  CALL pstickset_custom( gamma_only, bg, gcutm, gkcut, fc%gcutmt, &
-                  dfftp, fc%dfftt, ngw_ , ngm_, ngs_, me, root, nproc, &
-                  intra_comm, 1 )
+  !<<<
+!<<<<<<< HEAD
+!  CALL pstickset_custom( gamma_only, bg, gcutm, gkcut, fc%gcutmt, &
+!                  dfftp, fc%dfftt, ngw_ , ngm_, ngs_, me, root, nproc, &
+!                  intra_comm, 1 )
+!=======
+  CALL fft_type_init( fc%dfftt, smap_exx, "rho", gamma_only, lpara, intra_comm, at, bg, fc%gcutmt, fc%gcutmt/gkcut )
+  ngs_ = fc%dfftt%ngl( fc%dfftt%mype + 1 )
+  IF( gamma_only ) THEN
+     ngs_ = (ngs_ + 1)/2
+  END IF
+!>>>>>>> main-dev
+  !>>>
   !
   !     on output, ngm_ and ngs_ contain the local number of G-vectors
   !     for the two grids. Initialize local and global number of G-vectors

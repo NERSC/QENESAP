@@ -14,7 +14,7 @@ MODULE fft_custom
   USE kinds, ONLY: DP
   USE parallel_include
   
-  USE fft_types, ONLY: fft_dlay_descriptor
+  USE fft_types, ONLY: fft_type_descriptor
   
   IMPLICIT NONE
 
@@ -24,7 +24,7 @@ MODULE fft_custom
      ! ... about fft data distribution for a given
      ! ... potential grid, and its wave functions sub-grid.
 
-     TYPE ( fft_dlay_descriptor ) :: dfftt 
+     TYPE ( fft_type_descriptor ) :: dfftt 
      ! descriptor for the custom grid
 
      REAL(kind=DP) :: ecutt
@@ -207,7 +207,7 @@ CONTAINS
     LOGICAL :: is_exx_
     !
 
-#ifdef __MPI
+#if defined(__MPI)
     INTEGER :: m1, m2, mc
     !
 #endif
@@ -290,7 +290,7 @@ CONTAINS
        j = mill_g(2, ng)
        k = mill_g(3, ng)
        
-#ifdef __MPI
+#if defined(__MPI)
        m1 = MOD (i, fc%dfftt%nr1) + 1
        IF (m1 < 1) m1 = m1 + fc%dfftt%nr1
        m2 = MOD (j, fc%dfftt%nr2) + 1
@@ -445,7 +445,7 @@ CONTAINS
   
   SUBROUTINE deallocate_fft_custom(fc)
     !this subroutine deallocates all the fft custom stuff
-    USE fft_types, ONLY : fft_dlay_deallocate
+    USE fft_types, ONLY : fft_type_deallocate
     
     IMPLICIT NONE
 
@@ -454,7 +454,7 @@ CONTAINS
     IF(.NOT. fc%initialized) RETURN
 
     DEALLOCATE(fc%nlt,fc%nltm)
-    CALL fft_dlay_deallocate(fc%dfftt)
+    CALL fft_type_deallocate(fc%dfftt)
     DEALLOCATE(fc%ig_l2gt,fc%ggt,fc%gt)
     DEALLOCATE(fc%ig1t,fc%ig2t,fc%ig3t)
     fc%initialized=.FALSE.
@@ -515,7 +515,7 @@ CONTAINS
     COMPLEX(kind=DP), ALLOCATABLE :: pw1_tmp(:),pw2_tmp(:), pw_global(:)
 
 
-#ifdef __MPI
+#if defined(__MPI)
 
     gid=comm
 

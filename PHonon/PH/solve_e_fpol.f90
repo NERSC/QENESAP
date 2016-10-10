@@ -22,33 +22,33 @@ subroutine solve_e_fpol ( iw )
   USE kinds,                 ONLY : DP
   USE ions_base,             ONLY : nat
   USE io_global,             ONLY : stdout, ionode
-  USE io_files,              ONLY : prefix, iunigk, diropn
+  USE io_files,              ONLY : prefix, diropn
   USE buffers,               ONLY : get_buffer, save_buffer
   USE check_stop,            ONLY : check_stop_now
   USE wavefunctions_module,  ONLY : evc
   USE cell_base,             ONLY : tpiba2
-  USE klist,                 ONLY : lgauss, nkstot, wk, xk
+  USE klist,                 ONLY : lgauss, nkstot, wk, xk, ngk, igk_k
   USE lsda_mod,              ONLY : lsda, nspin, current_spin, isk
   USE fft_base,              ONLY : dffts, dfftp
   USE fft_interfaces,        ONLY : fwfft, invfft
   USE gvect,                 ONLY : g
-  USE gvecs,               ONLY : doublegrid, nls
+  USE gvecs,                 ONLY : doublegrid, nls
   USE becmod,                ONLY : becp, calbec
-  USE wvfct,                 ONLY : npw, npwx, nbnd, igk, g2kin, et
+  USE wvfct,                 ONLY : npwx, nbnd, g2kin, et
   USE uspp,                  ONLY : okvan, vkb
   USE uspp_param,            ONLY : nhm
   USE control_ph,            ONLY : nmix_ph, tr2_ph, alpha_mix, convt, &
                                     niter_ph, &
                                     rec_code, flmixdpot
   USE output,                ONLY : fildrho
-  USE qpoint,                ONLY : nksq, npwq, igkq
+  USE qpoint,                ONLY : nksq
   USE units_ph,              ONLY : lrdwf, iudwf, lrwfc, iuwfc, iudrho, &
                                     lrdrho
   USE mp_pools,              ONLY : inter_pool_comm
   USE mp_bands,              ONLY : intra_bgrp_comm
   USE mp,                    ONLY : mp_sum
 
-  USE eqv,                   ONLY : dpsi, dvpsi, eprec
+  USE eqv,                   ONLY : dpsi, dvpsi
   USE control_lr,            ONLY : nbnd_occ, lgamma
   USE dv_of_drho_lr
 
@@ -77,15 +77,16 @@ subroutine solve_e_fpol ( iw )
   logical :: conv_root, exst
   ! conv_root: true if linear system is converged
 
+  integer :: npw, npwq
   integer :: kter, iter0, ipol, ibnd, jbnd, iter, lter, &
        ik, ig, irr, ir, is, nrec, ios
   ! counters
   integer :: ltaver, lintercall
 
-  real(DP) :: tcpu, get_clock
-  ! timing variables
-
-  real(DP) :: iw  !frequency
+  real(DP) :: tcpu
+  real(DP) :: eprec1 ! 1.35<ek>, for preconditioning
+  real(DP) :: iw     !frequency
+  real(dp), external :: ddot, get_clock
 
   external cch_psi_all, ccg_psi
 
@@ -155,27 +156,20 @@ subroutine solve_e_fpol ( iw )
      dvscfout(:,:,:)=(0.d0,0.d0)
      dbecsum(:,:,:,:)=(0.d0,0.d0)
 
-     if (nksq.gt.1) rewind (unit = iunigk)
      do ik = 1, nksq
         if (lsda) current_spin = isk (ik)
-        if (nksq.gt.1) then
-           read (iunigk, err = 100, iostat = ios) npw, igk
-100        call errore ('solve_e_fpol', 'reading igk', abs (ios) )
-        endif
+        npw = ngk(ik)
+        npwq = npw    ! q=0 in ths routine
         !
-        ! reads unperturbed wavefuctions psi_k in G_space, for all bands
+        ! read unperturbed wavefunctions psi_k in G_space, for all bands
         !
         if (nksq.gt.1) call get_buffer(evc, lrwfc, iuwfc, ik)
-        npwq = npw
-        call init_us_2 (npw, igk, xk (1, ik), vkb)
         !
-        ! compute the kinetic energy
+        ! compute beta functions and kinetic energy for k-point ik
+        ! needed by h_psi, called by cch_psi_all, called by gmressolve_all
         !
-        do ig = 1, npwq
-           g2kin (ig) = ( (xk (1,ik ) + g (1,igkq (ig)) ) **2 + &
-                          (xk (2,ik ) + g (2,igkq (ig)) ) **2 + &
-                          (xk (3,ik ) + g (3,igkq (ig)) ) **2 ) * tpiba2
-        enddo
+        CALL init_us_2 (npw, igk_k(1,ik), xk (1, ik), vkb)
+        CALL g2_kin(ik)
         !
         do ipol = 1, 3
            !
@@ -191,7 +185,7 @@ subroutine solve_e_fpol ( iw )
               do ibnd = 1, nbnd_occ (ik)
                  aux1(:) = (0.d0, 0.d0)
                  do ig = 1, npw
-                    aux1 (nls(igk(ig)))=evc(ig,ibnd)
+                    aux1 (nls(igk_k(ig,ik)))=evc(ig,ibnd)
                  enddo
                  CALL invfft ('Wave', aux1, dffts)
                  do ir = 1, dffts%nnr
@@ -199,7 +193,7 @@ subroutine solve_e_fpol ( iw )
                  enddo
                  CALL fwfft ('Wave', aux1, dffts)
                  do ig = 1, npwq
-                    dvpsi(ig,ibnd)=dvpsi(ig,ibnd)+aux1(nls(igkq(ig)))
+                    dvpsi(ig,ibnd)=dvpsi(ig,ibnd)+aux1(nls(igk_k(ig,ik)))
                  enddo
               enddo
               !
@@ -255,10 +249,14 @@ subroutine solve_e_fpol ( iw )
               !
               if ( (abs(iw).lt.0.05) .or. (abs(iw).gt.1.d0) ) then
                  !
+                 DO ig = 1, npwq
+                    auxg (ig) = g2kin (ig) * evc (ig, ibnd)
+                 END DO
+                 eprec1 = 1.35_dp*ddot(2*npwq,evc(1,ibnd),1,auxg,1)
+                 !
                  do ig = 1, npw
-!                   h_diag(ig,ibnd)=1.d0/max(1.0d0,g2kin(ig)/eprec(ibnd,ik))
                     h_diag(ig,ibnd)=CMPLX(1.d0, 0.d0,kind=DP) / &
-                    CMPLX( max(1.0d0,g2kin(ig)/eprec(ibnd,ik))-et(ibnd,ik),-iw ,kind=DP)
+                    CMPLX( max(1.0d0,g2kin(ig)/eprec1)-et(ibnd,ik),-iw ,kind=DP)
                  end do
               else
                  do ig = 1, npw
@@ -270,11 +268,8 @@ subroutine solve_e_fpol ( iw )
 
            conv_root = .true.
 
-!           call cgsolve_all (ch_psi_all,cg_psi,et(1,ik),dvpsi,dpsi, &
-!              h_diag,npwx,npw,thresh,ik,lter,conv_root,anorm,nbnd_occ(ik) )
            call gmressolve_all (cch_psi_all,ccg_psi,etc(1,ik),dvpsi,dpsi,  &
               h_diag,npwx,npw,thresh,ik,lter,conv_root,anorm,nbnd_occ(ik), 4 )
-
 
            ltaver = ltaver + lter
            lintercall = lintercall + 1

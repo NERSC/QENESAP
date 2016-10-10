@@ -16,7 +16,7 @@ SUBROUTINE lr_alloc_init()
   USE ions_base,            ONLY : nat
   USE uspp,                 ONLY : nkb, okvan
   USE uspp_param,           ONLY : nhm
-  USE fft_base,             ONLY : dfftp, dffts
+  USE fft_base,             ONLY : dfftp, dffts, dtgs
   USE klist,                ONLY : nks
   USE lsda_mod,             ONLY : nspin
   USE wvfct,                ONLY : npwx, nbnd
@@ -30,7 +30,7 @@ SUBROUTINE lr_alloc_init()
   USE becmod,               ONLY : allocate_bec_type, bec_type, becp
   USE lrus,                 ONLY : int3, int3_nc, becp1
   USE eqv,                  ONLY : dmuxc, evq, dpsi, dvpsi
-  USE qpoint,               ONLY : igkq, nksq, eigqts
+  USE qpoint,               ONLY : nksq, eigqts
   USE control_lr,           ONLY : nbnd_occ
   !
   IMPLICIT NONE
@@ -118,10 +118,9 @@ SUBROUTINE lr_alloc_init()
   !
   IF (eels) THEN
      !
-     ! EELS (q!=0) : evq, igkq are allocated 
-     ! and correspond to k+q points
+     ! EELS (q!=0) : allocate wfct's evq, 
+     ! which correspond to points k+q
      !
-     ALLOCATE (igkq(npwx))
      ALLOCATE (evq(npwx*npol,nbnd))
      evq(:,:) = (0.0d0, 0.0d0)  
      ! 
@@ -142,10 +141,10 @@ SUBROUTINE lr_alloc_init()
   !
   ! Allocate the R-space unperturbed orbitals
   !
-  IF (dffts%have_task_groups) THEN
-     ALLOCATE(tg_revc0(dffts%tg_nnr * dffts%nogrp,nbnd,nksq))
+  IF (dtgs%have_task_groups) THEN
+     ALLOCATE(tg_revc0(dtgs%tg_nnr * dtgs%nogrp,nbnd,nksq))
      IF (.NOT. ALLOCATED(tg_psic)) &
-          & ALLOCATE( tg_psic(dffts%tg_nnr * dffts%nogrp) )
+          & ALLOCATE( tg_psic(dtgs%tg_nnr * dtgs%nogrp) )
   ELSE
      IF (.NOT.eels) THEN
         ALLOCATE(revc0(dffts%nnr,nbnd,nksq))

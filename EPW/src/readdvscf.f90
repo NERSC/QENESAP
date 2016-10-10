@@ -9,12 +9,12 @@
   !--------------------------------------------------------
   subroutine readdvscf ( dvscf, recn, iq, nqc )
   !--------------------------------------------------------
-  !
-  !  open dvscf files as direct access, read, ad close again
-  !
-  ! RM - Nov/Dec 2014
-  ! Imported the noncolinear case implemented by xlzhang
-  !
+  !!
+  !!  open dvscf files as direct access, read, ad close again
+  !!
+  !! RM - Nov/Dec 2014
+  !! Imported the noncolinear case implemented by xlzhang
+  !!
   !-------------------------------------------------------------
 #if defined(__ALPHA)
 #  define DIRECT_IO_FACTOR 2
@@ -29,60 +29,64 @@
   USE pwcom
   USE epwcom,    ONLY : dvscf_dir
   USE noncollin_module, ONLY : nspin_mag
-#ifdef __NAG
+  USE io_epw,    ONLY : iudvscf
+#if defined(__NAG)
   USE,INTRINSIC :: f90_unix_file, ONLY:fstat, stat_t
-#endif
-#ifdef __PARA
-  USE mp_global, ONLY : nproc_pool, me_pool
-  USE mp_global, ONLY : npool,my_pool_id
-  USE mp_world,  ONLY : mpime
 #endif
   !
   implicit none
-#ifdef __NAG
+#if defined(__NAG)
   TYPE(stat_t) :: statb
 #endif
-#ifndef __NAG
+#if ! defined(__NAG)
 integer :: fstat,statb(13)
 #endif
-
-  integer :: recn, iq, nqc, iudvscf
-  !  perturbation number
-  !  the current q point
-  !  the total number of qpoints in the list
-  !  the temporary unit number
-  complex(kind=DP) :: dvscf ( dfftp%nnr , nspin_mag) 
+  ! 
+  INTEGER, INTENT (in) :: recn
+  !! perturbation number
+  INTEGER, INTENT (in) :: iq
+  !! the current q point
+  INTEGER, INTENT (in) :: nqc
+  !! the total number of qpoints in the list
   !
+  COMPLEX(kind=DP), INTENT (out) :: dvscf ( dfftp%nnr , nspin_mag) 
+  !! dVscf potential is read from file
+  !
+  ! Local variables
   integer :: unf_recl,ios
   character (len=256) :: tempfile
   character (len=3) :: filelab
-  ! file label 
-  iudvscf = 80
   !
   !  the call to set_ndnmbr is just a trick to get quickly
   !  a file label by exploiting an existing subroutine
   !  (if you look at the sub you will find that the original 
   !  purpose was for pools and nodes)
-  !
+
+  ! DBSP:
+  !  Iotemp is a output variable and it does not matter whether it is integer or any other type. 
+  !   
   CALL set_ndnmbr ( 0, iq, 1, nqc, filelab)
   tempfile = trim(dvscf_dir) // trim(prefix) // '.dvscf_q' // filelab
   unf_recl = DIRECT_IO_FACTOR * lrdrho
+  !unf_recl = iofactor * lrdrho
+  !DBSP
+  !print*,'iofactor ',iofactor
   !
   !
   !  open the dvscf file, read and close
   !
   open  (iudvscf, file = tempfile, form = 'unformatted', &
           access = 'direct', iostat=ios,recl = unf_recl,status='old')
-  IF (ios /= 0) call errore ('readdvscf','error opening' // tempfile, iudvscf)
+  IF (ios /= 0) call errore ('readdvscf','error opening ' // tempfile, iudvscf)
   !
   ! check that the binary file is long enough
   ! this is tricky to track through error dumps
-#ifdef __NAG
+#if defined(__NAG)
   CALL fstat( iudvscf, statb, errno=ios)
   IF (recn * unf_recl .gt. statb%st_size) call errore('readdvscf', &
        trim(tempfile)//' too short, check ecut', iudvscf)
 #endif
-#ifndef __NAG
+#if ! defined(__NAG)
   ios = fstat ( iudvscf, statb)
   IF (recn * unf_recl .gt. statb(8)) call errore('readdvscf', &
        trim(tempfile)//' too short, check ecut', iudvscf)

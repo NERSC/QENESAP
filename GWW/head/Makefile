@@ -2,7 +2,7 @@
 # 
 # Author G. Stenuit
 #
-include ../../make.sys
+include ../../make.inc
 
 # location of include files
 IFLAGS=-I../../include
@@ -11,9 +11,6 @@ IFLAGS=-I../../include
 MODFLAGS= $(MOD_FLAG)../../iotk/src $(MOD_FLAG)../../Modules \
           $(MOD_FLAG)../../PHonon/PH $(MOD_FLAG)../../LR_Modules $(MOD_FLAG)../../PW/src \
 	  $(MOD_FLAG)../../LAXlib $(MOD_FLAG)../../FFTXlib $(MOD_FLAG).
-
-#location of needed libraries
-LIBOBJS= ../../iotk/src/libiotk.a ../../clib/clib.a
 
 HEADOBJS = \
 bcast_ph_input.o \

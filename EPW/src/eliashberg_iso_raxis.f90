@@ -9,9 +9,10 @@
   !-----------------------------------------------------------------------
   SUBROUTINE eliashberg_iso_raxis
   !-----------------------------------------------------------------------
-  !
-  ! This routine is the driver of the self-consistent cycle for the isotropic 
-  ! Eliashberg equations on the real-axis.  
+  !!
+  !! This routine is the driver of the self-consistent cycle for the isotropic 
+  !! Eliashberg equations on the real-axis.  
+  !!
   !
   USE kinds,         ONLY : DP
   USE io_global,     ONLY : stdout
@@ -20,15 +21,11 @@
   USE epwcom,        ONLY : nsiter, nstemp, broyden_beta, broyden_ndim
   USE eliashbergcom, ONLY : nsw, Delta, Deltap, gap, estemp
   USE constants_epw, ONLY : kelvin2eV, ci
-#ifdef __PARA
-  USE io_global, ONLY : ionode_id
-  USE mp_global, ONLY : inter_pool_comm, my_pool_id
-  USE mp,        ONLY : mp_bcast, mp_barrier, mp_sum
-  USE mp_world,  ONLY : mpime
-#endif
+  USE mp,            ONLY : mp_bcast, mp_barrier, mp_sum
   ! 
   IMPLICIT NONE
   !
+  ! Local variables
   INTEGER :: itemp, iter
   REAL(DP) :: tcpu, rdeltaout(nsw), rdeltain(nsw), cdeltaout(nsw), cdeltain(nsw)
   REAL(DP), EXTERNAL :: get_clock
@@ -36,9 +33,6 @@
   CHARACTER (len=256) :: filgap
   !
   CALL start_clock( 'iso_raxis' ) 
-!#ifdef __PARA
-!  IF (mpime .eq. ionode_id) THEN
-!#endif
   !
   WRITE(stdout,'(5x,a)') 'Solve isotropic Eliashberg equations on real-axis'
   !
@@ -90,10 +84,6 @@
      WRITE(iufilgap,'(2f12.6)') estemp(itemp)/kelvin2eV, gap(itemp)
   ENDDO
   CLOSE(iufilgap)
-!#ifdef __PARA 
-!  ENDIF    
-!  CALL mp_barrier()
-!#endif     
   !    
   CALL stop_clock( 'iso_raxis' )
   ! 
@@ -104,19 +94,10 @@
   !-----------------------------------------------------------------------
   SUBROUTINE integrate_eliashberg_iso_raxis( itemp, iter, conv ) 
   !-----------------------------------------------------------------------
+  !!
+  !! This routine solves the isotropic Eliashberg equations on the real-axis
+  !!
   !
-  ! This routine solves the isotropic Eliashberg equations on the real-axis
-  !
-  ! input
-  !
-  ! itemp  - temperature point
-  ! iter   - iteration number
-  ! conv   - convergence flag 
-  !
-  ! output 
-  !
-  ! conv   - convergence flag 
-  !  
   USE kinds,         ONLY : DP
   USE io_epw,        ONLY : iufilker, iufilgap
   USE io_global,     ONLY : stdout
@@ -129,14 +110,22 @@
   ! 
   IMPLICIT NONE
   !
-  INTEGER :: iw, iwp, itemp, iter
+  INTEGER, INTENT (in) :: itemp
+  !! Counter on temperature
+  INTEGER, INTENT(in) :: iter
+  !! Counter on iteration steps
+  LOGICAL, INTENT(inout) :: conv
+  !! True if the calculation is converged  
+  ! 
+  ! Local variables
+  INTEGER :: iw, iwp
   REAL(DP) :: dstep, a, b, c, d, absdelta, reldelta, errdelta, temp
   REAL(DP), ALLOCATABLE :: wesqrt(:), desqrt(:)
   REAL(DP) :: eps=1.0d-6
   COMPLEX(DP) :: kernelp, kernelm, esqrt
   COMPLEX(DP), ALLOCATABLE, SAVE :: Deltaold(:)
   REAL(DP), EXTERNAL :: wgauss
-  LOGICAL :: conv, lgap
+  LOGICAL :: lgap
   CHARACTER(len=256) :: name1, name2
   !
   IF ( .not. ALLOCATED(wesqrt) ) ALLOCATE( wesqrt(nsw) )
@@ -149,11 +138,7 @@
      IF ( .not. ALLOCATED(Znorm) )  ALLOCATE( Znorm(nsw) )
      gap(itemp) = 0.d0
      Deltap(:)  = (0.d0, 0.d0)
-     IF ( itemp .eq. 1 ) THEN
-        Deltap(:)  = gap0 
-     ELSE
-        Deltap(:)  = gap(itemp-1) 
-     ENDIF
+     Deltap(:)  = gap0 
      IF ( .not. ALLOCATED(fdwp) ) ALLOCATE( fdwp(nsw) )
      IF ( .not. ALLOCATED(Kp) )   ALLOCATE( Kp(nsw,nsw) )
      IF ( .not. ALLOCATED(Km) )   ALLOCATE( Km(nsw,nsw) )
@@ -167,7 +152,8 @@
   ELSEIF ( temp .ge. 10.d0 ) THEN 
      WRITE(name2,'(a,a5,f5.2)') TRIM(prefix),'.ker_', temp
   ENDIF
-  OPEN(iufilker, file=name2, form='formatted')
+  !OPEN(iufilker, file=name2, form='formatted')
+  OPEN(iufilker, file=name2, form='unformatted')
   !
   IF ( iter .eq. 1 ) THEN
      IF ( .not. ALLOCATED(Deltaold) ) ALLOCATE( Deltaold(nsw) )
@@ -188,7 +174,8 @@
            !
            ! read the kernels from file if they were calculated before otherwise calculate them
            IF ( kerread ) THEN 
-              READ(iufilker,'(4ES20.10)') a, b, c, d
+              !READ(iufilker,'(4ES20.10)') a, b, c, d
+              READ(iufilker) a, b, c, d
               Kp(iw,iwp) = a + ci*b
               Km(iw,iwp) = c + ci*d
            ENDIF
@@ -196,8 +183,10 @@
               CALL kernel_raxis( iw, iwp, itemp, kernelp, kernelm )
               Kp(iw,iwp) = kernelp
               Km(iw,iwp) = kernelm
-              WRITE(iufilker,'(4ES20.10)') real(Kp(iw,iwp)), aimag(Kp(iw,iwp)), &
-                                          real(Km(iw,iwp)), aimag(Km(iw,iwp))
+              !WRITE(iufilker,'(4ES20.10)') real(Kp(iw,iwp)), aimag(Kp(iw,iwp)), &
+              !                             real(Km(iw,iwp)), aimag(Km(iw,iwp))
+              WRITE(iufilker) real(Kp(iw,iwp)), aimag(Kp(iw,iwp)), &
+                              real(Km(iw,iwp)), aimag(Km(iw,iwp))
            ENDIF
         ENDIF
         !
@@ -235,7 +224,6 @@
   !
   IF ( errdelta .lt. conv_thr_raxis) conv = .true.
   IF ( errdelta .lt. conv_thr_raxis .OR. iter .eq. nsiter ) THEN
-     lgap = .true. 
      IF ( temp .lt. 10.d0 ) THEN
         WRITE(name1,'(a,a7,f4.2)') TRIM(prefix),'.gapr_0', temp
      ELSEIF ( temp .ge. 10.d0 ) THEN
@@ -244,26 +232,22 @@
      OPEN(iufilgap, file=name1, form='formatted')
      !
      WRITE(iufilgap,'(5a18)') 'w', 'Re[Znorm(w)]', 'Im[Znorm(w)]', 'Re[Delta(w)]', 'Im[Delta(w)]'
-     DO iw = 1, nsw
+     lgap = .true.
+     ! DO iw = 1, nsw
+     DO iw = 1, nsw-1   ! this change is to prevent segfault in Delta(iw+1) and ws(iw+1)
         IF ( lgap .AND. iw .lt. (nqstep) .AND. real(Delta(iw)) .gt. 0.d0 .AND. real(Delta(iw+1)) .gt. 0.d0 .AND. &
              ( ws(iw) - real(Delta(iw)) )*( ws(iw+1) - real(Delta(iw+1)) ) .lt. 0.d0 ) THEN
            gap(itemp) = ( ( real(Delta(iw)) - ws(iw) ) * ws(iw+1) - ( real(Delta(iw+1)) - ws(iw+1) ) * ws(iw) ) &
                       / ( ( real(Delta(iw)) - ws(iw) ) - ( real(Delta(iw+1)) - ws(iw+1) ) )
-           WRITE(stdout,'(a)') '   '
-           WRITE(stdout,'(5x,a)') 'Estimated superconducting gap edge: '
-           WRITE(stdout,'(5x,a,i6,4ES20.10,i6)') 'iw = ', iw, ws(iw), real(Delta(iw)), aimag(Delta(iw)), & 
-                                            gap(itemp), itemp
-           WRITE(stdout,'(5x,a,i6,4ES20.10,i6)') 'iw = ', iw+1, ws(iw+1), real(Delta(iw+1)), aimag(Delta(iw+1)), &
-                                            gap(itemp), itemp
-           WRITE(stdout,'(a)') '   '
-           !
-         !  lgap = .false.
-           !
+           lgap = .false.
         ENDIF
         WRITE(iufilgap,'(5ES20.10)') ws(iw), real(Znorm(iw)), aimag(Znorm(iw)), &
                                     real(Delta(iw)), aimag(Delta(iw))
      ENDDO
      CLOSE(iufilgap)
+     IF ( lgap ) & 
+        gap(itemp) =  real(Delta(1))
+     gap0 = gap(itemp)
   ENDIF
   !
   IF( ALLOCATED(wesqrt) ) DEALLOCATE(wesqrt)

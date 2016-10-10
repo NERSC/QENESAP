@@ -1,6 +1,6 @@
 # Makefile for CP/FPMD
 
-include	../../make.sys
+include	../../make.inc
 
 # location of needed modules and included files (if any)
 MODFLAGS= $(MOD_FLAG)../../iotk/src $(MOD_FLAG)../../FFTXlib $(MOD_FLAG)../../LAXlib $(MOD_FLAG)../../Modules $(MOD_FLAG).
@@ -121,8 +121,6 @@ QEFFT=../../FFTXlib/libqefft.a
 QELA=../../LAXlib/libqela.a
 
 TLDEPS= bindir fftlib mods libs libiotk
-
-LIBOBJS= ../../clib/clib.a ../../iotk/src/libiotk.a
 
 all : tldeps libcp.a manycp.x cp.x cppp.x wfdd.x
 

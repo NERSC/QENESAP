@@ -1,11 +1,9 @@
-!
 ! Copyright (C) 2003-2015 Quantum ESPRESSO group
 ! This file is distributed under the terms of the
 ! GNU General Public License. See the file `License'
 ! in the root directory of the present distribution,
 ! or http://www.gnu.org/copyleft/gpl.txt .
 !
-#ifdef __XSD
 !----------------------------------------------------------------------------
 MODULE qexsd_module
   !----------------------------------------------------------------------------
@@ -162,10 +160,7 @@ CONTAINS
       CALL iotk_open_write(ounit,FILE=filename , root="qes:espresso",attr=attr,binary=.false., &
                            skip_head=.true.,IERR=ierr)
       !
-      IF (ierr /= 0) call errore(subname, 'opening xml input file', ierr)
-      !
-      IF ( input_xml_schema_file == ' ' ) CALL get_environment_VARIABLE ( 'QEXSD', input_xml_schema_file )
-      ! 
+      IF (ierr /= 0) call errore(subname, 'opening xml output file', ierr)
       ! the input file is mandatory to have a validating schema 
       ! here an error should be issued, instead
       !
@@ -265,9 +260,8 @@ CONTAINS
       END IF
          CALL iotk_close_write(ounit, IERR=ierr)
       !
-         CALL errore(subname, 'closing xml input file', ierr)
+      CALL errore(subname, 'closing xml input file', ierr)
       !
-      
     END SUBROUTINE qexsd_closeschema
     !
     !
@@ -432,7 +426,7 @@ CONTAINS
     !
     !------------------------------------------------------------------------
     SUBROUTINE qexsd_init_atomic_structure(obj, nsp, atm, ityp, nat, tau, tau_units, &
-                                           alat, a1, a2, a3)
+                                           alat, a1, a2, a3, ibrav)
       !------------------------------------------------------------------------
       IMPLICIT NONE
       !
@@ -444,6 +438,7 @@ CONTAINS
       CHARACTER(LEN=*), INTENT(IN) :: tau_units
       REAL(DP),         INTENT(IN) :: alat
       REAL(DP),         INTENT(IN) :: a1(:), a2(:), a3(:)
+      INTEGER,          INTENT(IN) :: ibrav
       !
       INTEGER         :: ia
       TYPE(atom_type), ALLOCATABLE :: atom(:)
@@ -451,13 +446,21 @@ CONTAINS
       TYPE(atomic_positions_type)  :: atomic_pos
       TYPE(wyckoff_positions_type) :: wyckoff_pos
       REAL(DP)                     :: new_alat
+      LOGICAL                      :: ibrav_ispresent
       !
       ! atomic positions
+      !
+      IF ( ibrav .gt. 0 ) THEN 
+         ibrav_ispresent = .TRUE.
+      ELSE
+         ibrav_ispresent = .FALSE.
+      END IF
       !
       ALLOCATE(atom(nat))
       DO ia = 1, nat
           CALL qes_init_atom( atom(ia), "atom", name=trim(atm(ityp(ia))), &
-                             position="", position_ispresent=.FALSE., atom=tau(1:3,ia))
+                             position="", position_ispresent=.FALSE., atom=tau(1:3,ia), index_ispresent = .TRUE.,&
+                             index = ia )
       ENDDO
       !
       CALL qes_init_atomic_positions(atomic_pos, "atomic_positions", SIZE(atom), atom)
@@ -476,7 +479,8 @@ CONTAINS
       CALL qes_init_atomic_structure(obj, "atomic_structure", nat=nat, &
                      alat=alat, alat_ispresent=.TRUE., atomic_positions_ispresent=.TRUE., &
                      atomic_positions=atomic_pos, wyckoff_positions_ispresent=.FALSE., &
-                     wyckoff_positions=wyckoff_pos, cell=cell )
+                     wyckoff_positions=wyckoff_pos, cell=cell ,& 
+                     bravais_index_ispresent = ibrav_ispresent, bravais_index=ibrav)
       ! 
       ! cleanup 
       ! 
@@ -487,8 +491,8 @@ CONTAINS
     !
     !
     !------------------------------------------------------------------------
-    SUBROUTINE qexsd_init_symmetries(obj, nsym, nrot, space_group, s, ft, sname, t_rev, nat, irt, class_names,&
-                                     verbosity, noncolin)
+    SUBROUTINE qexsd_init_symmetries(obj, nsym, nrot, space_group, s, ft, sname, t_rev, nat, irt, &
+                                     class_names, verbosity, noncolin)
       !------------------------------------------------------------------------
       IMPLICIT NONE
       !
@@ -507,38 +511,54 @@ CONTAINS
       TYPE(info_type)              :: info
       TYPE(matrix_type)            :: matrix
       CHARACTER(LEN=15)            :: classname
+      CHARACTER(LEN=256)            :: la_info
       LOGICAL                      :: class_ispresent = .FALSE., time_reversal_ispresent = .FALSE.
       INTEGER                      :: i
       
-      ALLOCATE(symm(nsym))
+      ALLOCATE(symm(nrot))
       !
       IF ( TRIM(verbosity) .EQ. 'high' .OR. TRIM(verbosity) .EQ. 'medium')  class_ispresent= .TRUE.
       IF ( noncolin  ) time_reversal_ispresent = .TRUE.
-      DO i = 1, nsym
+      DO i = 1, nrot
           !
           classname = class_names(i)
+          IF ( i .LE. nsym ) THEN 
+             la_info = "crystal_symmetry"
+          ELSE 
+             la_info = "lattice_symmetry"
+          END IF
           CALL qes_init_info(info, "info", name=sname(i), name_ispresent=.TRUE., &
                              class=classname, class_ispresent = class_ispresent,   &
                              time_reversal=(t_rev(i)==1), time_reversal_ispresent = time_reversal_ispresent, &
-                             info= '')
+                             INFO= TRIM(la_info) )
           !
           CALL qes_init_matrix(matrix, "rotation", ndim1_mat=3, ndim2_mat=3, mat=real(s(:,:,i),DP))
           !
-          CALL qes_init_equivalent_atoms(equiv_atm, "equivalent_atoms", nat=nat, ndim_index_list=nat, &
+          IF ( i .LE. nsym ) THEN 
+             CALL qes_init_equivalent_atoms(equiv_atm, "equivalent_atoms", nat=nat, ndim_index_list=nat, &
                                          index_list=irt(i,1:nat)  )
           !
-          CALL qes_init_symmetry(symm(i),"symmetry", info=info, rotation=matrix, &
+             CALL qes_init_symmetry(symm(i),"symmetry", info=info, rotation=matrix, &
                                  fractional_translation_ispresent=.TRUE., fractional_translation=ft(:,i), &
                                  equivalent_atoms_ispresent=.TRUE., equivalent_atoms=equiv_atm)
+          ELSE 
+             CALL qes_init_symmetry ( symm(i), "symmetry", INFO = info, ROTATION = matrix, &
+                                      FRACTIONAL_TRANSLATION_ISPRESENT = .FALSE., FRACTIONAL_TRANSLATION=ft(:,i), &
+                                      EQUIVALENT_ATOMS_ISPRESENT = .FALSE.,  EQUIVALENT_ATOMS=equiv_atm) 
+          END IF
           !
           CALL qes_reset_info(info)
           CALL qes_reset_matrix(matrix)
-          CALL qes_reset_equivalent_atoms(equiv_atm)
+          IF ( i .LT. nsym ) THEN 
+             CALL qes_reset_equivalent_atoms( equiv_atm )
+          ELSE IF ( i .EQ. nrot ) THEN  
+            CALL qes_reset_equivalent_atoms( equiv_atm )
+          END IF
           !
       ENDDO
       !
-      CALL qes_init_symmetries(obj,"symmetries",nsym=nsym, nrot=nrot, space_group=space_group, &
-                               ndim_symmetry=SIZE(symm), symmetry=symm )
+      CALL qes_init_symmetries(obj,"symmetries",NSYM = nsym, NROT=nrot, SPACE_GROUP = space_group, &
+                               NDIM_SYMMETRY=SIZE(symm), SYMMETRY=symm )
       !
       DO i = 1, nsym
          CALL qes_reset_symmetry(symm(i))
@@ -576,11 +596,11 @@ CONTAINS
       CALL qes_init_basisSetItem(fft_box, "fft_box", nr1b, nr2b, nr3b, "" )
       CALL qes_init_reciprocal_lattice(recipr_latt, "reciprocal_lattice", b1, b2, b3)
 
-      CALL qes_init_basis_set(obj, "basis_set", gamma_only_ispresent=.TRUE., gamma_only=gamma_only, &
-                              ecutwfc=ecutwfc, ecutrho_ispresent=.TRUE., ecutrho=ecutrho, fft_grid=fft_grid, &
-                              fft_smoooth_ispresent=.TRUE., fft_smoooth=fft_smooth, &
-                              fft_box_ispresent=fft_box_ispresent, fft_box=fft_box, ngm=ngm, &
-                              ngms_ispresent=.TRUE., ngms=ngms, npwx=npwx, reciprocal_lattice=recipr_latt)
+      CALL qes_init_basis_set(obj, "basis_set", GAMMA_ONLY_ISPRESENT=.TRUE., GAMMA_ONLY=gamma_only, &
+                              ECUTWFC=ecutwfc, ECUTRHO_ISPRESENT=.TRUE., ECUTRHO=ecutrho, FFT_GRID=fft_grid, &
+                              FFT_SMOOTH_ISPRESENT=.TRUE., FFT_SMOOTH=fft_smooth, &
+                              FFT_BOX_ISPRESENT=fft_box_ispresent, FFT_BOX=fft_box, NGM=ngm, &
+                              NGMS_ISPRESENT=.TRUE., NGMS=ngms, NPWX=npwx, RECIPROCAL_LATTICE=recipr_latt )
       !
       CALL qes_reset_basisSetItem(fft_grid)
       CALL qes_reset_basisSetItem(fft_smooth)
@@ -591,21 +611,21 @@ CONTAINS
     !
     !
     !------------------------------------------------------------------------
-    SUBROUTINE qexsd_init_dft(obj, functional, &
-                   dft_is_hybrid, nqx1, nqx2, nqx3, ecutfock, exx_fraction, screening_parameter, &
-                                  exxdiv_treatment, x_gamma_extrapolation, ecutvcut, &
-                   dft_is_lda_plus_U, lda_plus_U_kind, llmax, nspin, nsp, ldim, nat, species, ityp, Hubbard_U, Hubbard_J0, &
-                                  Hubbard_alpha, Hubbard_beta, Hubbard_J, starting_ns, Hubbard_ns, Hubbard_ns_nc, &
-                                  U_projection_type, &
-                   dft_is_vdW, vdw_corr, london_s6, london_rcut, xdm_a1, xdm_a2 ,is_hubbard,psd)
+    SUBROUTINE qexsd_init_dft(obj, functional, root_is_output, dft_is_hybrid, nqx1, nqx2, nqx3, ecutfock,       &
+                   exx_fraction, screening_parameter, exxdiv_treatment, x_gamma_extrapolation, ecutvcut,        &
+                   dft_is_lda_plus_U, lda_plus_U_kind, llmax, noncolin, nspin, nsp, ldim, nat, species, ityp,   &
+                   Hubbard_U, Hubbard_J0, Hubbard_alpha, Hubbard_beta, Hubbard_J, starting_ns, Hubbard_ns,      &
+                   Hubbard_ns_nc, U_projection_type, dft_is_vdW, vdw_corr, nonlocal_term, london_s6, london_c6, &
+                   london_rcut, xdm_a1, xdm_a2 ,ts_vdw_econv_thr, ts_vdw_isolated, is_hubbard, psd)
       !------------------------------------------------------------------------
       USE  parameters,           ONLY:  lqmax
       USE  input_parameters,     ONLY:  nspinx
       IMPLICIT NONE
       !
       TYPE(dft_type)    :: obj
-      CHARACTER(len=*), INTENT(IN) :: functional
+      CHARACTER(len=*), INTENT(IN) :: functional, nonlocal_term 
       LOGICAL,          INTENT(IN) :: dft_is_hybrid
+      LOGICAL,          INTENT(IN) :: root_is_output
       INTEGER,          INTENT(IN) :: nqx1, nqx2, nqx3
       REAL(DP),         INTENT(IN) :: ecutfock
       REAL(DP),         INTENT(IN) :: exx_fraction
@@ -614,7 +634,7 @@ CONTAINS
       LOGICAL,          INTENT(IN) :: x_gamma_extrapolation
       REAL(DP),         INTENT(IN) :: ecutvcut
       !
-      LOGICAL,          INTENT(IN) :: dft_is_lda_plus_U
+      LOGICAL,          INTENT(IN) :: dft_is_lda_plus_U, noncolin 
       INTEGER,          INTENT(IN) :: lda_plus_U_kind
       INTEGER,          INTENT(IN) :: llmax, nspin, nsp, ldim, nat
       CHARACTER(len=*), INTENT(IN) :: species(nsp)
@@ -631,14 +651,15 @@ CONTAINS
       LOGICAL,INTENT(IN)           :: is_hubbard(nsp)
       CHARACTER(LEN=2),INTENT(IN)  :: psd(nsp)
       !
-      LOGICAL,          INTENT(IN) :: dft_is_vdW
+      LOGICAL,          INTENT(IN) :: dft_is_vdW, ts_vdw_isolated
       CHARACTER(len=*), INTENT(IN) :: vdw_corr
       REAL(DP),         INTENT(IN) :: london_s6
       REAL(DP),         INTENT(IN) :: london_rcut
       REAL(DP),         INTENT(IN) :: xdm_a1
       REAL(DP),         INTENT(IN) :: xdm_a2
+      REAL(DP),         INTENT(IN) :: london_c6(nsp), ts_vdw_econv_thr
       !
-      INTEGER  :: i, is, ind,hubb_l,hubb_n
+      INTEGER  :: i, is, isp, ind,hubb_l,hubb_n
       TYPE(hybrid_type) :: hybrid
       TYPE(qpoint_grid_type) :: qpoint_grid
       TYPE(dftU_type) :: dftU
@@ -650,6 +671,9 @@ CONTAINS
       TYPE(HubbardJ_type),      ALLOCATABLE :: Hubbard_J_(:)
       TYPE(starting_ns_type),   ALLOCATABLE :: starting_ns_(:)
       TYPE(Hubbard_ns_type),    ALLOCATABLE :: Hubbard_ns_(:)
+      TYPE(HubbardCommon_type), ALLOCATABLE :: london_c6_obj(:)
+      REAL(DP),                 ALLOCATABLE :: Hubb_occ_aux(:,:) 
+      INTEGER                               :: m1, m2
       LOGICAL  :: Hubbard_U_ispresent
       LOGICAL  :: Hubbard_J0_ispresent
       LOGICAL  :: Hubbard_alpha_ispresent
@@ -657,6 +681,10 @@ CONTAINS
       LOGICAL  :: Hubbard_J_ispresent
       LOGICAL  :: starting_ns_ispresent
       LOGICAL  :: Hubbard_ns_ispresent
+      LOGICAL  :: london_c6_ispresent, london_s6_ispresent, london_rvdw_ispresent, ts_vdw_econv_thr_ispresent, & 
+                  london_rcut_ispresent, ts_vdw_isolated_ispresent, xdm_a1_ispresent, xdm_a2_ispresent, &
+                  empirical_vdw = .FALSE. 
+      INTEGER  :: ndim_london_c6                   
       CHARACTER(10), ALLOCATABLE :: label(:)
       CHARACTER                  :: hubbard_shell 
       INTEGER,EXTERNAL           :: set_hubbard_l,set_hubbard_n
@@ -710,8 +738,13 @@ CONTAINS
           ALLOCATE( Hubbard_beta_(nsp) )
           ALLOCATE( Hubbard_J_(nsp) )
           !
-          ALLOCATE( starting_ns_(min(nspin,nspinx)*nsp) )
-          ALLOCATE( Hubbard_ns_(nspin*nat) )
+          IF (noncolin ) THEN 
+             ALLOCATE (starting_ns_(nsp))
+             ALLOCATE (Hubbard_ns_(nat))
+          ELSE 
+            ALLOCATE( starting_ns_(min(nspin,nspinx)*nsp) )
+            ALLOCATE( Hubbard_ns_(nspin*nat) )
+          END IF
           !
           DO i = 1, nsp
               CALL qes_init_HubbardCommon(Hubbard_U_(i),"Hubbard_U",TRIM(species(i)),TRIM(label(i)),Hubbard_U(i))
@@ -724,22 +757,50 @@ CONTAINS
           ENDDO
           !
           ind = 0
-          DO is = 1, MIN(nspin,nspinx) 
-              DO i  = 1, nsp
-                  ind = ind+1
-                  CALL qes_init_starting_ns(starting_ns_(ind),"starting_ns",TRIM(species(i)),TRIM(label(i)), &
-                                            is, llmax, starting_ns(1:llmax,is,i) )
-              ENDDO
-          ENDDO
+          IF (starting_ns_ispresent) THEN 
+             IF (noncolin) THEN 
+                DO i = 1, nsp 
+                   ind = ind + 1 
+                   CALL qes_init_starting_ns(starting_ns_(ind), "starting_ns", TRIM (species(i)),TRIM (label(i)),&
+                                             1,2*llmax, starting_ns(1:2*llmax, 1, i))
+                END DO
+             ELSE 
+                DO is = 1, MIN(nspin,nspinx) 
+                   DO i  = 1, nsp
+                      ind = ind+1
+                      CALL qes_init_starting_ns(starting_ns_(ind),"starting_ns",TRIM(species(i)),TRIM(label(i)), &
+                                                is, llmax, starting_ns(1:llmax,is,i) )
+                  ENDDO
+                ENDDO
+             END IF
+          END IF
           !
           ind = 0
-          DO i = 1, nat
-             DO is = 1, nspin
-                ind = ind+1
-                CALL qes_init_Hubbard_ns(Hubbard_ns_(ind),"Hubbard_ns", TRIM(species(ityp(i))),TRIM(label(ityp(i))), &
-                                       is, ldim, ldim, Hubbard_ns(:,:,is,i) )
+          IF (noncolin) THEN 
+             ALLOCATE (Hubb_occ_aux(2*ldim,2*ldim))
+             DO i = 1, nat 
+                Hubb_occ_aux = 0.d0
+                DO m1 =1, ldim 
+                   DO m2 = 1, ldim 
+                      Hubb_occ_aux(     m1,     m2) = SQRT(DCONJG(Hubbard_ns_nc(m1,m2,1,i))*Hubbard_ns_nc(m1,m2,1,i))
+                      Hubb_occ_aux(     m1,ldim+m2) = SQRT(DCONJG(Hubbard_ns_nc(m1,m2,2,i))*Hubbard_ns_nc(m1,m2,2,i)) 
+                      Hubb_occ_aux(ldim+m1,     m2) = SQRT(DCONJG(Hubbard_ns_nc(m1,m2,3,i))*Hubbard_ns_nc(m1,m2,3,i))
+                      Hubb_occ_aux(ldim+m1,ldim+m2) = SQRT(DCONJG(Hubbard_ns_nc(m1,m2,4,i))*Hubbard_ns_nc(m1,m2,4,i))
+                   END DO
+                END DO
+                CALL qes_init_Hubbard_ns(Hubbard_ns_(i),"Hubbard_ns_mod", TRIM(species(ityp(i))),TRIM(label(ityp(i))), &
+                                         1, i, 2*ldim, 2*ldim, Hubb_occ_aux(:,:))
+             END DO 
+             DEALLOCATE ( Hubb_occ_aux) 
+          ELSE 
+             DO i = 1, nat
+                DO is = 1, nspin
+                   ind = ind+1
+                   CALL qes_init_Hubbard_ns(Hubbard_ns_(ind),"Hubbard_ns", TRIM(species(ityp(i))),TRIM(label(ityp(i))), &
+                                       is, i, ldim, ldim, Hubbard_ns(:,:,is,i) )
+                ENDDO
              ENDDO
-          ENDDO
+          END IF
           !
           ! main init
           CALL qes_init_dftU(dftU, "dftU", .TRUE., lda_plus_u_kind, &
@@ -780,18 +841,80 @@ CONTAINS
           !
       ENDIF
       !
-      IF ( dft_is_vdW ) THEN
+      SELECT CASE ( TRIM (vdw_corr )) 
+      CASE ( 'grimme-d2', 'Grimme-D2', 'DFT-D', 'dft-d') 
+           empirical_vdw = .TRUE.
+           london_s6_ispresent = .TRUE. 
+           london_rcut_ispresent = .TRUE. 
+           xdm_a1_ispresent = .TRUE. 
+           xdm_a2_ispresent = .TRUE. 
+           IF ( ANY(london_c6 .GT.  0.d0 )) THEN 
+              london_c6_ispresent = .TRUE.
+              ndim_london_c6 = 0 
+              DO isp = 1, nsp 
+                 IF ( london_c6(isp) .GT. 0.d0 ) THEN 
+                    ndim_london_c6 = ndim_london_c6 + 1
+                 END IF 
+              END DO
+              ALLOCATE (london_c6_obj(ndim_london_c6))
+              ndim_london_c6 = 0 
+              DO isp = 1, nsp
+                 IF ( london_c6(isp) .GT. 0.d0) THEN
+                    ndim_london_c6 = ndim_london_c6 + 1  
+                    CALL qes_init_hubbardcommon(london_c6_obj(ndim_london_c6), "london_c6", TRIM(species(isp)),"",&
+                                                london_c6(isp))
+                 END IF 
+              END DO                        
+           ELSE 
+              london_c6_ispresent = .FALSE. 
+              ALLOCATE ( london_c6_obj(1))
+           END IF
+           ts_vdw_econv_thr_ispresent = .FALSE. 
+           ts_vdw_isolated_ispresent = .FALSE. 
+      CASE ( 'TS', 'ts', 'ts-vdw', 'ts-vdW', 'tkatchenko-scheffler')
+           empirical_vdw = .TRUE.
+           london_s6_ispresent =   .FALSE.
+           london_c6_ispresent = .FALSE.
+           ALLOCATE ( london_c6_obj(1)) 
+           london_rcut_ispresent = .FALSE.
+           xdm_a1_ispresent =      .FALSE.
+           xdm_a2_ispresent =      .FALSE.
+           ts_vdw_econv_thr_ispresent = .TRUE. 
+           ts_vdw_isolated_ispresent  = .TRUE. 
+      CASE default 
+           empirical_vdw = .FALSE.
+           ts_vdw_econv_thr_ispresent = .FALSE.
+           ts_vdw_isolated_ispresent = .FALSE.
+           london_s6_ispresent =   .FALSE.
+           london_c6_ispresent = .FALSE.
+           ALLOCATE (london_c6_obj(1))
+           london_rcut_ispresent = .FALSE.
+           xdm_a1_ispresent =      .FALSE.
+           xdm_a2_ispresent =      .FALSE.
+           london_c6_ispresent   = .FALSE.
+      END SELECT 
+
+      IF ( dft_is_vdW .OR. empirical_vdw ) THEN
           !
-          CALL qes_init_vdW(vdW, "vdW", vdw_corr, london_s6, london_rcut, xdm_a1, xdm_a2 )
+          CALL qes_init_vdW(vdW, "vdW", TRIM(vdw_corr), root_is_output,  TRIM(nonlocal_term), london_s6_ispresent, london_s6, &
+                            ts_vdw_econv_thr_ispresent, ts_vdw_econv_thr, ts_vdw_isolated_ispresent, ts_vdw_isolated,& 
+                            london_rcut_ispresent, london_rcut, xdm_a1_ispresent, xdm_a1, xdm_a2_ispresent, xdm_a2, &
+                            london_c6_ispresent, ndim_london_c6, london_c6_obj )
           !
+          IF (london_c6_ispresent )   THEN
+             DO isp=1, ndim_london_c6
+                CALL qes_reset_hubbardcommon(london_c6_obj(isp))
+             END DO 
+          END IF
+          DEALLOCATE ( london_c6_obj) 
       ENDIF
         
       CALL qes_init_dft(obj, "dft", functional, dft_is_hybrid, hybrid, &
-                             dft_is_lda_plus_U, dftU, dft_is_vdW, vdW)
+                             dft_is_lda_plus_U, dftU, (dft_is_vdW .OR. empirical_vdw) , vdW)
       !
       IF (dft_is_hybrid)      CALL qes_reset_hybrid(hybrid)
       IF (dft_is_lda_plus_U)  CALL qes_reset_dftU(dftU)
-      IF (dft_is_vdW)         CALL qes_reset_vdW(vdW)
+      IF (dft_is_vdW .OR. empirical_vdw )  CALL qes_reset_vdW(vdW)
       !
     END SUBROUTINE qexsd_init_dft
     !
@@ -815,27 +938,30 @@ CONTAINS
     !
     ! 
     !---------------------------------------------------------------------------------------
-    SUBROUTINE qexsd_init_band_structure(obj, lsda,noncolin, lspinorb, nbnd, nelec, &
-                                         fermi_energy, et, wg, nks, xk, ngk, wk)
+    SUBROUTINE qexsd_init_band_structure(obj, lsda, noncolin, lspinorb, nbnd, nelec, n_wfc_at, occupations_are_fixed, & 
+                                         fermi_energy, two_fermi_energies, ef_updw, et, wg, nks, xk, ngk, wk)
     !----------------------------------------------------------------------------------------
     IMPLICIT NONE
     !
     TYPE(band_structure_type)             :: obj
     CHARACTER(LEN=*), PARAMETER           :: TAGNAME="band_structure"
-    LOGICAL,INTENT(IN)                    :: lsda, noncolin, lspinorb
-    INTEGER,INTENT(IN)                    :: nbnd, nks
+    LOGICAL,INTENT(IN)                    :: lsda, noncolin, lspinorb, occupations_are_fixed
+    INTEGER,INTENT(IN)                    :: nbnd, nks, n_wfc_at
     REAL(DP),INTENT(IN)                   :: nelec, fermi_energy
     REAL(DP),DIMENSION(:,:),INTENT(IN)    :: et, wg, xk
     REAL(DP),DIMENSION(:),INTENT(IN)      :: wk
     INTEGER,DIMENSION(:),INTENT(IN)       :: ngk      
+    REAL(DP),DIMENSION(2),INTENT(IN)      :: ef_updw 
+    LOGICAL,INTENT(IN)                    :: two_fermi_energies
     ! 
     LOGICAL                               :: nbnd_up_ispresent, nbnd_dw_ispresent, &
-                                             fermi_energy_ispresent
+                                             fermi_energy_ispresent, HOL_ispresent, & 
+                                             n_wfc_at_ispresent = .TRUE.  
     INTEGER                               :: nbnd_up,nbnd_dw
     INTEGER                               :: ndim_ks_energies,nbnd_tot,ik
     TYPE(k_point_type)                    :: kp_obj
     TYPE(ks_energies_type),ALLOCATABLE    :: ks_objs(:)
-    REAL(DP),DIMENSION(:),ALLOCATABLE     :: eigenvalues,occupations
+    REAL(DP),DIMENSION(:),ALLOCATABLE     :: eigenvalues, occupations
 
     !
     !
@@ -855,10 +981,17 @@ CONTAINS
        nbnd_up_ispresent=.false.
        nbnd_dw_ispresent=.false. 
     END IF 
-    IF (fermi_energy.GT.-1.D6) THEN
-      fermi_energy_ispresent=.TRUE.
+    IF (fermi_energy.GT.-1.D6 .AND. ( .NOT. two_fermi_energies ) ) THEN
+      IF ( occupations_are_fixed ) THEN 
+         fermi_energy_ispresent = .FALSE. 
+         HOL_ispresent = .TRUE. 
+      ELSE 
+         fermi_energy_ispresent = .TRUE.
+         HOL_ispresent = .FALSE. 
+      END IF 
     ELSE 
       fermi_energy_ispresent=.FALSE.
+      HOL_ispresent = .FALSE.
     END IF  
     !
     !   
@@ -866,9 +999,9 @@ CONTAINS
     ALLOCATE(ks_objs(ndim_ks_energies))
     !  
     DO ik=1,ndim_ks_energies
-       CALL qes_init_k_point(kp_obj,"k_point",wk(ik),.true.,xk(:,ik))
+       CALL qes_init_k_point(kp_obj,"k_point",wk(ik),.true.,"",.FALSE., xk(:,ik))
        IF ( lsda ) THEN 
-          eigenvalues(1:nbnd_up)=et(1:nbnd_up,ik)
+          eigenvalues(1:nbnd_up)=et(1:nbnd_up,ik)/e2
           eigenvalues(nbnd_up+1:nbnd_tot)=et(1:nbnd_dw,ndim_ks_energies+ik)/e2
        ELSE 
           eigenvalues(1:nbnd_tot)= et(1:nbnd_tot,ik)/e2
@@ -878,7 +1011,7 @@ CONTAINS
        IF (lsda) THEN 
           IF ( ABS(wk(ik)).GT.1.d-10) THEN 
              occupations(1:nbnd_up)=wg(1:nbnd_up,ik)/wk(ik)
-             occupations(nbnd_up+1:nbnd_tot)=wg(1:nbnd_dw,ik)/wk(ik)
+             occupations(nbnd_up+1:nbnd_tot)=wg(1:nbnd_dw,ndim_ks_energies+ik)/wk(ndim_ks_energies+ik)
           ELSE 
              occupations(1:nbnd_up)=wg(1:nbnd_up,ik)
              occupations(nbnd_up+1:nbnd_tot)=wg(1:nbnd_dw,ik) 
@@ -900,9 +1033,10 @@ CONTAINS
        CALL qes_reset_k_point(kp_obj)  
     END DO 
     !
-    CALL qes_init_band_structure(obj,TAGNAME,lsda,noncolin,lspinorb,nbnd_tot,nbnd_up_ispresent,&
-                  nbnd_up,nbnd_dw_ispresent,nbnd_dw,nelec,fermi_energy_ispresent,&
-                  fermi_energy/e2, ndim_ks_energies,ndim_ks_energies,ks_objs)
+    CALL qes_init_band_structure( obj,TAGNAME,lsda,noncolin,lspinorb, nbnd , nbnd_up_ispresent,&
+                  nbnd_up,nbnd_dw_ispresent,nbnd_dw,nelec, n_wfc_at_ispresent, n_wfc_at,       & 
+                  fermi_energy_ispresent, fermi_energy/e2, HOL_ispresent, fermi_energy/e2, &  
+                  two_fermi_energies, 2, ef_updw/e2, ndim_ks_energies,ndim_ks_energies,ks_objs )
     DO ik=1,ndim_ks_energies
        CALL qes_reset_ks_energies(ks_objs(ik))
     END DO
@@ -911,7 +1045,8 @@ CONTAINS
     !
     ! 
     !---------------------------------------------------------------------------------------
-    SUBROUTINE qexsd_init_total_energy(obj,etot,eband,ehart,vtxc,etxc,ewald,degauss,demet,electric_field_corr)
+    SUBROUTINE qexsd_init_total_energy(obj,etot,eband,ehart,vtxc,etxc,ewald,degauss,demet,electric_field_corr,&
+                                       potentiostat_contr)
     !----------------------------------------------------------------------------------------
     !
     ! 
@@ -921,6 +1056,7 @@ CONTAINS
     REAL(DP),INTENT(IN)             :: etot,eband,ehart,vtxc,etxc,ewald,demet
     REAL(DP),INTENT(IN)             :: degauss
     REAL(DP),OPTIONAL,INTENT(IN)    :: electric_field_corr
+    REAL(DP),OPTIONAL,INTENT(IN)    :: potentiostat_contr
     !
     LOGICAL                         :: demet_ispresent
     CHARACTER(LEN=*),PARAMETER      :: TAGNAME="total_energy"
@@ -951,7 +1087,9 @@ CONTAINS
                                ehart_ispresent=.TRUE., ehart=ehart_har,vtxc_ispresent=.TRUE.,& 
                                vtxc=vtxc_har,etxc_ispresent=.TRUE., etxc=etxc_har,ewald_ispresent=.TRUE.,&
                                ewald=ewald_har, demet_ispresent=demet_ispresent,demet=demet_har, &
-                               efieldcorr_ispresent=PRESENT(electric_field_corr), efieldcorr=efield_corr) 
+                               efieldcorr_ispresent=PRESENT(electric_field_corr), efieldcorr=efield_corr,&
+                               POTENTIOSTAT_CONTR_ISPRESENT = PRESENT(potentiostat_contr), & 
+                               POTENTIOSTAT_CONTR = potentiostat_contr)
 
     END SUBROUTINE qexsd_init_total_energy
     ! 
@@ -1059,13 +1197,15 @@ CONTAINS
     !----------------------------------------------------------------------------------------
     SUBROUTINE   qexsd_step_addstep( i_step, max_steps, ntyp, atm, ityp, nat,& 
                                    tau, alat, a1, a2, a3, etot, eband, ehart, vtxc, etxc,&
-                                   ewald, degauss, demet, forces, stress, n_scf_steps, scf_error)
+                                   ewald, degauss, demet, forces, stress, n_scf_steps, scf_error, potstat_contr, &
+                                   fcp_force, fcp_tot_charge )
     !-----------------------------------------------------------------------------------------
     IMPLICIT NONE 
     ! 
     INTEGER ,INTENT(IN)             :: i_step, max_steps, ntyp, nat, n_scf_steps, ityp(:)
     REAL(DP),INTENT(IN)             :: tau(3,nat), alat, a1(3), a2(3), a3(3), etot, eband, ehart, vtxc, &
                                        etxc, ewald, degauss, demet, scf_error, forces(3,nat), stress(3,3) 
+    REAL(DP),OPTIONAL,INTENT (IN)   :: potstat_contr, fcp_force, fcp_tot_charge         
     CHARACTER(LEN=*),INTENT(IN)     :: atm(:)
     TYPE (step_type)                :: step_obj
     TYPE ( scf_conv_type )          :: scf_conv_obj
@@ -1089,11 +1229,16 @@ CONTAINS
     CALL qes_reset_scf_conv(scf_conv_obj)
     ! 
     CALL qexsd_init_atomic_structure(atomic_struct_obj, ntyp, atm, ityp, nat, tau, "bohr", &
-                                     alat, a1, a2, a3)
+                                     alat, a1, a2, a3, 0)
     step_obj%atomic_structure=atomic_struct_obj
     CALL qes_reset_atomic_structure( atomic_struct_obj )
     ! 
-    CALL qexsd_init_total_energy ( tot_en_obj, etot, eband, ehart, vtxc, etxc, ewald, degauss, demet )   
+    CALL qexsd_init_total_energy ( tot_en_obj, etot/e2, eband/e2, ehart/e2, vtxc/e2, etxc/e2, ewald/e2, degauss/e2, &
+                                   demet/e2 )
+    IF ( PRESENT ( potstat_contr )) THEN  
+       tot_en_obj%potentiostat_contr_ispresent = .TRUE. 
+       tot_en_obj%potentiostat_contr = potstat_contr/e2 
+    END IF  
     step_obj%total_energy=tot_en_obj
     CALL qes_reset_total_energy( tot_en_obj )
     ! 
@@ -1104,6 +1249,12 @@ CONTAINS
     CALL qes_init_matrix( mat_stress, "stress", 3, 3, stress ) 
     step_obj%stress = mat_stress
     CALL qes_reset_matrix ( mat_stress ) 
+    IF ( PRESENT ( fcp_force ) ) THEN 
+       step_obj%FCP_force = fcp_force
+       step_obj%FCP_force_ispresent = .TRUE.
+       step_obj%FCP_tot_charge = fcp_tot_charge
+       step_obj%FCP_tot_charge_ispresent = .TRUE. 
+    END IF 
     !  
     ! 
     steps(step_counter) = step_obj
@@ -1133,6 +1284,7 @@ CONTAINS
     !  
     REAL(DP),INTENT(IN)                               :: wstring(nstring)      
     ! 
+#if defined (__XSD)
     CHARACTER(LEN=*),PARAMETER                        :: TAGNAME = "BerryPhase"
     TYPE ( polarization_type)                         :: tot_pol_obj
     ! 
@@ -1150,7 +1302,8 @@ CONTAINS
     DO iat =1, nat 
        WRITE(mod_string,'("(mod" ,I1,")")') mod_ion(iat) 
        CALL qes_init_phase(ion_phase,"phase", 0.d0,.FALSE.,0.d0,.FALSE.,TRIM(mod_string),.TRUE., pdl_ion(iat) )
-       CALL qes_init_atom(atom_obj,"ion",name=TRIM(atm(ityp(iat))),position_ispresent=.FALSE.,atom = tau(:,iat))
+       CALL qes_init_atom(atom_obj,"ion",name=TRIM(atm(ityp(iat))),position_ispresent=.FALSE.,atom = tau(:,iat), &
+                          index_ispresent = .FALSE.)
        CALL qes_init_ionicPolarization(ion_pol_obj(iat), "ionicPolarization", atom_obj, zv(ityp(iat)), ion_phase )       
        CALL qes_reset_phase(ion_phase)
        CALL qes_reset_atom(atom_obj)
@@ -1161,13 +1314,13 @@ CONTAINS
         indstring = 1+(istring-1)*nppstr
         WRITE(mod_string,'("(mod ",I1,")")') mod_elec(istring)
         CALL qes_init_phase(el_phase, "phase", 0.d0, .FALSE., 0.d0, .FALSE., TRIM (mod_string), .TRUE., &
-                            pdl_elec(iat) )
+                            pdl_elec(istring) )
         IF (istring .LE. nstring/nspin_lsda) THEN 
            ispin = 1 
         ELSE 
            ispin = 2 
         END IF
-        CALL qes_init_k_point(kp_obj, "firstKeyPoint", wstring(istring), .TRUE., xk(:,indstring))
+        CALL qes_init_k_point(kp_obj, "firstKeyPoint", wstring(istring), .TRUE., "",.FALSE., xk(:,indstring))
         CALL qes_init_electronicPolarization(str_pol_obj(istring),"electronicPolarization", kp_obj, spin_is, ispin, &
                                              el_phase )
         CALL qes_reset_phase ( el_phase ) 
@@ -1195,7 +1348,8 @@ CONTAINS
     DEALLOCATE (ion_pol_obj)
     CALL qes_reset_polarization(tot_pol_obj)
     CALL qes_reset_scalarQuantity(pol_val)
-    CALL qes_reset_phase(tot_phase)  
+    CALL qes_reset_phase(tot_phase) 
+#endif 
     !
     END SUBROUTINE qexsd_init_berryPhaseOutput
     !
@@ -1204,8 +1358,10 @@ CONTAINS
     !-------------------------------------------------------------------------------------------------
     IMPLICIT NONE 
     !
-    INTEGER      :: status_int 
+    INTEGER      :: status_int
+#if defined(__XSD)  
     CALL qes_init_status( exit_status, "status", status_int)
+#endif
     END SUBROUTINE qexsd_set_status 
     !
     !--------------------------------------------------------------------------------------------------
@@ -1241,12 +1397,6 @@ END MODULE qexsd_module
 !----------------
 !
 
-#else
 ! 
-MODULE qexsd_module
-  IMPLICIT NONE
-  INTEGER :: dummy__
-END MODULE qexsd_module
 ! 
-#endif
 

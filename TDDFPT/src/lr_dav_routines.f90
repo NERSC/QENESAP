@@ -182,7 +182,7 @@ contains
     use lr_variables,         only : evc0, sevc0 ,revc0, evc0_virt,&
                                    & sevc0_virt, nbnd_total, davidson, restart
     use io_global,    only : stdout
-    use wvfct,       only : npwx,nbnd,et,npw
+    use wvfct,       only : npwx,nbnd,et
     use gvect,                only : gstart
     use uspp,           only : okvan
     use lr_us
@@ -257,7 +257,7 @@ contains
     !
     ! Ionode only operations
     !
-#ifdef __MPI
+#if defined(__MPI)
   IF (ionode) THEN
 #endif
     !
@@ -275,7 +275,7 @@ contains
     !
     CLOSE( unit = free_unit )
     !
-#ifdef __MPI
+#if defined(__MPI)
   ENDIF
 #endif
     !
@@ -347,7 +347,7 @@ contains
     !
     ! Ionode only operations
     !
-#ifdef __MPI
+#if defined(__MPI)
   IF (ionode) THEN
 #endif
     !
@@ -372,7 +372,7 @@ contains
     !
     CLOSE( unit = free_unit )
     !
-#ifdef __MPI
+#if defined(__MPI)
   ENDIF
   CALL mp_bcast (dav_iter, ionode_id, world_comm)
   CALL mp_bcast (num_basis, ionode_id, world_comm)
@@ -430,7 +430,7 @@ contains
     use kinds,                only : dp
     use lr_variables,         only : ltammd,&
                                      evc0, sevc0, d0psi
-    use wvfct,                only : nbnd, npwx, npw
+    use wvfct,                only : nbnd, npwx
     use mp,                   only : mp_bcast,mp_barrier                  
     use mp_world,             only : world_comm
     use lr_us
@@ -521,7 +521,7 @@ contains
     use kinds,                only : dp
     use lr_variables,         only : ltammd,&
                                      evc0, sevc0, d0psi
-    use wvfct,                only : nbnd, npwx, npw
+    use wvfct,                only : nbnd, npwx
     use mp,                   only : mp_bcast,mp_barrier
     use mp_world,             only : world_comm
     use lr_us
@@ -543,7 +543,7 @@ contains
 
     call start_clock('Solve M_DC')
 
-#ifdef __MPI
+#if defined(__MPI)
   ! This part is calculated in serial
   if(ionode) then
 #endif
@@ -584,7 +584,7 @@ contains
           & tr_energy(eign_value_order(ieign))
     enddo
 
-#ifdef __MPI
+#if defined(__MPI)
   endif
   call mp_barrier(world_comm)
   call mp_bcast(tr_energy,ionode_id,world_comm)
@@ -653,7 +653,7 @@ contains
     use lr_variables,    only : evc0, sevc0
     use kinds,  only : dp
     use io_global, only : stdout
-    use wvfct,                only : nbnd, npwx, npw
+    use wvfct,                only : nbnd, npwx
     use lr_dav_debug
     use lr_us
     
@@ -968,7 +968,7 @@ contains
     
     use kinds,                only : dp
     use klist,                only : nks
-    use wvfct,                only : npwx,nbnd,npw
+    use wvfct,                only : npwx,nbnd
     use lr_us
     
     implicit none
@@ -988,7 +988,7 @@ contains
     
     use kinds,                only : dp
     use klist,                only : nks
-    use wvfct,                only : npwx,nbnd,npw
+    use wvfct,                only : npwx,nbnd
     
     implicit none
     complex(kind=dp),external :: lr_dot
@@ -1006,23 +1006,24 @@ contains
     ! This routine apply pre-condition to the residue to speed up the
     ! convergence
     use kinds,       only : dp
-    use wvfct,       only : g2kin,npwx,nbnd,et,npw
+    use wvfct,       only : g2kin,npwx,nbnd,et
+    use klist,       only : ngk
     use lr_dav_variables, only : reference, diag_of_h, tr_energy,eign_value_order,&
                      &turn2planb
     use g_psi_mod
     
     implicit none
     complex(dp)  :: vect(npwx,nbnd)
-    integer :: ia,ib,ieign,flag
+    integer :: ig,ibnd,ieign,flag
     real(dp) :: temp,minimum
     
     minimum=0.0001d0
-    do ib = 1, nbnd
-      do ia = 1, npw
-        !temp = g2kin(ia)-et(ib,1)
-        temp = g2kin(ia)-et(ib,1)-reference
+    do ibnd = 1, nbnd
+      do ig = 1, ngk(1)
+        !temp = g2kin(ig)-et(ibnd,1)
+        temp = g2kin(ig)-et(ibnd,1)-reference
         !if( abs(temp) .lt. minimum ) temp = sign(minimum,temp)
-        vect(ia,ib) = vect(ia,ib)/temp
+        vect(ig,ibnd) = vect(ig,ibnd)/temp
       enddo
     enddo
     
@@ -1086,7 +1087,7 @@ contains
 
     ! Analysis of each eigen-state
     do ieign = 1, num_eign
-#ifdef __MPI
+#if defined(__MPI)
   ! This part is calculated in serial
   if(ionode) then
 #endif
@@ -1118,7 +1119,7 @@ contains
       omegar(ieign)=sqrt(dble(omegar(ieign)))
       omegal(ieign)=sqrt(dble(omegal(ieign)))
 
-#ifdef __MPI
+#if defined(__MPI)
   endif
   call mp_barrier(world_comm)
   call mp_bcast(omegar,ionode_id,world_comm)
@@ -1198,12 +1199,12 @@ contains
       endif
     enddo
 
-#ifdef __MPI
+#if defined(__MPI)
     if(ionode) then
 #endif
       call write_eigenvalues(message)
       call write_spectrum(message)
-#ifdef __MPI
+#if defined(__MPI)
     endif
 #endif
     return
@@ -1372,7 +1373,7 @@ contains
 
     if(okvan) then
       write(stdout,'(10x,"At this moment single-pole is not available for USPP !!!",//)')
-#ifdef __MPI
+#if defined(__MPI)
       call mp_barrier( world_comm )
       call errore(" "," ", 100)
 #endif
@@ -1416,8 +1417,9 @@ contains
     ! Created by X.Ge in Jan. 2013
     !-------------------------------------------------------------------------------
     ! calculate the inner product between two wfcs
-    use kinds,          only : dp
-    use wvfct,                only : npwx, npw
+    use kinds,                only : dp
+    use wvfct,                only : npwx
+    use klist,                only : ngk
     use lr_dav_variables 
     use gvect,                only : gstart
     use mp_global,            only : intra_bgrp_comm
@@ -1429,10 +1431,10 @@ contains
     complex(dp) :: x(npwx), y (npwx)
     integer :: i
 
-    wfc_dot=2.D0*ddot(2*npw,x(:),1,y(:),1)
+    wfc_dot=2.D0*ddot(2*ngk(1),x(:),1,y(:),1)
     if(gstart==2) wfc_dot=wfc_dot-dble(x(1))*dble(y(1))
 
-#ifdef __MPI
+#if defined(__MPI)
     call mp_barrier(world_comm)
     call mp_sum(wfc_dot,intra_bgrp_comm)
 #endif
@@ -1470,9 +1472,9 @@ contains
     ! This routine initiate basis set with radom vectors
 
     use kinds,          only : dp
-    use wvfct,          only : g2kin,npwx,nbnd,et,npw
+    use wvfct,          only : g2kin,npwx,nbnd,et
     use gvect,          only : gstart
-    use klist,          only : nks
+    use klist,          only : nks, ngk
     use io_global,      only : stdout
     use uspp,           only : okvan
     use lr_variables,   only : evc0, sevc0
@@ -1486,7 +1488,7 @@ contains
     write(stdout,'(5x,"Preconditional random vectors are used as initial vectors ...")')
     do ib = 1, num_init
       do ibnd = 1, nbnd
-        do ipw = 1, npw
+        do ipw = 1, ngk(1)
           call random_number(R)
           call random_number(R2)
           !apply precondition
@@ -1642,7 +1644,7 @@ contains
     allocate(MRZ_temp(num_basis,2*num_eign))
     allocate(MM(2*num_eign,2*num_eign))
 
-#ifdef __MPI
+#if defined(__MPI)
     if(ionode) then
 #endif
     write(stdout,'(/5x,"!!!! The basis set is close to its maximum size, now discharge it",/5x,&
@@ -1680,7 +1682,7 @@ contains
     call DGEMM('N', 'N', num_basis, num_basis_new, 2*num_eign, 1.0D0, LR_M, num_basis, &
                U, 2*num_eign, 0.0D0, MR, num_basis)
 
-#ifdef __MPI
+#if defined(__MPI)
     ENDIF
     CALL mp_bcast (MR, ionode_id, world_comm)
     CALL mp_bcast (num_basis_new, ionode_id, world_comm)
@@ -1714,7 +1716,7 @@ contains
       enddo
     endif
 
-#ifdef __MPI
+#if defined(__MPI)
     if(ionode) then
 #endif
     ! Re-build M_D and M_C 
@@ -1732,7 +1734,7 @@ contains
     call ZGEMM('C', 'N', num_basis_new, num_basis_new, num_basis, (1.0D0,0.0D0), MRZ, num_basis,&
               MRZ_temp, num_basis, (0.0D0,0.0D0), M_C, num_basis_max)    
 
-#ifdef __MPI
+#if defined(__MPI)
     ENDIF
     CALL mp_bcast (M_D, ionode_id, world_comm)
     CALL mp_bcast (M_C, ionode_id, world_comm)
@@ -1804,7 +1806,7 @@ contains
 
     call lr_calc_R()       ! Calculate R
 
-#ifdef __MPI
+#if defined(__MPI)
     if(ionode) then
 #endif
     ! Print out Oscilation strength
@@ -1835,7 +1837,7 @@ contains
       write(18,'(5E20.8)') energy,totF,F1,F2,F3
       write(stdout,'(2I5,5E15.5)') iv,ic,energy,totF,F1,F2,F3
     enddo
-#ifdef __MPI
+#if defined(__MPI)
     endif
 #endif
 
@@ -1929,7 +1931,7 @@ contains
              (tau (jpol, na), jpol = 1, 3), ityp (na), na = 1, nat)
       endif
     
-#ifdef __MPI
+#if defined(__MPI)
       ALLOCATE (raux1( dfftp%nr1x * dfftp%nr2x * dfftp%nr3x))
       CALL gather_grid (dfftp, raux, raux1)
       IF ( ionode ) WRITE (iunplot, '(5(1pe17.9))') &
