@@ -17,6 +17,7 @@ MODULE exx
   !
   USE control_flags,        ONLY : gamma_only, tqr
   USE fft_types,            ONLY : fft_type_descriptor
+  USE task_groups,          ONLY : task_groups_descriptor
   !<<<
   USE stick_base,           ONLY : sticks_map, sticks_map_deallocate
   !>>>
@@ -167,6 +168,7 @@ MODULE exx
 
   TYPE(fft_type_descriptor) :: dfftp_loc, dffts_loc
   TYPE(fft_type_descriptor) :: dfftp_exx, dffts_exx
+  TYPE(task_groups_descriptor) :: dtsg_exx
   !<<<
   TYPE (sticks_map) :: smap_exx ! Stick map descriptor
   !>>>
@@ -1643,9 +1645,6 @@ MODULE exx
     USE wvfct,          ONLY : npwx, current_k, nbnd
     USE klist,          ONLY : xk, nks, nkstot
     USE fft_interfaces, ONLY : fwfft, invfft
-#if defined(__USE_3D_FFT) & defined(__DFTI)
-    USE fft_interfaces, ONLY : fwfftm, invfftm
-#endif
     USE becmod,         ONLY : bec_type
     USE mp_exx,       ONLY : inter_egrp_comm, intra_egrp_comm, my_egrp_id, &
                              negrp, max_pairs, egrp_pairs, ibands, nibands, &
@@ -1931,8 +1930,8 @@ MODULE exx
           !
           !   >>>> brings it to G-space
           CALL start_clock ('vexx_ffft')
-#if defined(__USE_3D_FFT) & defined(__DFTI)
-          CALL fwfftm ('Custom', rhoc, jcount, exx_fft%dfftt, is_exx=.TRUE.)
+#if defined(__USE_FFT_MANY)
+          CALL fwfft ('Custom', rhoc, exx_fft%dfftt, howmany=jcount, is_exx=.TRUE.)
 #else
           DO jbnd=jstart, jend
              CALL fwfft('Custom', rhoc(:,jbnd-jstart+1), exx_fft%dfftt, is_exx=.TRUE.)
@@ -1989,8 +1988,8 @@ MODULE exx
           !
           !brings back v in real space
           CALL start_clock ('vexx_ifft')
-#if defined(__USE_3D_FFT) & defined(__DFTI)
-          CALL invfftm ('Custom', vc, jcount, exx_fft%dfftt, is_exx=.TRUE.)
+#if defined(__USE_3D_FFT) & defined(__USE_FFT_MANY)
+          CALL invfft ('Custom', vc, exx_fft%dfftt, howmany=jcount, is_exx=.TRUE.)
 #else
           DO jbnd=jstart, jend
              CALL invfft('Custom', vc(:,jbnd-jstart+1), exx_fft%dfftt, is_exx=.TRUE.)
@@ -2677,9 +2676,9 @@ MODULE exx
     USE mp_bands,                ONLY : intra_bgrp_comm
     USE mp,                      ONLY : mp_sum
     USE fft_interfaces,          ONLY : fwfft, invfft
-#if defined(__USE_3D_FFT) & defined(__DFTI)
-    USE fft_interfaces,          ONLY : fwfftm, invfftm
-#endif
+!#if defined(__USE_3D_FFT) & defined(__DFTI)
+!    USE fft_interfaces,          ONLY : fwfftm, invfftm
+!#endif
     USE gvect,                   ONLY : ecutrho
     USE klist,                   ONLY : wk
     USE uspp,                    ONLY : okvan,nkb,vkb
@@ -2914,8 +2913,8 @@ MODULE exx
 				!
 				! bring rhoc to G-space
 				CALL start_clock ('exxenergy_ffft')
-#if defined(__USE_3D_FFT) & defined(__DFTI)
-          CALL fwfftm ('Custom', rhoc, ibnd_inner_count, exx_fft%dfftt, is_exx=.TRUE.)
+#if defined(__USE_3D_FFT) & defined(__USE_MANY_FFT)
+          CALL fwfft ('Custom', rhoc, exx_fft%dfftt, howmany=ibnd_inner_count, is_exx=.TRUE.)
 #else
           DO ibnd=ibnd_inner_start, ibnd_inner_end
              CALL fwfft('Custom', rhoc(:,ibnd-ibnd_inner_start+1), exx_fft%dfftt, is_exx=.TRUE.)

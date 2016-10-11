@@ -14,9 +14,9 @@ MODULE fft_interfaces
 
 
   PUBLIC :: fwfft, invfft
-#ifdef __USE_3D_FFT
-	PUBLIC :: fwfftm, invfftm
-#endif
+!#ifdef __USE_3D_FFT
+!	PUBLIC :: fwfftm, invfftm
+!#endif
   
   
   INTERFACE invfft
@@ -48,20 +48,22 @@ MODULE fft_interfaces
      END SUBROUTINE invfft_b
   END INTERFACE
 
-#ifdef __USE_3D_FFT
-  INTERFACE invfftm
- 	 !many version
-      SUBROUTINE invfft_xm( grid_type, f, howmany, dfft, is_exx )
-        USE fft_types,  ONLY: fft_dlay_descriptor
-        IMPLICIT NONE
-        INTEGER, PARAMETER :: DP = selected_real_kind(14,200)
-        CHARACTER(LEN=*),  INTENT(IN) :: grid_type
-        TYPE(fft_dlay_descriptor), INTENT(IN) :: dfft
-        COMPLEX(DP) :: f(:,:)
-        LOGICAL, OPTIONAL, INTENT(IN) :: is_exx
- 	   INTEGER, INTENT(IN) :: howmany
-      END SUBROUTINE invfft_xm
-  END INTERFACE
+#if defined(__USE_MANY_FFT) & defined(__USE_3D_FFT)
+    INTERFACE invfft
+        !many version
+        SUBROUTINE invfft_xm( grid_type, f, dfft, dtgs, howmany, is_exx )
+            USE fft_types,  ONLY: fft_type_descriptor
+            USE task_groups,   ONLY: task_groups_descriptor
+            IMPLICIT NONE
+            INTEGER, PARAMETER :: DP = selected_real_kind(14,200)
+            CHARACTER(LEN=*),  INTENT(IN) :: grid_type
+            TYPE(fft_type_descriptor), INTENT(IN) :: dfft
+            TYPE(task_groups_descriptor), OPTIONAL, INTENT(IN) :: dtgs
+            COMPLEX(DP) :: f(:,:)
+            LOGICAL, OPTIONAL, INTENT(IN) :: is_exx
+            INTEGER, OPTIONAL, INTENT(IN) :: howmany
+        END SUBROUTINE invfft_xm
+    END INTERFACE
 #endif
 
   INTERFACE fwfft
@@ -79,17 +81,19 @@ MODULE fft_interfaces
      END SUBROUTINE fwfft_x
   END INTERFACE
   
-#ifdef __USE_3D_FFT
-	INTERFACE fwfftm
-       SUBROUTINE fwfft_xm( grid_type, f, howmany, dfft, is_exx )
-         USE fft_types,  ONLY: fft_dlay_descriptor
+#if defined(__USE_MANY_FFT) & defined(__USE_3D_FFT)
+	INTERFACE fwfft
+       SUBROUTINE fwfft_xm( grid_type, f, dfft, dtgs, howmany, is_exx )
+         USE fft_types,  ONLY: fft_type_descriptor
+         USE task_groups,   ONLY: task_groups_descriptor
          IMPLICIT NONE
          INTEGER, PARAMETER :: DP = selected_real_kind(14,200)
          CHARACTER(LEN=*), INTENT(IN) :: grid_type
-         TYPE(fft_dlay_descriptor), INTENT(IN) :: dfft
+         TYPE(fft_type_descriptor), INTENT(IN) :: dfft
+         TYPE(task_groups_descriptor), OPTIONAL, INTENT(IN) :: dtgs
          COMPLEX(DP) :: f(:,:)
          LOGICAL, OPTIONAL, INTENT(IN) :: is_exx
-  	   	 INTEGER, INTENT(IN) :: howmany
+  	   	 INTEGER, OPTIONAL, INTENT(IN) :: howmany
        END SUBROUTINE fwfft_xm
 	END INTERFACE
 #endif
@@ -199,7 +203,7 @@ SUBROUTINE invfft_x( grid_type, f, dfft, dtgs, howmany, is_exx )
 
      ELSE
         CALL cfft3d( f, dfft%nr1, dfft%nr2, dfft%nr3, &
-             dfft%nr1x,dfft%nr2x,dfft%nr3x, 1)
+             dfft%nr1x,dfft%nr2x,dfft%nr3x, 1, 1)
      ENDIF
 #endif
 
@@ -235,8 +239,8 @@ END SUBROUTINE invfft_x
 !=---------------------------------------------------------------------------=!
 !
 !=---------------------------------------------------------------------------=!
-#if defined(__USE_3D_FFT) & defined(__DFTI)
-SUBROUTINE invfft_xm( grid_type, f, howmany, dfft, is_exx )
+#if defined(__USE_3D_FFT) & defined(__USE_MANY_FFT)
+SUBROUTINE invfft_xm( grid_type, f, dfft, dtgs, howmany, is_exx )
   !! Compute G-space to R-space for a specific grid type
   !! 
   !! **grid_type = 'Custom'** : 
@@ -251,16 +255,18 @@ SUBROUTINE invfft_xm( grid_type, f, howmany, dfft, is_exx )
   USE fft_scalar,    ONLY: cfft3dm
   USE fft_smallbox,  ONLY: cft_b, cft_b_omp
   USE fft_parallel,  ONLY: tg_cft3s
-  USE fft_types,     ONLY: fft_dlay_descriptor
+  USE fft_types,     ONLY: fft_type_descriptor
+  USE task_groups,   ONLY: task_groups_descriptor
 
   IMPLICIT NONE
 
   INTEGER, PARAMETER :: DP = selected_real_kind(14,200)
 
-  TYPE(fft_dlay_descriptor), INTENT(IN) :: dfft
+  TYPE(fft_type_descriptor), INTENT(IN) :: dfft
   CHARACTER(LEN=*), INTENT(IN) :: grid_type
   COMPLEX(DP) :: f(:)
   LOGICAL, OPTIONAL, INTENT(IN) :: is_exx
+  TYPE(task_groups_descriptor), OPTIONAL, INTENT(IN) :: dtgs
   INTEGER, INTENT(IN) :: howmany
   LOGICAL :: is_exx_
   IF( present( is_exx ) ) THEN
@@ -275,13 +281,8 @@ SUBROUTINE invfft_xm( grid_type, f, howmany, dfft, is_exx )
      CALL fftx_error__( ' invfft ', ' unknown grid: '//grid_type , 1 )
   END IF
 
-#if !defined __USE_3D_FFT
-#error Unsupported Option
-#else
-
      CALL cfft3dm( f, dfft%nr1, dfft%nr2, dfft%nr3, &
                      dfft%nr1x,dfft%nr2x,dfft%nr3x, howmany, 1)
-#endif
 
   CALL stop_clock('fftcm')
 
@@ -387,13 +388,13 @@ SUBROUTINE fwfft_x( grid_type, f, dfft, dtgs, howmany, is_exx )
          grid_type == 'Custom' ) THEN
        CALL tg_cft3s( f, dfft, -1, is_exx=is_exx_ )
     ELSE IF( grid_type == 'Wave' .OR. grid_type == 'CustomWave' ) THEN
-       CALL tg_cft3s( f, dfft, -2, dfft%have_task_groups, is_exx=Is_exx_ )
+       CALL tg_cft3s( f, dfft, -2, dtgs, is_exx=Is_exx_ )
     END IF
 
  ELSE
 
      CALL cfft3d( f, dfft%nr1, dfft%nr2, dfft%nr3, &
-                     dfft%nr1x,dfft%nr2x,dfft%nr3x, -1)
+                     dfft%nr1x,dfft%nr2x,dfft%nr3x, 1, -1)
   ENDIF
 #endif
 
@@ -429,8 +430,8 @@ END SUBROUTINE fwfft_x
 !=---------------------------------------------------------------------------=!
 !
 !=---------------------------------------------------------------------------=!
-#if defined(__USE_3D_FFT) & defined(__DFTI)
-SUBROUTINE fwfft_xm( grid_type, f, howmany, dfft, is_exx )
+#if defined(__USE_3D_FFT) & defined(__USE_MANY_FFT)
+SUBROUTINE fwfft_xm( grid_type, f, dfft, dtgs, howmany, is_exx )
   !! Compute R-space to G-space for a specific grid type
   !! 
   !! **grid_type = 'Custom'**
@@ -444,17 +445,19 @@ SUBROUTINE fwfft_xm( grid_type, f, howmany, dfft, is_exx )
   
   USE fft_scalar,    ONLY: cfft3dm
   USE fft_parallel,  ONLY: tg_cft3s
-  USE fft_types,     ONLY: fft_dlay_descriptor
+  USE fft_types,     ONLY: fft_type_descriptor
+  USE task_groups,   ONLY: task_groups_descriptor
 
   IMPLICIT NONE
 
   INTEGER, PARAMETER :: DP = selected_real_kind(14,200)
 
-  TYPE(fft_dlay_descriptor), INTENT(IN) :: dfft
+  TYPE(fft_type_descriptor), INTENT(IN) :: dfft
   CHARACTER(LEN=*), INTENT(IN) :: grid_type
   COMPLEX(DP) :: f(:)
+  TYPE(task_groups_descriptor), OPTIONAL, INTENT(IN) :: dtgs
   LOGICAL, OPTIONAL, INTENT(IN) :: is_exx
-  INTEGER, INTENT(IN) :: howmany
+  INTEGER, OPTIONAL, INTENT(IN) :: howmany
   LOGICAL :: is_exx_
   IF( present(is_exx) ) THEN
      is_exx_ = is_exx
@@ -468,13 +471,9 @@ SUBROUTINE fwfft_xm( grid_type, f, howmany, dfft, is_exx )
      CALL fftx_error__( ' fwfft ', ' unknown grid: '//grid_type , 1 )
   END IF
 
-#if !defined(__USE_3D_FFT)
-#error Unsupported Option
-#else 
 
      CALL cfft3dm( f, dfft%nr1, dfft%nr2, dfft%nr3, &
                      dfft%nr1x,dfft%nr2x,dfft%nr3x, howmany, -1)
-#endif
 
   CALL stop_clock('fftc')
 
