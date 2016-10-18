@@ -146,6 +146,8 @@ MODULE exx
   INTEGER, ALLOCATABLE :: mill_loc(:,:), nl_loc(:)
   INTEGER :: ngms_loc, ngms_g_loc
   INTEGER, ALLOCATABLE :: nls_loc(:)
+  INTEGER, ALLOCATABLE :: nlm_loc(:)
+  INTEGER, ALLOCATABLE :: nlsm_loc(:)
 
   !gcutm
   INTEGER :: ngm_exx, ngm_g_exx, gstart_exx
@@ -154,6 +156,8 @@ MODULE exx
   INTEGER, ALLOCATABLE :: mill_exx(:,:), nl_exx(:)
   INTEGER :: ngms_exx, ngms_g_exx
   INTEGER, ALLOCATABLE :: nls_exx(:)
+  INTEGER, ALLOCATABLE :: nlm_exx(:)
+  INTEGER, ALLOCATABLE :: nlsm_exx(:)
   !gcutms
 
   !the coulomb factor is reused between iterations
@@ -2367,7 +2371,8 @@ MODULE exx
     USE klist,                   ONLY : xk, ngk, nks, nkstot
     USE lsda_mod,                ONLY : lsda, current_spin, isk
     USE mp_pools,                ONLY : inter_pool_comm
-    USE mp_exx,                  ONLY : inter_egrp_comm, intra_egrp_comm, negrp
+    USE mp_exx,                  ONLY : inter_egrp_comm, intra_egrp_comm, negrp, &
+                                        init_index_over_band
     USE mp,                      ONLY : mp_sum
     USE fft_interfaces,          ONLY : fwfft, invfft
     USE gvect,                   ONLY : ecutrho
@@ -2405,6 +2410,9 @@ MODULE exx
     LOGICAL :: l_fft_doubleband
     LOGICAL :: l_fft_singleband
     INTEGER :: jmax, npw
+    !
+    CALL init_index_over_band(inter_egrp_comm,nbnd,nbnd)
+    !
     CALL transform_evc_to_exx()
     !
     nrxxs= exx_fft%dfftt%nnr
@@ -4340,9 +4348,9 @@ END SUBROUTINE compute_becpsi
     USE cell_base,      ONLY : at, bg, tpiba2
     USE cellmd,         ONLY : lmovecell
     USE wvfct,          ONLY : npwx
-    USE gvect,          ONLY : gcutm, ig_l2g, g, gg, nl, ngm, ngm_g, mill, &
+    USE gvect,          ONLY : gcutm, ig_l2g, g, gg, nl, nlm, ngm, ngm_g, mill, &
                                gstart, gvect_init, deallocate_gvect_exx
-    USE gvecs,          ONLY : gcutms, ngms, ngms_g, nls, gvecs_init, &
+    USE gvecs,          ONLY : gcutms, ngms, ngms_g, nls, nlsm, gvecs_init, &
                                deallocate_gvecs
     USE gvecw,          ONLY : gkcut, ecutwfc, gcutw
     USE klist,          ONLY : xk, nks, ngk
@@ -4377,12 +4385,16 @@ END SUBROUTINE compute_becpsi
        allocate( ig_l2g_loc(ngm), g_loc(3,ngm), gg_loc(ngm) )
        allocate( mill_loc(3,ngm), nl_loc(ngm) )
        allocate( nls_loc(ngms) )
+       allocate( nlm_loc(size(nlm)) )
+       allocate( nlsm_loc(size(nlsm)) )
        ig_l2g_loc = ig_l2g
        g_loc = g
        gg_loc = gg
        mill_loc = mill
        nl_loc = nl
        nls_loc = nls
+       nlm_loc = nlm
+       nlsm_loc = nlsm
        ngm_loc = ngm
        ngm_g_loc = ngm_g
        gstart_loc = gstart
@@ -4442,12 +4454,16 @@ END SUBROUTINE compute_becpsi
        allocate( ig_l2g_exx(ngm), g_exx(3,ngm), gg_exx(ngm) )
        allocate( mill_exx(3,ngm), nl_exx(ngm) )
        allocate( nls_exx(ngms) )
+       allocate( nlm_exx(size(nlm) ) )
+       allocate( nlsm_exx(size(nlm) ) )
        ig_l2g_exx = ig_l2g
        g_exx = g
        gg_exx = gg
        mill_exx = mill
        nl_exx = nl
        nls_exx = nls
+       nlm_exx = nlm
+       nlsm_exx = nlsm
        ngm_exx = ngm
        ngm_g_exx = ngm_g
        gstart_exx = gstart
@@ -4460,6 +4476,8 @@ END SUBROUTINE compute_becpsi
        mill = mill_exx
        nl = nl_exx
        nls = nls_exx
+       nlm = nlm_exx
+       nlsm = nlsm_exx
        ngm = ngm_exx
        ngm_g = ngm_g_exx
        gstart = gstart_exx
@@ -4472,6 +4490,8 @@ END SUBROUTINE compute_becpsi
        mill = mill_loc
        nl = nl_loc
        nls = nls_loc
+       nlm = nlm_loc
+       nlsm = nlsm_loc
        ngm = ngm_loc
        ngm_g = ngm_g_loc
        gstart = gstart_loc
