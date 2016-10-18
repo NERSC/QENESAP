@@ -17,9 +17,7 @@ MODULE exx
   !
   USE control_flags,        ONLY : gamma_only, tqr
   USE fft_types,            ONLY : fft_type_descriptor
-  !<<<
   USE stick_base,           ONLY : sticks_map, sticks_map_deallocate
-  !>>>
   !
   IMPLICIT NONE
   SAVE
@@ -50,11 +48,9 @@ MODULE exx
   INTEGER :: ibnd_end = 0                ! ending band index used in bgrp parallelization
 
   COMPLEX(DP), ALLOCATABLE :: exxbuff(:,:,:)
-  !<<<
   COMPLEX(DP), ALLOCATABLE :: xi(:,:,:)
   INTEGER :: nbndproj
   LOGICAL :: domat
-  !>>>
 !DIR$ ATTRIBUTES FASTMEM :: exxbuff
                                          ! temporary buffer for wfc storage
   !
@@ -167,9 +163,7 @@ MODULE exx
 
   TYPE(fft_type_descriptor) :: dfftp_loc, dffts_loc
   TYPE(fft_type_descriptor) :: dfftp_exx, dffts_exx
-  !<<<
   TYPE (sticks_map) :: smap_exx ! Stick map descriptor
-  !>>>
   INTEGER :: ngw_loc, ngs_loc
   INTEGER :: ngw_exx, ngs_exx
 
@@ -185,9 +179,6 @@ MODULE exx
     USE cell_base,    ONLY : at, bg, tpiba2
     USE fft_custom,   ONLY : set_custom_grid, ggent
     USE mp_exx,       ONLY : use_old_exx
-    !<<<
-    !USE grid_subroutines,   ONLY : realspace_grid_init
-    !>>>
 
     IMPLICIT NONE
 
@@ -212,16 +203,9 @@ MODULE exx
     END IF
     !
     exx_fft%gcutmt = exx_fft%dual_t*exx_fft%ecutt / tpiba2
-    !<<<
-    !CALL realspace_grid_init(exx_fft%dfftt, at, bg, exx_fft%gcutmt)
     CALL data_structure_custom(exx_fft, smap_exx, gamma_only)
-    !>>>
     CALL ggent(exx_fft, is_exx=.true.)
     exx_fft%initialized = .true.
-    !<<<
-    !WARNING: MIGHT CAUSE TASK GROUPS TO FAIL
-    !exx_fft%dfftt%have_task_groups = .FALSE.
-    !>>>
     !
     RETURN
     !------------------------------------------------------------------------
@@ -333,10 +317,7 @@ MODULE exx
     !
     ALLOCATE(xk_collect(3,nkstot))
     xk_collect(:,1:nks) = xk(:,1:nks)
-    !<<<
     CALL poolcollect(3, nks, xk, nkstot, xk_collect)
-    !CALL poolcollect(xk_collect, 3, nkstot, nks)
-    !>>>
     !
     ! set a safe limit as the maximum number of auxiliary points we may need
     ! and allocate auxiliary arrays
@@ -708,9 +689,7 @@ MODULE exx
     INTEGER :: h_ibnd
     INTEGER :: ibnd_loop_start, ibnd_buff_start, ibnd_buff_end
     INTEGER :: ipol, jpol
-    !<<<
     REAL(dp), ALLOCATABLE   :: occ(:,:)
-    !>>>
     COMPLEX(DP),ALLOCATABLE :: temppsic(:)
 !DIR$ ATTRIBUTES FASTMEM :: temppsic
     COMPLEX(DP),ALLOCATABLE :: temppsic_nc(:,:), psic_nc(:,:)
@@ -779,15 +758,6 @@ MODULE exx
 
     ! set occupations of wavefunctions used in the calculation of exchange term
 
-    !<<<
-    !DO ik =1,nks
-    !   IF(ABS(wk(ik)) > eps_occ ) THEN
-    !      x_occupation(1:nbnd,ik) = wg (1:nbnd, ik) / wk(ik)
-    !   ELSE
-    !      x_occupation(1:nbnd,ik) = 0._dp
-    !   ENDIF
-    !ENDDO
-    !CALL poolcollect(x_occupation, nbnd, nkstot, nks)
     ALLOCATE ( occ(nbnd,nks) )
     DO ik =1,nks
        IF(abs(wk(ik)) > eps_occ ) THEN
@@ -798,7 +768,6 @@ MODULE exx
     ENDDO
     CALL poolcollect(nbnd, nks, occ, nkstot, x_occupation)
     DEALLOCATE ( occ )
-    !>>>
 
     ! find an upper bound to the number of bands with non zero occupation.
     ! Useful to distribute bands among band groups
@@ -853,10 +822,7 @@ MODULE exx
        ! ik         = index of k-point in this pool
        ! current_ik = index of k-point over all pools
        !
-       !<<<
-       !current_ik=find_current_k(ik, nkstot, nks)
        current_ik = global_kpoint_index ( nkstot, ik )
-       !>>>
        !
        IF_GAMMA_ONLY : & 
        IF (gamma_only) THEN
@@ -1073,11 +1039,10 @@ MODULE exx
     !
     CALL change_data_structure(.FALSE.)
     CALL stop_clock ('exxinit')  
-!<<<
+    !
 #if defined(__EXX_ACE)
     CALL aceinit ( )
 #endif
-!>>>
     !
     !-----------------------------------------------------------------------
   END SUBROUTINE exxinit
@@ -1411,10 +1376,7 @@ MODULE exx
     ALLOCATE(rhoc(nrxxs), vc(nrxxs))
     IF(okvan) ALLOCATE(deexx(nkb))
     !
-    !<<<
-    !current_ik=find_current_k(current_k,nkstot,nks)
     current_ik = global_kpoint_index ( nkstot, current_k )
-    !>>>
     xkp = xk(:,current_k)
     !
     ! Here the loops start
@@ -1714,10 +1676,7 @@ MODULE exx
     !
     IF(okvan) ALLOCATE(deexx(nkb,ialloc))
     !
-    !<<<
-    !current_ik=find_current_k(current_k,nkstot,nks)
     current_ik = global_kpoint_index ( nkstot, current_k )
-    !>>>
     xkp = xk(:,current_k)
     !
     allocate(big_result(n,m))
@@ -2461,10 +2420,7 @@ MODULE exx
     !
     IKK_LOOP : &
     DO ikk=1,nks
-       !<<<
-       !current_ik=find_current_k(ikk,nkstot,nks)
        current_ik = global_kpoint_index ( nkstot, ikk )
-       !>>>
        xkp = xk(:,ikk)
        !
        IF ( lsda ) current_spin = isk(ikk)
@@ -2748,10 +2704,7 @@ MODULE exx
        !
        CALL start_clock ('energy_ikk1')
        !
-       !<<<
-       !current_ik=find_current_k(ikk,nkstot,nks)
        current_ik = global_kpoint_index ( nkstot, ikk )
-       !>>>
        xkp = xk(:,ikk)
        !
        IF ( lsda ) current_spin = isk(ikk)
@@ -3171,6 +3124,8 @@ MODULE exx
     END IF
   
     CALL start_clock ('exx_stress')
+    
+    CALL change_data_structure(.TRUE.)
 
     IF (npool>1) CALL errore('exx_stress','stress not available with pools',1)
     IF (noncolin) CALL errore('exx_stress','noncolinear stress not implemented',1)
@@ -3200,7 +3155,7 @@ MODULE exx
             temppsic(:) = ( 0._dp, 0._dp )
 !$omp parallel do default(shared), private(ig)
             DO ig = 1, npw
-                temppsic(exx_fft%nlt(igk_exx(ig,ikk))) = evc(ig,jbnd)
+                temppsic(exx_fft%nlt(igk_exx(ig,ikk))) = evc_exx(ig,jbnd)
             ENDDO
 !$omp end parallel do
             !
@@ -3208,7 +3163,7 @@ MODULE exx
 !$omp parallel do default(shared), private(ig)
                 DO ig = 1, npw
                     temppsic(exx_fft%nltm(igk_exx(ig,ikk))) = &
-                         conjg(evc(ig,jbnd))
+                         conjg(evc_exx(ig,jbnd))
                 ENDDO
 !$omp end parallel do
             ENDIF
@@ -3235,9 +3190,9 @@ MODULE exx
 
 !$omp parallel do default(shared), private(ig, beta, q, qq, on_double_grid, x)
                 DO ig = 1, ngm
-                  q(1)= xk(1,current_k) - xkq(1) + g(1,ig)
-                  q(2)= xk(2,current_k) - xkq(2) + g(2,ig)
-                  q(3)= xk(3,current_k) - xkq(3) + g(3,ig)
+                  q(1)= xk(1,current_k) - xkq(1) + g_exx(1,ig)
+                  q(2)= xk(2,current_k) - xkq(2) + g_exx(2,ig)
+                  q(3)= xk(3,current_k) - xkq(3) + g_exx(3,ig)
 
                   q = q * tpiba
                   qq = ( q(1)*q(1) + q(2)*q(2) + q(3)*q(3) )
@@ -3410,6 +3365,8 @@ MODULE exx
     CALL mp_sum( exx_stress_, inter_egrp_comm )
     CALL mp_sum( exx_stress_, inter_pool_comm )
     exx_stress = exx_stress_
+
+    CALL change_data_structure(.FALSE.)
 
     CALL stop_clock ('exx_stress')
     !-----------------------------------------------------------------------
@@ -3775,10 +3732,7 @@ END SUBROUTINE compute_becpsi
     !
     ! determine the mapping between the local and EXX data structures
     !
-    !<<<
-    !USE wvfct,          ONLY : npwx, igk, nbnd
     USE wvfct,          ONLY : npwx, nbnd
-    !>>>
     USE klist,          ONLY : nks, igk_k
     USE mp_exx,         ONLY : nproc_egrp, negrp, my_egrp_id, me_egrp, &
                                intra_egrp_comm, inter_egrp_comm, &
@@ -3832,9 +3786,6 @@ END SUBROUTINE compute_becpsi
     ! construct the local map
     !
     lda_local = 0
-    !<<<
-    !IF ( nks.eq.1 ) igk_loc = igk
-    !>>>
     DO ik = 1, nks
        igk_loc = igk_k(:,ik)
        n = 0
@@ -4413,13 +4364,11 @@ END SUBROUTINE compute_becpsi
     INTEGER :: ik, i
     INTEGER :: ngm_, ngs_, ngw_
     LOGICAL exst
-    !<<<
 #if defined (__MPI) && !defined (__USE_3D_FFT)                                             
   LOGICAL :: lpara = .true.
 #else
   LOGICAL :: lpara = .false.
 #endif
-    !>>>
     !
     IF (negrp.eq.1) RETURN
     CALL start_clock ('cds')
@@ -4448,19 +4397,12 @@ END SUBROUTINE compute_becpsi
        IF(first_data_structure_change)THEN
           dfftp_loc = dfftp
           dffts_loc = dffts
-          !<<<
-          !CALL pstickset( gamma_only, bg, gcutm, gkcut, gcutms, &
-          !     dfftp, dffts, ngw_ , ngm_ , ngs_ , me_egrp, &
-          !     root_egrp, nproc_egrp, intra_egrp_comm, 1, ionode, &
-          !     stdout, exx_mode = 1 )
-
 
           CALL fft_type_init( dffts_exx, smap_exx, "wave", gamma_only, &
                lpara, intra_egrp_comm, at, bg, gkcut, gcutms/gkcut, &
                ntask_groups )
           CALL fft_type_init( dfftp_exx, smap_exx, "rho", gamma_only, &
                lpara, intra_egrp_comm, at, bg,  gcutm )
-          !CALL task_groups_init( dffts, dtgs, ntask_groups )
           CALL fft_base_info( ionode, stdout )
           ngs_ = dffts_exx%ngl( dffts_exx%mype + 1 )
           ngm_ = dfftp_exx%ngl( dfftp_exx%mype + 1 )
@@ -4470,9 +4412,6 @@ END SUBROUTINE compute_becpsi
           END IF
           dfftp = dfftp_exx
           dffts = dffts_exx
-          !dfftp_exx = dfftp
-          !dffts_exx = dffts
-          !>>>
           ngm = ngm_
           ngms = ngs_
        ELSE
