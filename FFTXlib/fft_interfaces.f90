@@ -14,9 +14,9 @@ MODULE fft_interfaces
 
 
   PUBLIC :: fwfft, invfft
-!#ifdef __USE_3D_FFT
-!	PUBLIC :: fwfftm, invfftm
-!#endif
+#if defined(__USE_3D_FFT) & defined(__USE_MANY_FFT)
+	PUBLIC :: fwfftm, invfftm
+#endif
   
   
   INTERFACE invfft
@@ -49,7 +49,7 @@ MODULE fft_interfaces
   END INTERFACE
 
 #if defined(__USE_MANY_FFT) & defined(__USE_3D_FFT)
-    INTERFACE invfft
+    INTERFACE invfftm
         !many version
         SUBROUTINE invfft_xm( grid_type, f, dfft, dtgs, howmany, is_exx )
             USE fft_types,  ONLY: fft_type_descriptor
@@ -82,7 +82,7 @@ MODULE fft_interfaces
   END INTERFACE
   
 #if defined(__USE_MANY_FFT) & defined(__USE_3D_FFT)
-	INTERFACE fwfft
+	INTERFACE fwfftm
        SUBROUTINE fwfft_xm( grid_type, f, dfft, dtgs, howmany, is_exx )
          USE fft_types,  ONLY: fft_type_descriptor
          USE task_groups,   ONLY: task_groups_descriptor
@@ -181,8 +181,7 @@ SUBROUTINE invfft_x( grid_type, f, dfft, dtgs, howmany, is_exx )
 ! pcarrier@cray.com CHANGED: simplified syntax, and added is_exx syntax for USE_3D_FFT
 #if defined(__MPI) && !defined(__USE_3D_FFT)
      
-     IF( grid_type == 'Dense' .OR. grid_type == 'Smooth' .OR. &
-          grid_type == 'Custom' ) THEN
+     IF( grid_type == 'Dense' .OR. grid_type == 'Smooth' .OR. grid_type == 'Custom' ) THEN
         CALL tg_cft3s( f, dfft, 1, is_exx=is_exx_ )
      ELSE IF( grid_type == 'Wave' .OR. grid_type == 'CustomWave' ) THEN
         CALL tg_cft3s( f, dfft, 2, dtgs, is_exx=Is_exx_ )
@@ -194,8 +193,7 @@ SUBROUTINE invfft_x( grid_type, f, dfft, dtgs, howmany, is_exx )
 
      IF ( .NOT. is_exx_ ) THEN
 
-        IF( grid_type == 'Dense' .OR. grid_type == 'Smooth' .OR. &
-             grid_type == 'Custom' ) THEN
+        IF( grid_type == 'Dense' .OR. grid_type == 'Smooth' .OR. grid_type == 'Custom' ) THEN
            CALL tg_cft3s( f, dfft, 1, is_exx=is_exx_ )
         ELSE IF( grid_type == 'Wave' .OR. grid_type == 'CustomWave' ) THEN
            CALL tg_cft3s( f, dfft, 2, dtgs, is_exx=Is_exx_ )
@@ -371,8 +369,7 @@ SUBROUTINE fwfft_x( grid_type, f, dfft, dtgs, howmany, is_exx )
 ! pcarrier@cray.com CHANGED: simplified syntax, and added is_exx syntax for USE_3D_FFT
 #if defined(__MPI) && !defined(__USE_3D_FFT)
      
-     IF( grid_type == 'Dense' .OR. grid_type == 'Smooth' .OR. &
-          grid_type == 'Custom' ) THEN
+     IF( grid_type == 'Dense' .OR. grid_type == 'Smooth' .OR. grid_type == 'Custom' ) THEN
         CALL tg_cft3s( f, dfft, -1, is_exx=is_exx_ )
      ELSE IF( grid_type == 'Wave' .OR. grid_type == 'CustomWave' ) THEN
         CALL tg_cft3s( f, dfft, -2, dtgs, is_exx=Is_exx_ )
@@ -384,8 +381,7 @@ SUBROUTINE fwfft_x( grid_type, f, dfft, dtgs, howmany, is_exx )
 
   IF ( .NOT. is_exx_ ) THEN
 
-    IF( grid_type == 'Dense' .OR. grid_type == 'Smooth' .OR. &
-         grid_type == 'Custom' ) THEN
+    IF( grid_type == 'Dense' .OR. grid_type == 'Smooth' .OR. grid_type == 'Custom' ) THEN
        CALL tg_cft3s( f, dfft, -1, is_exx=is_exx_ )
     ELSE IF( grid_type == 'Wave' .OR. grid_type == 'CustomWave' ) THEN
        CALL tg_cft3s( f, dfft, -2, dtgs, is_exx=Is_exx_ )

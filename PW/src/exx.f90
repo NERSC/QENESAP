@@ -56,7 +56,7 @@ MODULE exx
   INTEGER :: nbndproj
   LOGICAL :: domat
   !>>>
-!DIR$ ATTRIBUTES FASTMEM :: exxbuff
+!!DIR$ ATTRIBUTES FASTMEM :: exxbuff
                                          ! temporary buffer for wfc storage
   !
   !
@@ -714,7 +714,7 @@ MODULE exx
     REAL(dp), ALLOCATABLE   :: occ(:,:)
     !>>>
     COMPLEX(DP),ALLOCATABLE :: temppsic(:)
-!DIR$ ATTRIBUTES FASTMEM :: temppsic
+!!DIR$ ATTRIBUTES FASTMEM :: temppsic
     COMPLEX(DP),ALLOCATABLE :: temppsic_nc(:,:), psic_nc(:,:)
     INTEGER :: nxxs, nrxxs
 #ifdef __MPI
@@ -1672,12 +1672,12 @@ MODULE exx
     !
     ! local variables
     COMPLEX(DP),ALLOCATABLE :: temppsic(:,:), result(:,:)
-!DIR$ ATTRIBUTES FASTMEM :: result
+!!DIR$ ATTRIBUTES FASTMEM :: result
     COMPLEX(DP),ALLOCATABLE :: temppsic_nc(:,:,:),result_nc(:,:,:)
     INTEGER          :: request_send, request_recv
     !
     COMPLEX(DP),ALLOCATABLE :: rhoc(:,:), vc(:,:), deexx(:,:)
-!DIR$ ATTRIBUTES FASTMEM :: rhoc, vc
+!!DIR$ ATTRIBUTES FASTMEM :: rhoc, vc
     REAL(DP),   ALLOCATABLE :: fac(:), facb(:)
     INTEGER          :: ibnd, ik, im , ikq, iq, ipol
     INTEGER          :: ir, ig, ir_start, ir_end
@@ -1989,7 +1989,7 @@ MODULE exx
           !brings back v in real space
           CALL start_clock ('vexx_ifft')
 #if defined(__USE_3D_FFT) & defined(__USE_FFT_MANY)
-          CALL invfft ('Custom', vc, exx_fft%dfftt, howmany=jcount, is_exx=.TRUE.)
+          CALL invfftm ('Custom', vc, exx_fft%dfftt, howmany=jcount, is_exx=.TRUE.)
 #else
           DO jbnd=jstart, jend
              CALL invfft('Custom', vc(:,jbnd-jstart+1), exx_fft%dfftt, is_exx=.TRUE.)
@@ -2676,9 +2676,9 @@ MODULE exx
     USE mp_bands,                ONLY : intra_bgrp_comm
     USE mp,                      ONLY : mp_sum
     USE fft_interfaces,          ONLY : fwfft, invfft
-!#if defined(__USE_3D_FFT) & defined(__DFTI)
-!    USE fft_interfaces,          ONLY : fwfftm, invfftm
-!#endif
+#if defined(__USE_3D_FFT) & defined(__USE_MANY_FFT)
+    USE fft_interfaces,          ONLY : fwfftm, invfftm
+#endif
     USE gvect,                   ONLY : ecutrho
     USE klist,                   ONLY : wk
     USE uspp,                    ONLY : okvan,nkb,vkb
@@ -2914,7 +2914,7 @@ MODULE exx
 				! bring rhoc to G-space
 				CALL start_clock ('exxenergy_ffft')
 #if defined(__USE_3D_FFT) & defined(__USE_MANY_FFT)
-          CALL fwfft ('Custom', rhoc, exx_fft%dfftt, howmany=ibnd_inner_count, is_exx=.TRUE.)
+          CALL fwfftm ('Custom', rhoc, exx_fft%dfftt, howmany=ibnd_inner_count, is_exx=.TRUE.)
 #else
           DO ibnd=ibnd_inner_start, ibnd_inner_end
              CALL fwfft('Custom', rhoc(:,ibnd-ibnd_inner_start+1), exx_fft%dfftt, is_exx=.TRUE.)
