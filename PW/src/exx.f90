@@ -51,7 +51,12 @@ MODULE exx
   COMPLEX(DP), ALLOCATABLE :: xi(:,:,:)
   INTEGER :: nbndproj
   LOGICAL :: domat
+#if defined(__USE_INTEL_HBM_DIRECTIVES)
 !DIR$ ATTRIBUTES FASTMEM :: exxbuff
+#elif defined(__USE_CRAY_HBM_DIRECTIVES)
+!DIR$ memory(bandwidth) exxbuff
+#endif
+
                                          ! temporary buffer for wfc storage
   !
   !
@@ -695,7 +700,11 @@ MODULE exx
     INTEGER :: ipol, jpol
     REAL(dp), ALLOCATABLE   :: occ(:,:)
     COMPLEX(DP),ALLOCATABLE :: temppsic(:)
+#if defined(__USE_INTEL_HBM_DIRECTIVES)
 !DIR$ ATTRIBUTES FASTMEM :: temppsic
+#elif defined(__USE_CRAY_HBM_DIRECTIVES)
+!DIR$ memory(bandwidth) temppsic
+#endif
     COMPLEX(DP),ALLOCATABLE :: temppsic_nc(:,:), psic_nc(:,:)
     INTEGER :: nxxs, nrxxs
 #ifdef __MPI
@@ -1676,9 +1685,6 @@ MODULE exx
     USE wvfct,          ONLY : npwx, current_k, nbnd
     USE klist,          ONLY : xk, nks, nkstot
     USE fft_interfaces, ONLY : fwfft, invfft
-#if defined(__USE_3D_FFT) & defined(__DFTI)
-    USE fft_interfaces, ONLY : fwfftm, invfftm
-#endif
     USE becmod,         ONLY : bec_type
     USE mp_exx,       ONLY : inter_egrp_comm, intra_egrp_comm, my_egrp_id, &
                              negrp, max_pairs, egrp_pairs, ibands, nibands, &
@@ -1706,12 +1712,22 @@ MODULE exx
     !
     ! local variables
     COMPLEX(DP),ALLOCATABLE :: temppsic(:,:), result(:,:)
+#if defined(__USE_INTEL_HBM_DIRECTIVES)
 !DIR$ ATTRIBUTES FASTMEM :: result
+#elif defined(__USE_CRAY_HBM_DIRECTIVES)
+!DIR$ memory(bandwidth) result
+#endif
     COMPLEX(DP),ALLOCATABLE :: temppsic_nc(:,:,:),result_nc(:,:,:)
     INTEGER          :: request_send, request_recv
     !
-    COMPLEX(DP),ALLOCATABLE :: rhoc(:,:), vc(:,:), deexx(:,:)
+	COMPLEX(DP),ALLOCATABLE :: deexx(:,:)
+    COMPLEX(DP),ALLOCATABLE,TARGET :: rhoc(:,:), vc(:,:)
+	COMPLEX(DP),POINTER :: prhoc(:), pvc(:)
+#if defined(__USE_INTEL_HBM_DIRECTIVES)
 !DIR$ ATTRIBUTES FASTMEM :: rhoc, vc
+#elif defined(__USE_CRAY_HBM_DIRECTIVES)
+!DIR$ memory(bandwidth) rhoc, vc
+#endif
     REAL(DP),   ALLOCATABLE :: fac(:), facb(:)
     INTEGER          :: ibnd, ik, im , ikq, iq, ipol
     INTEGER          :: ir, ig, ir_start, ir_end
@@ -1755,6 +1771,8 @@ MODULE exx
     !
     !allocate arrays for rhoc and vc
     ALLOCATE(rhoc(nrxxs,nbnd), vc(nrxxs,nbnd))
+	prhoc(1:nrxxs*nbnd) => rhoc(:,:)
+	pvc(1:nrxxs*nbnd) => vc(:,:)
     !
     CALL stop_clock ('vexx_init')
     !
@@ -1860,10 +1878,6 @@ MODULE exx
           !
 
 
-
-
-
-
     njt = nbnd / jblock
     if (mod(nbnd, jblock) .ne. 0) njt = njt + 1
     !
@@ -1905,9 +1919,6 @@ MODULE exx
        !----------------------------------------------------------------------!
 
 
-
-
-         
           !
           !loads the phi from file
           !
@@ -1961,8 +1972,8 @@ MODULE exx
           !
           !   >>>> brings it to G-space
           CALL start_clock ('vexx_ffft')
-#if defined(__USE_3D_FFT) & defined(__DFTI)
-          CALL fwfftm ('Custom', rhoc, jcount, exx_fft%dfftt, is_exx=.TRUE.)
+#if defined(__USE_3D_FFT) & defined(__USE_MANY_FFT)
+          CALL fwfft ('Custom', prhoc, exx_fft%dfftt, howmany=jcount, is_exx=.TRUE.)
 #else
           DO jbnd=jstart, jend
              CALL fwfft('Custom', rhoc(:,jbnd-jstart+1), exx_fft%dfftt, is_exx=.TRUE.)
@@ -2019,8 +2030,8 @@ MODULE exx
           !
           !brings back v in real space
           CALL start_clock ('vexx_ifft')
-#if defined(__USE_3D_FFT) & defined(__DFTI)
-          CALL invfftm ('Custom', vc, jcount, exx_fft%dfftt, is_exx=.TRUE.)
+#if defined(__USE_3D_FFT) & defined(__USE_MANY_FFT)
+          CALL invfft ('Custom', pvc, exx_fft%dfftt, howmany=jcount, is_exx=.TRUE.)
 #else
           DO jbnd=jstart, jend
              CALL invfft('Custom', vc(:,jbnd-jstart+1), exx_fft%dfftt, is_exx=.TRUE.)
@@ -2731,9 +2742,9 @@ MODULE exx
     USE mp_bands,                ONLY : intra_bgrp_comm
     USE mp,                      ONLY : mp_sum
     USE fft_interfaces,          ONLY : fwfft, invfft
-#if defined(__USE_3D_FFT) & defined(__DFTI)
-    USE fft_interfaces,          ONLY : fwfftm, invfftm
-#endif
+!#if defined(__USE_3D_FFT) & defined(__USE_MANY_FFT)
+!    USE fft_interfaces,          ONLY : fwfftm, invfftm
+!#endif
     USE gvect,                   ONLY : ecutrho
     USE klist,                   ONLY : wk
     USE uspp,                    ONLY : okvan,nkb,vkb
@@ -2752,7 +2763,8 @@ MODULE exx
     REAL(DP) :: energy 
     COMPLEX(DP), ALLOCATABLE :: temppsic(:,:)
     COMPLEX(DP), ALLOCATABLE :: temppsic_nc(:,:,:)
-    COMPLEX(DP), ALLOCATABLE :: rhoc(:,:)
+    COMPLEX(DP), ALLOCATABLE,TARGET :: rhoc(:,:)
+	COMPLEX(DP), POINTER :: prhoc(:)
     REAL(DP),    ALLOCATABLE :: fac(:)
     INTEGER  :: npw, jbnd, ibnd, ibnd_inner_start, ibnd_inner_end, ibnd_inner_count, ik, ikk, ig, ikq, iq, ir
     INTEGER  :: h_ibnd, nrxxs, current_ik, ibnd_loop_start, nblock, nrt, irt, ir_start, ir_end
@@ -2917,6 +2929,7 @@ MODULE exx
 			 
 			 !allocate arrays
 			 ALLOCATE( rhoc(nrxxs,ibnd_inner_count) )!, vcarr(ibnd_inner_count) )
+			 prhoc(1:nrxxs*ibnd_inner_count) => rhoc
 			 
                 !
                 ! load the phi at this k+q and band
@@ -2965,8 +2978,8 @@ MODULE exx
 				!
 				! bring rhoc to G-space
 				CALL start_clock ('exxenergy_ffft')
-#if defined(__USE_3D_FFT) & defined(__DFTI)
-          CALL fwfftm ('Custom', rhoc, ibnd_inner_count, exx_fft%dfftt, is_exx=.TRUE.)
+#if defined(__USE_3D_FFT) & defined(__USE_MANY_FFT)
+          CALL fwfft ('Custom', prhoc, exx_fft%dfftt, howmany=ibnd_inner_count, is_exx=.TRUE.)
 #else
           DO ibnd=ibnd_inner_start, ibnd_inner_end
              CALL fwfft('Custom', rhoc(:,ibnd-ibnd_inner_start+1), exx_fft%dfftt, is_exx=.TRUE.)
@@ -4462,7 +4475,7 @@ END SUBROUTINE compute_becpsi
     INTEGER :: ik, i
     INTEGER :: ngm_, ngs_, ngw_
     LOGICAL exst
-#if defined (__MPI) && !defined (__USE_3D_FFT)                                             
+#if defined (__MPI)
   LOGICAL :: lpara = .true.
 #else
   LOGICAL :: lpara = .false.
