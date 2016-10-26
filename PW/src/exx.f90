@@ -4385,7 +4385,7 @@ END SUBROUTINE compute_becpsi
     INTEGER :: ik, i
     INTEGER :: ngm_, ngs_, ngw_
     LOGICAL exst
-#if defined (__MPI) && !defined (__USE_3D_FFT)                                             
+#if defined (__MPI)
   LOGICAL :: lpara = .true.
 #else
   LOGICAL :: lpara = .false.
