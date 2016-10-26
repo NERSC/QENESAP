@@ -7,10 +7,7 @@
 !
 !
 !-----------------------------------------------------------------------
-!<<<
-!SUBROUTINE data_structure_custom(fc, gamma_only)
 SUBROUTINE data_structure_custom(fc, smap_exx, gamma_only)
-!>>>
   !-----------------------------------------------------------------------
   ! this routine sets the data structure for the custom fft array
   ! In the parallel case, it distributes columns to processes, too
@@ -20,18 +17,11 @@ SUBROUTINE data_structure_custom(fc, smap_exx, gamma_only)
   USE klist,      ONLY : xk, nks
   USE mp,         ONLY : mp_sum, mp_max,mp_barrier
   !<<<
-!<<<<<<< HEAD
   USE mp_exx,     ONLY : me_egrp, nproc_egrp, inter_egrp_comm, &
                          intra_egrp_comm, root_egrp, ntask_groups 
-!  USE stick_set,  ONLY : pstickset_custom
   USE fft_types,  ONLY : fft_type_init
   USE stick_base, ONLY : sticks_map
-!=======
-!  USE mp_bands,   ONLY : me_bgrp, nproc_bgrp, inter_bgrp_comm, &
-!                         intra_bgrp_comm, root_bgrp, ntask_groups 
-!  USE fft_types,  ONLY : fft_type_init
-!>>>>>>> main-dev
-  !>>>
+
   USE fft_custom, ONLY : fft_cus, gvec_init
   USE fft_base,   ONLY : dfftp, smap
   USE gvect,      ONLY : gcutm
@@ -49,7 +39,7 @@ SUBROUTINE data_structure_custom(fc, smap_exx, gamma_only)
   !>>>
 
   INTEGER :: kpoint
-#if defined (__MPI) && !defined (__USE_3D_FFT)
+#if defined (__MPI)
   LOGICAL :: lpara = .true.
 #else
   LOGICAL :: lpara = .false.
