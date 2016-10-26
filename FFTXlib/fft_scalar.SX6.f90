@@ -15,8 +15,6 @@
 ! Nicolas Lacorne, Filippo Spiga, Nicola Varini - Last update Jul 2015     !
 !--------------------------------------------------------------------------!
 
-#if defined(__SX6)
-
 !=----------------------------------------------------------------------=!
    MODULE fft_scalar
 !=----------------------------------------------------------------------=!
@@ -424,7 +422,7 @@
 !=----------------------------------------------------------------------=!
 !
 
-   SUBROUTINE cfft3d( f, nx, ny, nz, ldx, ldy, ldz, isign, is_exx )
+   SUBROUTINE cfft3d( f, nx, ny, nz, ldx, ldy, ldz, howmany, isign, is_exx )
 
   !     driver routine for 3d complex fft of lengths nx, ny, nz
   !     input  :  f(ldx*ldy*ldz)  complex, transform is in-place
@@ -439,7 +437,7 @@
 
      IMPLICIT NONE
 
-     INTEGER, INTENT(IN) :: nx, ny, nz, ldx, ldy, ldz, isign
+     INTEGER, INTENT(IN) :: nx, ny, nz, ldx, ldy, ldz, howmany, isign
      LOGICAL, OPTIONAL, INTENT(IN) :: is_exx
      LOGICAL :: is_exx_
      COMPLEX (DP) :: f(:)
@@ -478,7 +476,9 @@
      IF ( ny < 1 ) &
          call fftx_error__('cfft3d',' ny is less than 1 ', 1)
      IF ( nz < 1 ) &
-         call fftx_error__('cfft3',' nz is less than 1 ', 1)
+         call fftx_error__('cfft3d',' nz is less than 1 ', 1)
+     IF ( howmany /= 1 ) &
+         call fftx_error__('cfft3d',' homany different from 1, not yet implemented for SX6 ', 1)
 
 #if defined(ASL)
        ALLOCATE (cw2(ldx*ldy*ldz))
@@ -637,13 +637,13 @@
 !=----------------------------------------------------------------------=!
 !
 
-SUBROUTINE cfft3ds (f, nx, ny, nz, ldx, ldy, ldz, isign, &
-     do_fft_x, do_fft_y, is_exx)
+SUBROUTINE cfft3ds (f, nx, ny, nz, ldx, ldy, ldz, howmany, isign, &
+     do_fft_z, do_fft_y, is_exx)
   !
   !     driver routine for 3d complex "reduced" fft - see cfft3d
   !     The 3D fft are computed only on lines and planes which have
   !     non zero elements. These lines and planes are defined by
-  !     the two integer vectors do_fft_x(ldy*nz) and do_fft_y(nz)
+  !     the two integer vectors do_fft_y(nx) and do_fft_z(ldx*ny)
   !     (1 = perform fft, 0 = do not perform fft)
   !     This routine is implemented only for fftw, essl, acml
   !     If not implemented, cfft3d is called instead
@@ -652,7 +652,7 @@ SUBROUTINE cfft3ds (f, nx, ny, nz, ldx, ldy, ldz, isign, &
   !
   implicit none
 
-  integer :: nx, ny, nz, ldx, ldy, ldz, isign
+  integer :: nx, ny, nz, ldx, ldy, ldz, howmany, isign
   LOGICAL, OPTIONAL, INTENT(IN) :: is_exx
   LOGICAL :: is_exx_
   !
@@ -661,7 +661,7 @@ SUBROUTINE cfft3ds (f, nx, ny, nz, ldx, ldy, ldz, isign, &
   !   sign of the transformation
 
   complex(DP) :: f ( ldx * ldy * ldz )
-  integer :: do_fft_x(:), do_fft_y(:)
+  integer :: do_fft_y(:), do_fft_z(:)
   !
   integer :: m, incx1, incx2
   INTEGER :: i, k, j, err, idir, ip,  ii, jj
@@ -675,12 +675,10 @@ SUBROUTINE cfft3ds (f, nx, ny, nz, ldx, ldy, ldz, isign, &
      is_exx_ = .FALSE.
   END IF
 
-  CALL cfft3d (f, nx, ny, nz, ldx, ldy, ldz, isign, is_exx = is_exx_)
+  CALL cfft3d (f, nx, ny, nz, ldx, ldy, ldz, howmany, isign, is_exx = is_exx_)
   RETURN
 END SUBROUTINE cfft3ds
 
 !=----------------------------------------------------------------------=!
    END MODULE fft_scalar
 !=----------------------------------------------------------------------=!
-
-#endif

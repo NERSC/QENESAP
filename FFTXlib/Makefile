@@ -1,18 +1,19 @@
 # Makefile for FFTXlib
 
-include ../make.sys
+include ../make.inc
 
 # location of needed modules
 #MODFLAGS= $(MOD_FLAG)../iotk/src $(MOD_FLAG).
 
 FFTX = \
+task_groups.o \
 scatter_mod.o  \
 fft_scalar.o  \
 fft_parallel.o  \
 fft_interfaces.o  \
 stick_base.o  \
-stick_set.o  \
 fft_smallbox.o  \
+fft_smallbox_type.o  \
 fft_support.o  \
 fft_error.o  \
 fft_stick.o  \
@@ -32,6 +33,16 @@ fft_stick.o : fft_stick.c fftw.c fftw.h konst.h
 
 TEST : test.o libqefft.a
 	$(LD) $(LDFLAGS) -o fft_test.x test.o libqefft.a $(LIBS)
+
+TEST0:  test0.o libqefft.a
+	$(LD) $(LDFLAGS) -o fft_test0.x test0.o libqefft.a $(LIBS)
+
+TEST2 : test2.o libqefft.a
+	$(LD) $(LDFLAGS) -o fft_test2.x test2.o libqefft.a $(LIBS)
+
+TEST3 : test3.o libqefft.a
+	$(LD) $(LDFLAGS) -o fft_test3.x test3.o libqefft.a $(LIBS)
+
 
 clean :
 	- /bin/rm -f *.o *.a *.d *.i *~ *_tmp.f90 *.mod *.L 

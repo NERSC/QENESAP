@@ -55,6 +55,13 @@ MODULE mp_exx
   ! flag for whether the exx part of the calculation is in progress
   !
   INTEGER :: exx_mode = 0
+  !
+  ! maximum number of bands for psi
+  !
+  INTEGER :: max_ibands
+  !
+  INTEGER :: jblock
+  !
 CONTAINS
   !
   !----------------------------------------------------------------------------
@@ -153,7 +160,10 @@ CONTAINS
     INTEGER :: ibnd, npairs, ncontributing
     INTEGER :: n_underloaded ! number of band groups that are under max load
     INTEGER :: pair_bands(nbnd,nbnd)
+
+    jblock = 7
     
+    max_ibands = CEILING(float(nbnd)/float(negrp))+2
     IF (ALLOCATED(all_start)) THEN
        DEALLOCATE( all_start, all_end )
        DEALLOCATE( iexx_istart, iexx_iend )

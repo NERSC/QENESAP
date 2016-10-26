@@ -1,7 +1,7 @@
 # Makefile for GWW
 # Author: G. Stenuit and L. Martin-Samos
 #
-include ../../make.sys
+include ../../make.inc
 
 # location of include files
 IFLAGS=
@@ -9,9 +9,6 @@ IFLAGS=
 # location of needed modules
 MODFLAGS= $(MOD_FLAG)../../iotk/src $(MOD_FLAG)../../Modules \
           $(MOD_FLAG)../../FFTXlib $(MOD_FLAG)../../LAXlib $(MOD_FLAG)../pw4gww $(MOD_FLAG).
-
-#location of needed libraries
-LIBOBJS= ../../iotk/src/libiotk.a ../../clib/clib.a 
 
 GWWOBJS = \
 basic_structures.o \

@@ -16,12 +16,13 @@ subroutine pcgreen (avg_iter, thresh, ik, et_ )
   ! previously and is in the common variable dvscfs
   !
   use kinds, only : DP
-  USE wvfct,     ONLY : nbnd, npw, npwx, g2kin
+  USE wvfct,     ONLY : nbnd, npwx, g2kin
+  USE klist,     ONLY : ngk
   USE wavefunctions_module,  ONLY: evc
   USE mp_bands,  ONLY: intra_bgrp_comm
   USE mp,        ONLY: mp_sum
-  USE eqv,       ONLY: dpsi, dvpsi, eprec
-  USE control_lr, ONLY : nbnd_occ
+  USE eqv,       ONLY: dpsi, dvpsi
+  USE control_lr,ONLY : nbnd_occ
   implicit none
 
   !
@@ -41,7 +42,7 @@ subroutine pcgreen (avg_iter, thresh, ik, et_ )
   logical :: conv_root
   ! .true. if linter is converged
 
-  integer :: ibnd, ig, lter
+  integer :: npw, ibnd, ig, lter
   ! counters on bands
   ! counter on G-points
   ! # of diagonalization iterations
@@ -57,10 +58,10 @@ subroutine pcgreen (avg_iter, thresh, ik, et_ )
 
   external   ch_psi_all, cg_psi
 
+  npw = ngk(ik)
   allocate (h_diag ( npwx, nbnd ))
   allocate (auxg   ( npwx ))
   allocate (ps     ( nbnd, nbnd ))
-
   !
   ! Orthogonalize dvpsi to valence states: ps = <evc|dvpsi>
   !
@@ -90,11 +91,10 @@ subroutine pcgreen (avg_iter, thresh, ik, et_ )
   ! iterative solution of the linear system (H-e)*dpsi=dvpsi
   ! dvpsi=-P_c+ (dvbare+dvscf)*psi , dvscf fixed.
   !
-  do ibnd = 1, nbnd_occ (ik)
-     do ig = 1, npw
-        h_diag (ig, ibnd) = 1.d0 / max (1.0d0, g2kin (ig) / eprec (ibnd,ik) )
-     enddo
-  enddo
+  ! compute preconditioning matrix h_diag used by cgsolve_all
+  !
+  CALL h_prec (ik, evc, h_diag)
+  !
   conv_root = .true.
 
   call cgsolve_all( ch_psi_all, cg_psi, et_, dvpsi, dpsi, h_diag, &

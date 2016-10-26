@@ -22,16 +22,16 @@ subroutine solve_e
   USE kinds,                 ONLY : DP
   USE ions_base,             ONLY : nat
   USE io_global,             ONLY : stdout, ionode
-  USE io_files,              ONLY : prefix, iunigk, diropn
+  USE io_files,              ONLY : prefix, diropn
   USE cell_base,             ONLY : tpiba2
-  USE klist,                 ONLY : lgauss, xk, wk
+  USE klist,                 ONLY : lgauss, xk, wk, ngk, igk_k
   USE gvect,                 ONLY : g
   USE gvecs,                 ONLY : doublegrid
-  USE fft_base,              ONLY : dfftp, dffts
+  USE fft_base,              ONLY : dfftp, dffts, dtgs
   USE fft_parallel,          ONLY : tg_cgather
   USE lsda_mod,              ONLY : lsda, nspin, current_spin, isk
   USE spin_orb,              ONLY : domag
-  USE wvfct,                 ONLY : nbnd, npw, npwx, igk, g2kin,  et
+  USE wvfct,                 ONLY : nbnd, npwx, g2kin, et
   USE check_stop,            ONLY : check_stop_now
   USE buffers,               ONLY : get_buffer, save_buffer
   USE wavefunctions_module,  ONLY : evc
@@ -57,8 +57,8 @@ subroutine solve_e
   USE mp,                    ONLY : mp_sum
 
   USE lrus,                  ONLY : int3_paw
-  USE qpoint,                ONLY : npwq, nksq
-  USE eqv,                   ONLY : dpsi, dvpsi, eprec
+  USE qpoint,                ONLY : nksq
+  USE eqv,                   ONLY : dpsi, dvpsi
   USE control_lr,            ONLY : nbnd_occ, lgamma
   USE dv_of_drho_lr
 
@@ -90,6 +90,7 @@ subroutine solve_e
   logical :: conv_root, exst
   ! conv_root: true if linear system is converged
 
+  integer :: npw, npwq
   integer :: kter, iter0, ipol, ibnd, iter, lter, ik, ig, is, nrec, ndim, ios
   ! counters
   integer :: ltaver, lintercall, incr, jpol, v_siz
@@ -103,8 +104,6 @@ subroutine solve_e
   !
   !  This routine is task group aware
   !
-  IF ( ntask_groups > 1 ) dffts%have_task_groups=.TRUE.
-
   allocate (dvscfin( dfftp%nnr, nspin_mag, 3))
   if (doublegrid) then
      allocate (dvscfins(dffts%nnr, nspin_mag, 3))
@@ -140,12 +139,12 @@ subroutine solve_e
      iter0 = 0
   endif
   incr=1
-  IF ( dffts%have_task_groups ) THEN
+  IF ( dtgs%have_task_groups ) THEN
      !
-     v_siz =  dffts%tg_nnr * dffts%nogrp
+     v_siz =  dtgs%tg_nnr * dtgs%nogrp
      ALLOCATE( tg_dv   ( v_siz, nspin_mag ) )
      ALLOCATE( tg_psic( v_siz, npol ) )
-     incr = dffts%nogrp
+     incr = dtgs%nogrp
      !
   ENDIF
   !
@@ -178,39 +177,24 @@ subroutine solve_e
      dbecsum(:,:,:,:)=(0.d0,0.d0)
      IF (noncolin) dbecsum_nc=(0.d0,0.d0)
 
-     if (nksq.gt.1) rewind (unit = iunigk)
      do ik = 1, nksq
+        npw = ngk(ik)
+        npwq= npw     ! q=0 always in this routine
         if (lsda) current_spin = isk (ik)
-!        write(6,*) 'current spin', current_spin, ik
-        if (nksq.gt.1) then
-           read (iunigk, err = 100, iostat = ios) npw, igk
-100        call errore ('solve_e', 'reading igk', abs (ios) )
-        endif
         !
-        ! reads unperturbed wavefuctions psi_k in G_space, for all bands
+        ! reads unperturbed wavefunctions psi_k in G_space, for all bands
         !
         if (nksq.gt.1) call get_buffer (evc, lrwfc, iuwfc, ik)
-        npwq = npw
-        call init_us_2 (npw, igk, xk (1, ik), vkb)
         !
-        ! compute the kinetic energy
+        ! compute beta functions and kinetic energy for k-point ik
+        ! needed by h_psi, called by ch_psi_all, called by cgsolve_all
         !
-        do ig = 1, npwq
-           g2kin (ig) = ( (xk (1,ik ) + g (1,igk(ig)) ) **2 + &
-                          (xk (2,ik ) + g (2,igk(ig)) ) **2 + &
-                          (xk (3,ik ) + g (3,igk(ig)) ) **2 ) * tpiba2
-        enddo
-        h_diag=0.d0
-        do ibnd = 1, nbnd_occ (ik)
-           do ig = 1, npw
-              h_diag(ig,ibnd)=1.d0/max(1.0d0,g2kin(ig)/eprec(ibnd,ik))
-           enddo
-           IF (noncolin) THEN
-              do ig = 1, npw
-                 h_diag(ig+npwx,ibnd)=1.d0/max(1.0d0,g2kin(ig)/eprec(ibnd,ik))
-              enddo
-           END IF
-        enddo
+        CALL init_us_2 (npw, igk_k(1,ik), xk (1, ik), vkb)
+        CALL g2_kin(ik)
+        !
+        ! compute preconditioning matrix h_diag used by cgsolve_all
+        !
+        CALL h_prec (ik, evc, h_diag)
         !
         do ipol = 1, 3
            !
@@ -223,25 +207,24 @@ subroutine solve_e
               ! calculates dvscf_q*psi_k in G_space, for all bands, k=kpoint
               ! dvscf_q from previous iteration (mix_potential)
               !
-              IF ( ntask_groups > 1) dffts%have_task_groups=.TRUE.
-              IF( dffts%have_task_groups ) THEN
+              IF( dtgs%have_task_groups ) THEN
                  IF (noncolin) THEN
-                    CALL tg_cgather( dffts, dvscfins(:,1,ipol), &
+                    CALL tg_cgather( dffts, dtgs, dvscfins(:,1,ipol), &
                                                                 tg_dv(:,1))
                     IF (domag) THEN
                        DO jpol=2,4
-                          CALL tg_cgather( dffts, dvscfins(:,jpol,ipol), &
+                          CALL tg_cgather( dffts, dtgs, dvscfins(:,jpol,ipol), &
                                                              tg_dv(:,jpol))
                        ENDDO
                     ENDIF
                  ELSE
-                    CALL tg_cgather( dffts, dvscfins(:,current_spin,ipol), &
+                    CALL tg_cgather( dffts, dtgs, dvscfins(:,current_spin,ipol), &
                                                              tg_dv(:,1))
                  ENDIF
               ENDIF
               aux2=(0.0_DP,0.0_DP)
               do ibnd = 1, nbnd_occ (ik), incr
-                 IF ( dffts%have_task_groups ) THEN
+                 IF ( dtgs%have_task_groups ) THEN
                     call cft_wave_tg (ik, evc, tg_psic, 1, v_siz, ibnd, &
                                       nbnd_occ (ik) )
                     call apply_dpot(v_siz, tg_psic, tg_dv, 1)
@@ -443,14 +426,12 @@ subroutine solve_e
   deallocate (dvscfin)
   if (noncolin) deallocate(dbecsum_nc)
   deallocate(aux2)
-  IF ( ntask_groups > 1 ) dffts%have_task_groups=.TRUE.
-  IF ( dffts%have_task_groups ) THEN
+  IF ( dtgs%have_task_groups ) THEN
      !
      DEALLOCATE( tg_dv  )
      DEALLOCATE( tg_psic)
      !
   ENDIF
-  dffts%have_task_groups=.FALSE.
 
   call stop_clock ('solve_e')
   return

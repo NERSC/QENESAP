@@ -16,56 +16,48 @@ SUBROUTINE lr_apply_liouvillian_eels ( evc1, evc1_new, interaction )
   !
   ! Written by Iurii Timrov (2013)
   !
-  USE ions_base,            ONLY : ityp, nat, ntyp=>nsp
-  USE cell_base,            ONLY : tpiba2
-  USE fft_base,             ONLY : dfftp, dffts
+  USE kinds,                ONLY : DP
+  USE fft_base,             ONLY : dfftp, dffts, dtgs
   USE fft_parallel,         ONLY : tg_cgather
-  USE fft_interfaces,       ONLY : fwfft, invfft
-  USE gvecs,                ONLY : nls, nlsm, ngms, doublegrid
-  USE gvect,                ONLY : nl, nlm, ngm, g, gg
-  USE io_global,            ONLY : stdout
-  USE kinds,                ONLY : dp
-  USE klist,                ONLY : nks, xk, igk_k
-  USE lr_variables,         ONLY : evc0, no_hxc
-  USE lsda_mod,             ONLY : nspin, current_spin
-  USE wvfct,                ONLY : nbnd, npwx, g2kin, et, npw, igk, current_k
-  USE gvecw,                ONLY : gcutw
-  USE io_global,            ONLY : stdout
+  USE klist,                ONLY : xk, igk_k, ngk
+  USE lr_variables,         ONLY : no_hxc
+  USE lsda_mod,             ONLY : current_spin
+  USE wvfct,                ONLY : nbnd, npwx, et, current_k
   USE uspp,                 ONLY : vkb
-  USE io_files,             ONLY : iunigk, iunwfc, nwordwfc
+  USE io_files,             ONLY : iunwfc, nwordwfc
   USE wavefunctions_module, ONLY : evc, psic, psic_nc
   USE noncollin_module,     ONLY : noncolin, npol, nspin_mag
   USE uspp,                 ONLY : okvan
   USE mp_bands,             ONLY : ntask_groups, me_bgrp
   USE spin_orb,             ONLY : domag
   USE buffers,              ONLY : get_buffer
-  USE qpoint,               ONLY : npwq, igkq, ikks, ikqs, nksq
+  USE qpoint,               ONLY : ikks, ikqs, nksq
   USE eqv,                  ONLY : evq, dpsi, dvpsi
   USE control_lr,           ONLY : nbnd_occ
   USE dv_of_drho_lr
  
   IMPLICIT NONE
   !
-  COMPLEX(kind=dp),INTENT(in)  :: evc1(npwx*npol,nbnd,nksq)
-  COMPLEX(kind=dp),INTENT(out) :: evc1_new(npwx*npol,nbnd,nksq)
+  COMPLEX(DP), INTENT(IN)  :: evc1(npwx*npol,nbnd,nksq)
+  COMPLEX(DP), INTENT(OUT) :: evc1_new(npwx*npol,nbnd,nksq)
+  LOGICAL,     INTENT(IN)  :: interaction
   !
   ! Local variables
   !
-  LOGICAL, INTENT(in) :: interaction
   LOGICAL :: interaction1
-  INTEGER :: i,j,ir, ibnd, ik, ig, ia, ios, ikk, ikq, is, &
-             incr, v_siz, ipol
+  INTEGER :: i,j,ir, ibnd, ig, ia, ios, is, incr, v_siz, ipol
+  INTEGER :: ik,  &
+             ikk, & ! index of the point k
+             ikq, & ! index of the point k+q
+             npwq   ! number of the plane-waves at point k+q
   COMPLEX(DP), ALLOCATABLE :: hpsi(:,:), spsi(:,:), revc(:,:), &
                             & dvrsc(:,:), dvrssc(:,:), &
                             & sevc1_new(:,:,:), &
   ! Change of the Hartree and exchange-correlation (HXC) potential
                             & tg_psic(:,:), tg_dvrssc(:,:)
-  ! Task groups: wfct in R-space
-  ! Task groups: HXC potential
+  ! Task groups: wfct in R-space and the response HXC potential
   !
   CALL start_clock('lr_apply')
-  !
-  IF ( ntask_groups > 1 ) dffts%have_task_groups = .TRUE.
   !
   ALLOCATE (hpsi(npwx*npol,nbnd))
   ALLOCATE (spsi(npwx*npol,nbnd))
@@ -83,14 +75,14 @@ SUBROUTINE lr_apply_liouvillian_eels ( evc1, evc1_new, interaction )
   !
   incr = 1
   !
-  IF ( dffts%have_task_groups ) THEN
+  IF ( dtgs%have_task_groups ) THEN
      !
-     v_siz =  dffts%tg_nnr * dffts%nogrp
+     v_siz =  dtgs%tg_nnr * dtgs%nogrp
      !
      ALLOCATE( tg_dvrssc(v_siz,nspin_mag) )
      ALLOCATE( tg_psic(v_siz,npol) )
      !
-     incr = dffts%nogrp
+     incr = dtgs%nogrp
      !
   ENDIF
   !
@@ -142,31 +134,17 @@ SUBROUTINE lr_apply_liouvillian_eels ( evc1, evc1_new, interaction )
   ! 1) HXC term : P_c^+(k+q) V_HXC(q)*psi0(k) 
   ! 2) (H - E)*psi(k+q)
   !
-  ! rewind (unit = iunigk)
-  ! 
   DO ik = 1, nksq
      !
-     ikk = ikks(ik)
-     ikq = ikqs(ik)
-     !
-     ! Determination of npw, igk, and npwq, igkq;
-     ! g2kin is used here as a workspace.
-     !
-     CALL gk_sort( xk(1,ikk), ngm, g, gcutw, npw,  igk,  g2kin )
-     CALL gk_sort( xk(1,ikq), ngm, g, gcutw, npwq, igkq, g2kin ) 
+     ikk  = ikks(ik)
+     ikq  = ikqs(ik)
+     npwq = ngk(ikq)
      !
      ! Calculate beta-functions vkb at k+q (Kleinman-Bylander projectors)
      ! The vkb's are needed for the non-local potential in h_psi,
      ! and for the ultrasoft term.
      !
-     CALL init_us_2 (npwq, igkq, xk(1,ikq), vkb)
-     !
-!    IF (nksq > 1) THEN
-!        read (iunigk, err = 100, iostat = ios) npw, igk
-!100     call errore ('lr_apply_liouvillian', 'reading igk', abs (ios) )
-!        read (iunigk, err = 200, iostat = ios) npwq, igkq
-!200     call errore ('lr_apply_liouvillian', 'reading igkq', abs (ios) )
-!    ENDIF
+     CALL init_us_2 (npwq, igk_k(1,ikq), xk(1,ikq), vkb)
      !
      ! Read unperturbed wavefuctions evc (wfct at k) 
      ! and evq (wfct at k+q)
@@ -187,27 +165,25 @@ SUBROUTINE lr_apply_liouvillian_eels ( evc1, evc1_new, interaction )
      !
      IF (interaction1) THEN
         !
-        IF ( ntask_groups > 1 ) dffts%have_task_groups = .TRUE.
-        !
         ! The potential in dvrssc is distributed across all processors.
         ! We need to redistribute it so that it is completely contained in the
         ! processors of an orbital TASK-GROUP.
         !
-        IF ( dffts%have_task_groups ) THEN
+        IF ( dtgs%have_task_groups ) THEN
            !
            IF (noncolin) THEN
               !
-              CALL tg_cgather( dffts, dvrssc(:,1), tg_dvrssc(:,1))
+              CALL tg_cgather( dffts, dtgs, dvrssc(:,1), tg_dvrssc(:,1))
               !
               IF (domag) THEN
                  DO ipol = 2, 4
-                    CALL tg_cgather( dffts, dvrssc(:,ipol), tg_dvrssc(:,ipol))
+                    CALL tg_cgather( dffts, dtgs, dvrssc(:,ipol), tg_dvrssc(:,ipol))
                  ENDDO
               ENDIF
               !
            ELSE
               !
-              CALL tg_cgather( dffts, dvrssc(:,current_spin), tg_dvrssc(:,1))
+              CALL tg_cgather( dffts, dtgs, dvrssc(:,current_spin), tg_dvrssc(:,1))
               !
            ENDIF
            !
@@ -215,7 +191,7 @@ SUBROUTINE lr_apply_liouvillian_eels ( evc1, evc1_new, interaction )
         !
         DO ibnd = 1, nbnd_occ(ikk), incr
            !
-           IF ( dffts%have_task_groups ) THEN
+           IF ( dtgs%have_task_groups ) THEN
               !
               ! FFT to R-space
               !
@@ -247,8 +223,6 @@ SUBROUTINE lr_apply_liouvillian_eels ( evc1, evc1_new, interaction )
            !
         ENDDO
         !
-        dffts%have_task_groups = .FALSE.
-        !
         ! In the case of US pseudopotentials there is an additional term.
         ! See second term in Eq.(11) in J. Chem. Phys. 127, 164106 (2007)
         !
@@ -277,11 +251,7 @@ SUBROUTINE lr_apply_liouvillian_eels ( evc1, evc1_new, interaction )
      !
      ! Compute the kinetic energy g2kin: (k+q+G)^2
      !
-     DO ig = 1, npwq
-        g2kin (ig) = ( (xk (1,ikq) + g (1, igkq(ig)) ) **2 + &
-                       (xk (2,ikq) + g (2, igkq(ig)) ) **2 + &
-                       (xk (3,ikq) + g (3, igkq(ig)) ) **2 ) * tpiba2
-     ENDDO
+     CALL g2_kin(ikq)
      !
      IF (noncolin) THEN
         IF (.NOT. ALLOCATED(psic_nc)) ALLOCATE(psic_nc(dfftp%nnr,npol))
@@ -325,8 +295,8 @@ SUBROUTINE lr_apply_liouvillian_eels ( evc1, evc1_new, interaction )
      !    evc1_new = S^{-1} * sevc1_new
      !    If not ultrasoft: evc1_new = sevc1_new
      !
-     CALL lr_sm1_psiq (.FALSE., ik, npwx, npwq, igkq, nbnd_occ(ikk), &
-                         & sevc1_new(1,1,ik), evc1_new(1,1,ik))
+     CALL lr_sm1_psiq (.FALSE., ik, npwx, npwq, nbnd_occ(ikk), &
+                               & sevc1_new(1,1,ik), evc1_new(1,1,ik))
      !
   ENDDO ! loop on ik
   !
@@ -338,14 +308,10 @@ SUBROUTINE lr_apply_liouvillian_eels ( evc1, evc1_new, interaction )
   DEALLOCATE (sevc1_new)
   IF (ALLOCATED(psic)) DEALLOCATE(psic)
   !
-  IF ( ntask_groups > 1) dffts%have_task_groups = .TRUE.
-  !
-  IF ( dffts%have_task_groups ) THEN
+  IF ( dtgs%have_task_groups ) THEN
      DEALLOCATE( tg_dvrssc )
      DEALLOCATE( tg_psic )
   ENDIF
-  !
-  dffts%have_task_groups = .FALSE.
   !
   IF (interaction1)      CALL stop_clock('lr_apply_int')
   IF (.NOT.interaction1) CALL stop_clock('lr_apply_no')

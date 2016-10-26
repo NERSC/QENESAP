@@ -10,6 +10,8 @@
   epbwrite    = .true.
   epbread     = .false.
 
+  etf_mem     = .false.
+
   epwwrite    = .true.
   epwread     = .false.
 
@@ -24,12 +26,6 @@
   proj(1)     = 'Si:sp3'   
 
   iverbosity  = 0
-
-  elinterp    = .true.
-  phinterp    = .true.
-
-  tshuffle2   = .true.
-  tphases     = .false.
 
   elecselfen  = .true.
   phonselfen  = .true.

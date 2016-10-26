@@ -14,7 +14,7 @@ MODULE fft_custom
   USE kinds, ONLY: DP
   USE parallel_include
   
-  USE fft_types, ONLY: fft_dlay_descriptor
+  USE fft_types, ONLY: fft_type_descriptor
   
   IMPLICIT NONE
 
@@ -24,7 +24,7 @@ MODULE fft_custom
      ! ... about fft data distribution for a given
      ! ... potential grid, and its wave functions sub-grid.
 
-     TYPE ( fft_dlay_descriptor ) :: dfftt 
+     TYPE ( fft_type_descriptor ) :: dfftt 
      ! descriptor for the custom grid
 
      REAL(kind=DP) :: ecutt
@@ -179,7 +179,7 @@ CONTAINS
   END SUBROUTINE set_custom_grid
   !
   !--------------------------------------------------------------------
-  SUBROUTINE ggent(fc)
+  SUBROUTINE ggent(fc, is_exx)
     !--------------------------------------------------------------------
     !
     USE kinds,              ONLY : DP
@@ -190,8 +190,10 @@ CONTAINS
     IMPLICIT NONE
     
     TYPE(fft_cus) :: fc
-    
+    ! pcarrier@cray.com CHANGED added is_exx 
+    LOGICAL, OPTIONAL, INTENT(IN) :: is_exx    
     !
+
     REAL(DP) ::  t (3), tt, swap
     !
     INTEGER :: ngmx, n1, n2, n3, n1s, n2s, n3s
@@ -202,13 +204,15 @@ CONTAINS
     ! array containing all g vectors generators, on all processors:
     !     replicated data
     INTEGER, ALLOCATABLE :: igsrt(:)
+    LOGICAL :: is_exx_
     !
 
-#ifdef __MPI
+#if defined(__MPI)
     INTEGER :: m1, m2, mc
     !
 #endif
     INTEGER :: i, j, k, ipol, ng, igl, iswap, indsw, ni, nj, nk
+
     
     
 !    ALLOCATE( fc%gt(3,fc%ngmt), fc%ggt(fc%ngmt) )
@@ -218,6 +222,12 @@ CONTAINS
     ALLOCATE( g2sort_g( fc%ngmt_g ) )
     ALLOCATE( fc%ig1t(fc%ngmt), fc%ig2t(fc%ngmt), fc%ig3t(fc%ngmt) )
    
+    ! pcarrier@cray.com CHANGED added is_exx_ syntax below
+    if (present(is_exx)) then
+       is_exx_ = is_exx
+    else
+       is_exx_ = .false.
+    end if
     g2sort_g(:) = 1.0d20
     !
     ! save present value of ngm in ngmx variable
@@ -280,7 +290,7 @@ CONTAINS
        j = mill_g(2, ng)
        k = mill_g(3, ng)
        
-#ifdef __MPI
+#if defined(__MPI)
        m1 = MOD (i, fc%dfftt%nr1) + 1
        IF (m1 < 1) m1 = m1 + fc%dfftt%nr1
        m2 = MOD (j, fc%dfftt%nr2) + 1
@@ -334,12 +344,26 @@ CONTAINS
        IF (n1>fc%dfftt%nr1 .OR. n2>fc%dfftt%nr2 .OR. n3>fc%dfftt%nr3) &
             CALL errore('ggent','Mesh too small?',ng)
        
+! pcarrier@cray.com CHANGED added is_exx syntax below
+! #if defined (__MPI) && !defined (__USE_3D_FFT)
+!       fc%nlt (ng) = n3 + ( fc%dfftt%isind (n1 + (n2 - 1) * fc%dfftt%nr1x)&
+!             & - 1) * fc%dfftt%nr3x
+! #else
+!       fc%nlt (ng) = n1 + (n2 - 1) * fc%dfftt%nr1x + (n3 - 1) * & 
+!                & fc%dfftt%nr1x * fc%dfftt%nr2x 
+! #endif
+
 #if defined (__MPI) && !defined (__USE_3D_FFT)
        fc%nlt (ng) = n3 + ( fc%dfftt%isind (n1 + (n2 - 1) * fc%dfftt%nr1x)&
             & - 1) * fc%dfftt%nr3x
 #else
-       fc%nlt (ng) = n1 + (n2 - 1) * fc%dfftt%nr1x + (n3 - 1) * &
-            & fc%dfftt%nr1x * fc%dfftt%nr2x 
+       if (is_exx_) then
+          fc%nlt (ng) = n1 + (n2 - 1) * fc%dfftt%nr1x + (n3 - 1) * &                 ! This is the original #else
+                  & fc%dfftt%nr1x * fc%dfftt%nr2x 
+       else  ! this is local exchange
+          fc%nlt (ng) = n3 + ( fc%dfftt%isind (n1 + (n2 - 1) * fc%dfftt%nr1x)&       ! In the local calculation it uses the !defined(__USE_3D_FFT)
+               & - 1) * fc%dfftt%nr3x
+       end if
        
 #endif
     ENDDO
@@ -406,21 +430,22 @@ CONTAINS
        ENDIF
        
 #if defined (__MPI) && !defined (__USE_3D_FFT)
-       fc%nltm(ng) = n3 + (fc%dfftt%isind (n1 + (n2 - 1) * fc&
-            &%dfftt%nr1x) - 1) * fc%dfftt%nr3x
-       
+     fc%nltm(ng) = n3 + (fc%dfftt%isind (n1 + (n2 - 1) * fc&
+          &%dfftt%nr1x) - 1) * fc%dfftt%nr3x
+     
 #else
        fc%nltm(ng) = n1 + (n2 - 1) * fc%dfftt%nr1x + (n3 - 1) * fc&
             &%dfftt%nr1x * fc%dfftt%nr1x
        
 #endif
+
     ENDDO
     
   END SUBROUTINE index_minusg_custom
   
   SUBROUTINE deallocate_fft_custom(fc)
     !this subroutine deallocates all the fft custom stuff
-    USE fft_types, ONLY : fft_dlay_deallocate
+    USE fft_types, ONLY : fft_type_deallocate
     
     IMPLICIT NONE
 
@@ -429,7 +454,7 @@ CONTAINS
     IF(.NOT. fc%initialized) RETURN
 
     DEALLOCATE(fc%nlt,fc%nltm)
-    CALL fft_dlay_deallocate(fc%dfftt)
+    CALL fft_type_deallocate(fc%dfftt)
     DEALLOCATE(fc%ig_l2gt,fc%ggt,fc%gt)
     DEALLOCATE(fc%ig1t,fc%ig2t,fc%ig3t)
     fc%initialized=.FALSE.
@@ -490,7 +515,7 @@ CONTAINS
     COMPLEX(kind=DP), ALLOCATABLE :: pw1_tmp(:),pw2_tmp(:), pw_global(:)
 
 
-#ifdef __MPI
+#if defined(__MPI)
 
     gid=comm
 

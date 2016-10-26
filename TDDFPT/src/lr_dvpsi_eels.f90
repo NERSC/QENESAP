@@ -27,34 +27,34 @@ SUBROUTINE lr_dvpsi_eels (ik, dvpsi1, dvpsi2)
   !
   USE kinds,                 ONLY : DP
   USE wvfct,                 ONLY : npwx, nbnd
-  USE fft_base,              ONLY : dffts
-  USE wvfct,                 ONLY : npw, igk, g2kin
+  USE fft_base,              ONLY : dffts, dtgs
   USE gvecw,                 ONLY : gcutw
-  USE qpoint,                ONLY : npwq, igkq, ikks, ikqs, nksq, xq 
+  USE qpoint,                ONLY : ikks, ikqs, nksq 
   USE eqv,                   ONLY : evq, dpsi 
   USE wavefunctions_module,  ONLY : evc
   USE noncollin_module,      ONLY : noncolin, npol, nspin_mag
-  use klist,                 only : xk
+  use klist,                 only : xk, igk_k, ngk
   use gvect,                 only : ngm, g
   USE control_lr,            ONLY : nbnd_occ
-  USE io_files,              ONLY : iunigk, iunwfc, nwordwfc
+  USE io_files,              ONLY : iunwfc, nwordwfc
   use uspp,                  only : vkb, okvan
   USE mp_bands,              ONLY : ntask_groups
   USE buffers,               ONLY : get_buffer
  
   IMPLICIT NONE
   !
-  INTEGER, INTENT(in) :: ik 
-  COMPLEX(DP), INTENT(out) :: dvpsi1(npwx*npol,nbnd)
-  COMPLEX(DP), INTENT(out) :: dvpsi2(npwx*npol,nbnd)
-  INTEGER :: ikk, ikq, ibnd, ig, ios, incr, v_siz
+  INTEGER, INTENT(IN) :: ik 
+  COMPLEX(DP), INTENT(OUT) :: dvpsi1(npwx*npol,nbnd)
+  COMPLEX(DP), INTENT(OUT) :: dvpsi2(npwx*npol,nbnd)
+  INTEGER :: ibnd, ig, ios, incr, v_siz
+  INTEGER :: ikk, & ! index of the point k
+             ikq, & ! index of the point k+q
+             npwq   ! number of the plane-waves at point k+q
   COMPLEX(DP), ALLOCATABLE :: revc(:,:), &  ! wavefunctions in R-space
                             & tg_psic(:,:)  ! wavefunctions in R-space (for task groups) 
   LOGICAL :: exst
   !
   CALL start_clock ('lr_dvpsi_eels') 
-  !
-  IF ( ntask_groups > 1 ) dffts%have_task_groups = .TRUE.
   !
   ALLOCATE (revc(dffts%nnr,npol))
   revc(:,:)   = (0.d0, 0.d0)
@@ -64,33 +64,19 @@ SUBROUTINE lr_dvpsi_eels (ik, dvpsi1, dvpsi2)
   !
   incr = 1
   !
-  IF ( dffts%have_task_groups ) THEN
+  IF ( dtgs%have_task_groups ) THEN
      !
-     v_siz =  dffts%tg_nnr * dffts%nogrp
+     v_siz =  dtgs%tg_nnr * dtgs%nogrp
      !
      ALLOCATE( tg_psic(v_siz,npol) )
      !
-     incr = dffts%nogrp
+     incr = dtgs%nogrp
      !
   ENDIF 
   !
-  ikk = ikks(ik)
-  ikq = ikqs(ik)
-  !
-  ! Determination of npw, igk, and npwq, igkq;
-  ! g2kin is used here as a work space.
-  !
-  CALL gk_sort( xk(1,ikk), ngm, g, gcutw, npw,  igk,  g2kin )  
-  CALL gk_sort( xk(1,ikq), ngm, g, gcutw, npwq, igkq, g2kin )
-  !
-  ! Read npw, igk, npwq, igkq.
-  !
-! IF (nksq > 1) THEN
-!      read (iunigk, err = 100, iostat = ios) npw, igk
-!100   call errore ('lr_apply_liouvillian', 'reading igk', abs (ios) )
-!      read (iunigk, err = 200, iostat = ios) npwq, igkq
-!200   call errore ('lr_apply_liouvillian', 'reading igkq', abs (ios) )
-! ENDIF
+  ikk  = ikks(ik)
+  ikq  = ikqs(ik)
+  npwq = ngk(ikq)
   !
   ! Read the ground-state wavefunctions evc(k) and evq(k+q).
   ! Note: even in the case when there is only one k point (nksq=1),
@@ -104,7 +90,7 @@ SUBROUTINE lr_dvpsi_eels (ik, dvpsi1, dvpsi2)
   !
   DO ibnd = 1, nbnd_occ(ikk), incr
      !
-     IF ( dffts%have_task_groups ) THEN
+     IF ( dtgs%have_task_groups ) THEN
         !
         ! FFT to R-space
         CALL cft_wave_tg(ik, evc, tg_psic, 1, v_siz, ibnd, nbnd_occ(ikk) )
@@ -124,14 +110,12 @@ SUBROUTINE lr_dvpsi_eels (ik, dvpsi1, dvpsi2)
      !
   ENDDO
   !
-  dffts%have_task_groups = .FALSE.
-  !
   ! Compute and add the US term.
   !
   IF (okvan) THEN
      !
      ! Calculate beta-functions vkb at point k+q
-     CALL init_us_2(npwq, igkq, xk(1,ikq), vkb)
+     CALL init_us_2(npwq, igk_k(1,ikq), xk(1,ikq), vkb)
      !
      CALL lr_addus_dvpsi (ik, npwx, npwq, nbnd_occ(ikk), dvpsi1, dpsi)
      !
@@ -154,7 +138,7 @@ SUBROUTINE lr_dvpsi_eels (ik, dvpsi1, dvpsi2)
      !
      dpsi(:,:) = (0.0d0, 0.0d0)
      !
-     CALL lr_sm1_psiq (.TRUE., ik, npwx, npwq, igkq, nbnd_occ(ikk), dvpsi1, dpsi)
+     CALL lr_sm1_psiq (.TRUE., ik, npwx, npwq, nbnd_occ(ikk), dvpsi1, dpsi)
      !
      dvpsi1 = dpsi
      !
@@ -162,13 +146,9 @@ SUBROUTINE lr_dvpsi_eels (ik, dvpsi1, dvpsi2)
   !
   DEALLOCATE (revc)
   !
-  IF ( ntask_groups > 1) dffts%have_task_groups = .TRUE.
-  !
-  IF ( dffts%have_task_groups ) THEN
+  IF ( dtgs%have_task_groups ) THEN
      DEALLOCATE( tg_psic )
   ENDIF
-  !
-  dffts%have_task_groups = .FALSE.
   !
   CALL stop_clock ('lr_dvpsi_eels')
   !

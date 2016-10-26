@@ -52,6 +52,10 @@ SUBROUTINE lr_run_nscf( )
   ! and k+q required by the linear response calculation at finite q.
   !
   CALL lr_setup_nscf ()
+  !
+  ! The variables igk_k and ngk are re-set up here (because there 
+  ! are not only poins k but also points k+q) through the path:
+  ! init_run -> hinit0 -> init_igk
   ! 
   CALL init_run()
   !
@@ -69,11 +73,6 @@ SUBROUTINE lr_run_nscf( )
   !
   CALL close_files(.TRUE.)
   !   
-  !  PWscf has run with task groups if available, but in the TDDFPT 
-  !  they are used only in some places. In that case it is activated.
-  !
-  IF (ntask_groups > 1) dffts%have_task_groups = .FALSE.
-  !
   CALL stop_clock( 'lr_run_nscf' )
   !
   RETURN
