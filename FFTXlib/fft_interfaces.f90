@@ -156,6 +156,8 @@ SUBROUTINE invfft_x( grid_type, f, dfft, dtgs, howmany, is_exx )
 
   IF(PRESENT(howmany) ) THEN
      howmany_ = howmany
+  ELSE
+     howmany_ = 1
   END IF
   !
   IF( grid_type == 'Dense' ) THEN
@@ -174,9 +176,11 @@ SUBROUTINE invfft_x( grid_type, f, dfft, dtgs, howmany, is_exx )
 
   IF( dfft%lpara ) THEN
 
+#ifndef __DFTI
      IF( howmany_ /= 1 ) THEN
         CALL fftx_error__( ' invfft ', ' howmany not yet implemented for parallel driver ', 1 )
      END IF
+#endif
 
 ! pcarrier@cray.com CHANGED: simplified syntax, and added is_exx syntax for USE_3D_FFT
 #if defined(__MPI) && !defined(__USE_3D_FFT)
@@ -201,7 +205,7 @@ SUBROUTINE invfft_x( grid_type, f, dfft, dtgs, howmany, is_exx )
 
      ELSE
         CALL cfft3d( f, dfft%nr1, dfft%nr2, dfft%nr3, &
-             dfft%nr1x,dfft%nr2x,dfft%nr3x, 1, 1)
+             dfft%nr1x,dfft%nr2x,dfft%nr3x, howmany_, 1)
      ENDIF
 #endif
 
@@ -344,6 +348,8 @@ SUBROUTINE fwfft_x( grid_type, f, dfft, dtgs, howmany, is_exx )
 
   IF(PRESENT(howmany) ) THEN
      howmany_ = howmany
+  ELSE
+     howmany_ = 1
   END IF
 
   IF( grid_type == 'Dense' ) THEN
@@ -362,9 +368,11 @@ SUBROUTINE fwfft_x( grid_type, f, dfft, dtgs, howmany, is_exx )
 
   IF( dfft%lpara ) THEN
 
+#ifndef __DFTI
      IF( howmany_ /= 1 ) THEN
         CALL fftx_error__( ' fwfft ', ' howmany not yet implemented for parallel driver ', 1 )
      END IF
+#endif
 
 ! pcarrier@cray.com CHANGED: simplified syntax, and added is_exx syntax for USE_3D_FFT
 #if defined(__MPI) && !defined(__USE_3D_FFT)
@@ -390,7 +398,7 @@ SUBROUTINE fwfft_x( grid_type, f, dfft, dtgs, howmany, is_exx )
  ELSE
 
      CALL cfft3d( f, dfft%nr1, dfft%nr2, dfft%nr3, &
-                     dfft%nr1x,dfft%nr2x,dfft%nr3x, 1, -1)
+                     dfft%nr1x,dfft%nr2x,dfft%nr3x, howmany_, -1)
   ENDIF
 #endif
 

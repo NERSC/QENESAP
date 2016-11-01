@@ -1875,12 +1875,12 @@ MODULE exx
        !
        !how many iters
        jcount=jend-jstart+1
+	   if(jcount<=0) cycle
        !
 
        !----------------------------------------------------------------------!
        !INNER LOOP START
        !----------------------------------------------------------------------!
-
 
           !
           !loads the phi from file
@@ -1895,9 +1895,6 @@ MODULE exx
              END DO
 !$omp end parallel do
           ELSE
-!IF ( ABS(x_occupation(jbnd,ik)) < eps_occ) CYCLE
-
-!call start_collection()
 
 			nblock=2048
 			nrt = nrxxs / nblock
@@ -1916,8 +1913,6 @@ MODULE exx
 				ENDDO
 			ENDDO
 !$omp end parallel do
-
-!call stop_collection()
 	ENDIF
 	
           CALL stop_clock ('vexx_rho')
