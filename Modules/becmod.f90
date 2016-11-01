@@ -217,6 +217,9 @@ CONTAINS
     IF ( nkb == 0 ) RETURN
     !
     CALL start_clock( 'calbec' )
+    !<<<
+    !IF ( npw == 0 ) return
+    !>>>
     IF ( npw == 0 ) betapsi(:,:)=(0.0_DP,0.0_DP)
     npwx= size (beta, 1)
     IF ( npwx /= size (psi, 1) ) CALL errore ('calbec', 'size mismatch', 1)
@@ -233,6 +236,9 @@ CONTAINS
     IF ( nkb /= size (betapsi,1) .or. m > size (betapsi, 2) ) &
       CALL errore ('calbec', 'size mismatch', 3)
     !
+    !<<<
+    IF( npw > 0 ) THEN
+    !>>>
     IF ( m == 1 ) THEN
        !
        CALL ZGEMV( 'C', npw, nkb, (1.0_DP,0.0_DP), beta, npwx, psi, 1, &
@@ -244,6 +250,9 @@ CONTAINS
                  beta, npwx, psi, npwx, (0.0_DP,0.0_DP), betapsi, nkb )
        !
     ENDIF
+    !<<<
+    END IF
+    !>>>
     !
     CALL mp_sum( betapsi( :, 1:m ), intra_bgrp_comm )
     !

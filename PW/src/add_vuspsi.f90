@@ -212,8 +212,14 @@ SUBROUTINE add_vuspsi( lda, n, m, hpsi )
           !
        END DO
        !
+       !<<<
+       IF(lda.gt.0) THEN
+       !>>>
        CALL ZGEMM( 'N', 'N', n, m, nkb, ( 1.D0, 0.D0 ) , vkb, &
                    lda, ps, nkb, ( 1.D0, 0.D0 ) , hpsi, lda )
+       !<<<
+       END IF
+       !>>>
        !
        DEALLOCATE (ps)
        !

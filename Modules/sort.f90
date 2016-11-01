@@ -37,11 +37,18 @@ subroutine hpsort_eps (n, ra, ind, eps)
   integer :: i, ir, j, l, iind  
   real(DP) :: rra  
   ! initialize index array
+  !<<<
+  WRITE(6,*)'n: ',n
+  if (n.gt.0) then
+  !>>>
   if (ind (1) .eq.0) then  
      do i = 1, n  
         ind (i) = i  
      enddo
   endif
+  !<<<
+  endif
+  !>>>
   ! nothing to order
   if (n.lt.2) return  
   ! initialize indices for hiring and retirement-promotion phase

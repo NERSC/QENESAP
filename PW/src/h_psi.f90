@@ -193,10 +193,16 @@ SUBROUTINE h_psi_( lda, n, m, psi, hpsi )
 
   IF ( nkb > 0 .AND. .NOT. real_space) THEN
      !
+     !<<<
+     !IF(n.gt.0) THEN
+     !>>>
      CALL start_clock( 'h_psi:calbec' )
      CALL calbec ( n, vkb, psi, becp, m )
      CALL stop_clock( 'h_psi:calbec' )
      CALL add_vuspsi( lda, n, m, hpsi )
+     !<<<
+     !END IF
+     !>>>
      !
   END IF
   !  

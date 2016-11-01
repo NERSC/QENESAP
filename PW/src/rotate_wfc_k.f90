@@ -284,7 +284,13 @@ CONTAINS
 
            ! use blas subs. on the matrix block
 
+           !<<<
+           IF(kdmx.gt.0)THEN
+           !>>>
            CALL ZGEMM( 'C', 'N', nr, nc, kdim, ( 1.D0, 0.D0 ) ,  v(1,ir), kdmx, w(1,ic), kdmx, ( 0.D0, 0.D0 ), work, nx )
+           !<<<
+           END IF
+           !>>>
 
            ! accumulate result on dm of root proc.
            CALL mp_root_sum( work, dm, root, ortho_parent_comm )
@@ -334,13 +340,25 @@ CONTAINS
                  !  this proc sends his block
                  ! 
                  CALL mp_bcast( vc(:,1:nc), root, ortho_parent_comm )
+                 !<<<
+                 IF(kdmx > 0) THEN
+                 !>>>
                  CALL ZGEMM( 'N', 'N', kdim, nc, nr, ( 1.D0, 0.D0 ),  psi(1,ir), kdmx, vc, nx, beta, aux(1,ic), kdmx )
+                 !<<<
+                 END IF
+                 !>>>
               ELSE
                  !
                  !  all other procs receive
                  ! 
                  CALL mp_bcast( vtmp(:,1:nc), root, ortho_parent_comm )
+                 !<<<
+                 IF(kdmx > 0) THEN
+                 !>>>
                  CALL ZGEMM( 'N', 'N', kdim, nc, nr, ( 1.D0, 0.D0 ),  psi(1,ir), kdmx, vtmp, nx, beta, aux(1,ic), kdmx )
+                 !<<<
+                 END IF
+                 !>>>
               END IF
               ! 
 

@@ -598,6 +598,7 @@ SUBROUTINE pcegterg( npw, npwx, nvec, nvecx, npol, evc, ethr, &
      !
   END IF
 
+
   ALLOCATE(  psi( npwx, npol, nvecx ), STAT=ierr )
   IF( ierr /= 0 ) &
      CALL errore( ' pcegterg ',' cannot allocate psi ', ABS(ierr) )
@@ -1115,6 +1116,9 @@ CONTAINS
 
               CALL mp_bcast( vtmp(:,1:notcl), root, ortho_parent_comm )
               ! 
+              !<<<
+              IF ( kdmx > 0 ) THEN
+              !>>>
               IF ( uspp ) THEN
                  !
                  CALL ZGEMM( 'N', 'N', kdim, notcl, nr, ONE, &
@@ -1129,6 +1133,9 @@ CONTAINS
               !
               CALL ZGEMM( 'N', 'N', kdim, notcl, nr, ONE, &
                       hpsi( 1, 1, ir ), kdmx, vtmp, nx, ONE, ptmp, kdmx )
+              !<<<
+              END IF
+              !>>>
 
               beta = ONE
 
@@ -1183,15 +1190,27 @@ CONTAINS
                  !  this proc sends his block
                  ! 
                  CALL mp_bcast( vl(:,1:nc), root, ortho_parent_comm )
+                 !<<<
+                 IF( kdmx > 0 )THEN
+                 !>>>
                  CALL ZGEMM( 'N', 'N', kdim, nc, nr, ONE, &
                           psi(1,1,ir), kdmx, vl, nx, beta, evc(1,1,ic), kdmx )
+                 !<<<
+                 END IF
+                 !>>>
               ELSE
                  !
                  !  all other procs receive
                  ! 
                  CALL mp_bcast( vtmp(:,1:nc), root, ortho_parent_comm )
+                 !<<<
+                 IF( kdmx > 0 )THEN
+                 !>>>
                  CALL ZGEMM( 'N', 'N', kdim, nc, nr, ONE, &
                           psi(1,1,ir), kdmx, vtmp, nx, beta, evc(1,1,ic), kdmx )
+                 !<<<
+                 END IF
+                 !>>>
               END IF
               ! 
 
@@ -1241,15 +1260,27 @@ CONTAINS
                  !  this proc sends his block
                  ! 
                  CALL mp_bcast( vl(:,1:nc), root, ortho_parent_comm )
+                 !<<<
+                 IF ( kdmx > 0 ) THEN
+                 !>>>
                  CALL ZGEMM( 'N', 'N', kdim, nc, nr, ONE, &
                           spsi(1,1,ir), kdmx, vl, nx, beta, psi(1,1,nvec+ic), kdmx )
+                 !<<<
+                 END IF
+                 !>>>
               ELSE
                  !
                  !  all other procs receive
                  ! 
                  CALL mp_bcast( vtmp(:,1:nc), root, ortho_parent_comm )
+                 !<<<
+                 IF ( kdmx > 0 ) THEN
+                 !>>>
                  CALL ZGEMM( 'N', 'N', kdim, nc, nr, ONE, &
                           spsi(1,1,ir), kdmx, vtmp, nx, beta, psi(1,1,nvec+ic), kdmx )
+                 !<<<
+                 END IF
+                 !>>>
               END IF
               ! 
               beta = ONE
@@ -1301,15 +1332,27 @@ CONTAINS
                  !  this proc sends his block
                  ! 
                  CALL mp_bcast( vl(:,1:nc), root, ortho_parent_comm )
+                 !<<<
+                 IF ( kdmx > 0 ) THEN
+                 !>>>
                  CALL ZGEMM( 'N', 'N', kdim, nc, nr, ONE, &
                           hpsi(1,1,ir), kdmx, vl, nx, beta, psi(1,1,nvec+ic), kdmx )
+                 !<<<
+                 END IF
+                 !>>>
               ELSE
                  !
                  !  all other procs receive
                  ! 
                  CALL mp_bcast( vtmp(:,1:nc), root, ortho_parent_comm )
+                 !<<<
+                 IF ( kdmx > 0 ) THEN
+                 !>>>
                  CALL ZGEMM( 'N', 'N', kdim, nc, nr, ONE, &
                           hpsi(1,1,ir), kdmx, vtmp, nx, beta, psi(1,1,nvec+ic), kdmx )
+                 !<<<
+                 END IF
+                 !>>>
               END IF
               ! 
               beta = ONE
@@ -1362,8 +1405,14 @@ CONTAINS
 
            ! use blas subs. on the matrix block
 
+           !<<<
+           IF(kdmx.gt.0) THEN
+           !>>>
            CALL ZGEMM( 'C', 'N', nr, nc, kdim, ONE , &
                        v(1,1,ir), kdmx, w(1,1,ic), kdmx, ZERO, work, nx )
+           !<<<
+           END IF
+           !>>>
 
            ! accumulate result on dm of root proc.
 
@@ -1419,8 +1468,14 @@ CONTAINS
               !
               root = rank_ip( ipr, ipc )
 
+                 !<<<
+                 IF ( kdmx > 0 ) THEN
+                 !>>>
               CALL ZGEMM( 'C', 'N', nr, nc, kdim, ONE, v( 1, 1, ir ), &
                           kdmx, w(1,1,ii), kdmx, ZERO, vtmp, nx )
+                 !<<<
+                 END IF
+                 !>>>
               IF (ortho_parent_comm.ne.intra_bgrp_comm .and. nbgrp > 1) vtmp = vtmp/nbgrp
               !
               IF(  (desc%active_node > 0) .AND. (ipr-1 == desc%myr) .AND. (ipc-1 == desc%myc) ) THEN

@@ -144,6 +144,10 @@ MODULE exx
   INTEGER :: n_local = 0
   INTEGER :: nwordwfc_exx
   LOGICAL :: first_data_structure_change = .TRUE.
+  !<<<
+  LOGICAL :: npwx_local_set = .FALSE.
+  LOGICAL :: npwx_exx_set = .FALSE.
+  !>>>
 
   INTEGER :: ngm_loc, ngm_g_loc, gstart_loc
   INTEGER, ALLOCATABLE :: ig_l2g_loc(:)
@@ -3632,6 +3636,9 @@ END SUBROUTINE compute_becpsi
     lda = npwx
     n = npwx 
     npwx_local = npwx
+    !<<<
+    npwx_local_set = .TRUE.
+    !>>>
     IF( .not.allocated(ngk_local) ) allocate(ngk_local(nks))
     ngk_local = ngk
     !
@@ -3650,6 +3657,9 @@ END SUBROUTINE compute_becpsi
     lda = npwx
     n = npwx 
     npwx_exx = npwx
+    !<<<
+    npwx_exx_set = .TRUE.
+    !>>>
     IF( .not.allocated(ngk_exx) ) allocate(ngk_exx(nks))
     ngk_exx = ngk
     !
@@ -3704,6 +3714,9 @@ END SUBROUTINE compute_becpsi
     ! change to the EXX data strucutre
     !
     npwx_local = npwx
+    !<<<
+    npwx_local_set = .TRUE.
+    !>>>
     n_local = n
     IF ( .not.allocated(comm_recv) ) THEN
        !
@@ -3717,6 +3730,9 @@ END SUBROUTINE compute_becpsi
        CALL change_data_structure(.TRUE.)
     END IF
     npwx_exx = npwx
+    !<<<
+    npwx_exx_set = .TRUE.
+    !>>>
     n = ngk_exx(current_k)
     !
     ! get igk
@@ -4537,10 +4553,16 @@ END SUBROUTINE compute_becpsi
     !
     ! get npwx and ngk
     !
-    IF ( is_exx.and.npwx_exx.gt.0 ) THEN
+    !<<<
+    !IF ( is_exx.and.npwx_exx.gt.0 ) THEN
+    IF ( is_exx.and.npwx_exx_set ) THEN
+    !>>>
        npwx = npwx_exx
        ngk = ngk_exx
-    ELSE IF ( .not.is_exx.and.npwx_local.gt.0 ) THEN
+    !<<<
+    !ELSE IF ( .not.is_exx.and.npwx_local.gt.0 ) THEN
+    ELSE IF ( .not.is_exx.and.npwx_local_set ) THEN
+    !>>>
        npwx = npwx_local
        ngk = ngk_local
     ELSE
