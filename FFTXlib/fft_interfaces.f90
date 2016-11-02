@@ -20,7 +20,7 @@ MODULE fft_interfaces
      !! and to the "box-grid" version **invfft_b**, used only in CP 
      !! (the latter has an additional argument)
      
-     SUBROUTINE invfft_x( grid_type, f, dfft, dtgs, howmany, is_exx )
+     SUBROUTINE invfft_x( grid_type, f, dfft, dtgs, howmany)
        USE fft_types,  ONLY: fft_type_descriptor
        USE task_groups,   ONLY: task_groups_descriptor
        IMPLICIT NONE
@@ -30,22 +30,20 @@ MODULE fft_interfaces
        TYPE(task_groups_descriptor), OPTIONAL, INTENT(IN) :: dtgs
        INTEGER, OPTIONAL, INTENT(IN) :: howmany
        COMPLEX(DP) :: f(:)
-       LOGICAL, OPTIONAL, INTENT(IN) :: is_exx
      END SUBROUTINE invfft_x
      !
-     SUBROUTINE invfft_b( f, dfft, ia, is_exx )
+     SUBROUTINE invfft_b( f, dfft, ia)
        USE fft_smallbox_type,  ONLY: fft_box_descriptor
        IMPLICIT NONE
        INTEGER, PARAMETER :: DP = selected_real_kind(14,200)
        INTEGER, INTENT(IN) :: ia
        TYPE(fft_box_descriptor), INTENT(IN) :: dfft
        COMPLEX(DP) :: f(:)
-       LOGICAL, OPTIONAL, INTENT(IN) :: is_exx
      END SUBROUTINE invfft_b
   END INTERFACE
 
   INTERFACE fwfft
-     SUBROUTINE fwfft_x( grid_type, f, dfft, dtgs, howmany, is_exx )
+     SUBROUTINE fwfft_x( grid_type, f, dfft, dtgs, howmany)
        USE fft_types,  ONLY: fft_type_descriptor
        USE task_groups,   ONLY: task_groups_descriptor
        IMPLICIT NONE
@@ -55,7 +53,6 @@ MODULE fft_interfaces
        TYPE(task_groups_descriptor), OPTIONAL, INTENT(IN) :: dtgs
        INTEGER, OPTIONAL, INTENT(IN) :: howmany
        COMPLEX(DP) :: f(:)
-       LOGICAL, OPTIONAL, INTENT(IN) :: is_exx
      END SUBROUTINE fwfft_x
   END INTERFACE
 
@@ -63,7 +60,7 @@ END MODULE fft_interfaces
 !=---------------------------------------------------------------------------=!
 !
 !=---------------------------------------------------------------------------=!
-SUBROUTINE invfft_x( grid_type, f, dfft, dtgs, howmany, is_exx )
+SUBROUTINE invfft_x( grid_type, f, dfft, dtgs, howmany)
   !! Compute G-space to R-space for a specific grid type
   !! 
   !! **grid_type = 'Dense'** : 
@@ -104,16 +101,9 @@ SUBROUTINE invfft_x( grid_type, f, dfft, dtgs, howmany, is_exx )
   TYPE(fft_type_descriptor), INTENT(IN) :: dfft
   CHARACTER(LEN=*), INTENT(IN) :: grid_type
   COMPLEX(DP) :: f(:)
-  LOGICAL, OPTIONAL, INTENT(IN) :: is_exx
-  LOGICAL :: is_exx_
   TYPE(task_groups_descriptor), OPTIONAL, INTENT(IN) :: dtgs
   INTEGER, OPTIONAL, INTENT(IN) :: howmany
   INTEGER :: howmany_ = 1
-  IF( present( is_exx ) ) THEN
-     is_exx_ = is_exx
-  ELSE
-     is_exx_ = .FALSE.
-  END IF
 
   IF(PRESENT(howmany) ) THEN
      howmany_ = howmany
@@ -146,24 +136,13 @@ SUBROUTINE invfft_x( grid_type, f, dfft, dtgs, howmany, is_exx )
 
   IF( dfft%lpara ) THEN
 
-! pcarrier@cray.com CHANGED: simplified syntax, and added is_exx syntax for USE_3D_FFT
-!#if defined(__MPI) && !defined(__USE_3D_FFT)
-!     
-!     IF( grid_type == 'Dense' .OR. grid_type == 'Smooth' .OR. grid_type == 'Custom' ) THEN
-!        CALL tg_cft3s( f, dfft, 1, is_exx=is_exx_ )
-!     ELSE IF( grid_type == 'Wave' .OR. grid_type == 'CustomWave' ) THEN
-!        CALL tg_cft3s( f, dfft, 2, dtgs, is_exx=Is_exx_ )
-!     END IF
-!
-!#endif
-
 #if defined(__MPI)
 	IF ( grid_type == 'CustomLocal' ) THEN
 		CALL cfft3d( f, dfft%nr1, dfft%nr2, dfft%nr3, dfft%nr1x,dfft%nr2x,dfft%nr3x, howmany_, 1)
 	ELSE IF( grid_type == 'Dense' .OR. grid_type == 'Smooth' .OR. grid_type == 'Custom' ) THEN
-		CALL tg_cft3s( f, dfft, 1, is_exx=is_exx_ )
+		CALL tg_cft3s( f, dfft, 1)
 	ELSE IF( grid_type == 'Wave' .OR. grid_type == 'CustomWave' ) THEN
-		CALL tg_cft3s( f, dfft, 2, dtgs, is_exx=Is_exx_ )
+		CALL tg_cft3s( f, dfft, 2, dtgs)
 	END IF
 #endif
 
@@ -206,7 +185,7 @@ END SUBROUTINE invfft_x
 !=---------------------------------------------------------------------------=!
 !
 !=---------------------------------------------------------------------------=!
-SUBROUTINE fwfft_x( grid_type, f, dfft, dtgs, howmany, is_exx )
+SUBROUTINE fwfft_x( grid_type, f, dfft, dtgs, howmany)
   !! Compute R-space to G-space for a specific grid type
   !! 
   !! **grid_type = 'Dense'**
@@ -246,16 +225,9 @@ SUBROUTINE fwfft_x( grid_type, f, dfft, dtgs, howmany, is_exx )
   TYPE(fft_type_descriptor), INTENT(IN) :: dfft
   CHARACTER(LEN=*), INTENT(IN) :: grid_type
   COMPLEX(DP) :: f(:)
-  LOGICAL, OPTIONAL, INTENT(IN) :: is_exx
-  LOGICAL :: is_exx_
   TYPE(task_groups_descriptor), OPTIONAL, INTENT(IN) :: dtgs
   INTEGER, OPTIONAL, INTENT(IN) :: howmany
   INTEGER :: howmany_ = 1
-  IF( present(is_exx) ) THEN
-     is_exx_ = is_exx
-  ELSE
-     is_exx_ = .FALSE.
-  END IF
 
   IF(PRESENT(howmany) ) THEN
      howmany_ = howmany
@@ -287,14 +259,13 @@ SUBROUTINE fwfft_x( grid_type, f, dfft, dtgs, howmany, is_exx )
      END IF
 #endif
 
-! pcarrier@cray.com CHANGED: simplified syntax, and added is_exx syntax for USE_3D_FFT
 #if defined(__MPI)
      IF ( grid_type == 'CustomLocal' ) THEN
 	     CALL cfft3d( f, dfft%nr1, dfft%nr2, dfft%nr3, dfft%nr1x,dfft%nr2x,dfft%nr3x, howmany_, -1)
      ELSE IF( grid_type == 'Dense' .OR. grid_type == 'Smooth' .OR. grid_type == 'Custom' ) THEN
-        CALL tg_cft3s( f, dfft, -1, is_exx=is_exx_ )
+        CALL tg_cft3s( f, dfft, -1)
      ELSE IF( grid_type == 'Wave' .OR. grid_type == 'CustomWave' ) THEN
-        CALL tg_cft3s( f, dfft, -2, dtgs, is_exx=Is_exx_ )
+        CALL tg_cft3s( f, dfft, -2, dtgs)
   END IF
 
 #endif
@@ -337,7 +308,7 @@ END SUBROUTINE fwfft_x
 !=---------------------------------------------------------------------------=!
 !
 !=---------------------------------------------------------------------------=!
-SUBROUTINE invfft_b( f, dfft, ia, is_exx )
+SUBROUTINE invfft_b( f, dfft, ia)
   !! Not-so-parallel 3d fft for box grid, implemented ONLY for sign=1
   !!
   !! ComputeG-space to R-space, $$ output = \sum_G f(G)exp(+iG*R) $$
@@ -374,13 +345,6 @@ SUBROUTINE invfft_b( f, dfft, ia, is_exx )
   COMPLEX(DP) :: f(:)
   !
   INTEGER :: imin3, imax3, np3
-  LOGICAL, OPTIONAL, INTENT(IN) :: is_exx
-  LOGICAL :: is_exx_
-  IF( present(is_exx) )THEN
-     is_exx_ = is_exx
-  ELSE
-     is_exx_ = .FALSE.
-  END IF
 
   ! clocks called inside a parallel region do not work properly!
   ! in the future we probably need a thread safe version of the clock
