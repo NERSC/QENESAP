@@ -59,7 +59,7 @@
 !=----------------------------------------------------------------------=!
 !
 
-   SUBROUTINE cft_1z(c, nsl, nz, ldz, isign, cout, is_exx)
+   SUBROUTINE cft_1z(c, nsl, nz, ldz, isign, cout)
 
 !     driver routine for nsl 1d complex fft's of length nz
 !     ldz >= nz is the distance between sequences to be transformed
@@ -72,9 +72,7 @@
 
      INTEGER, INTENT(IN) :: isign
      INTEGER, INTENT(IN) :: nsl, nz, ldz
-     LOGICAL, OPTIONAL, INTENT(IN) :: is_exx
-     LOGICAL :: is_exx_
-
+	 
      COMPLEX (DP) :: c(:), cout(:)
 
      REAL (DP)  :: tscale
@@ -83,8 +81,6 @@
      !INTEGER, SAVE :: icurrent = 1
      INTEGER, SAVE :: zdims_local( 3, ndims ) = -1
      INTEGER, SAVE :: icurrent_local = 1
-     INTEGER, SAVE :: zdims_exx( 3, ndims ) = -1
-     INTEGER, SAVE :: icurrent_exx = 1
      LOGICAL :: done
 
      INTEGER :: tid
@@ -108,14 +104,6 @@
      !REAL (DP), SAVE :: bw_tablez( ltabl, ndims )
      REAL (DP), SAVE :: fw_tablez_local( ltabl, ndims )
      REAL (DP), SAVE :: bw_tablez_local( ltabl, ndims )
-     REAL (DP), SAVE :: fw_tablez_exx( ltabl, ndims )
-     REAL (DP), SAVE :: bw_tablez_exx( ltabl, ndims )
-
-     IF(PRESENT(is_exx))THEN
-        is_exx_ = is_exx
-     ELSE
-        is_exx_ = .FALSE.
-     END IF
 
      IF( nsl < 0 ) THEN
        CALL fftx_error__(" fft_scalar: cft_1z ", " nsl out of range ", nsl)
@@ -151,18 +139,7 @@
 
        tscale = 1.0_DP / nz
 
-       IF(is_exx_)THEN
-          CALL DCFT ( 1, c(1), 1, ldz, cout(1), 1, ldz, nz, nsl,  1, &
-               tscale, fw_tablez_exx(1, icurrent_exx), ltabl, work(1), lwork)
-          CALL DCFT ( 1, c(1), 1, ldz, cout(1), 1, ldz, nz, nsl, -1, &
-               1.0_DP, bw_tablez_exx(1, icurrent_exx), ltabl, work(1), lwork)
 
-          zdims_exx(1,icurrent_exx) = nz
-          zdims_exx(2,icurrent_exx) = nsl
-          zdims_exx(3,icurrent_exx) = ldz
-          ip = icurrent_exx
-          icurrent_exx = MOD( icurrent_exx, ndims ) + 1
-       ELSE
           CALL DCFT ( 1, c(1), 1, ldz, cout(1), 1, ldz, nz, nsl,  1, &
                tscale, fw_tablez_local(1, icurrent_local), ltabl, work(1), lwork)
           CALL DCFT ( 1, c(1), 1, ldz, cout(1), 1, ldz, nz, nsl, -1, &
@@ -173,7 +150,6 @@
           zdims_local(3,icurrent_local) = ldz
           ip = icurrent_local
           icurrent_local = MOD( icurrent_local, ndims ) + 1
-       END IF
 
      END IF
 
@@ -192,23 +168,13 @@
      IF( isign < 0 ) THEN
         idir   =+1
         tscale = 1.0_DP / nz
-        IF(is_exx_)THEN
-           CALL DCFT (0, c(1), 1, ldz, cout(1), 1, ldz, nz, nsl, idir, &
-                tscale, fw_tablez_exx(1, ip), ltabl, work, lwork)
-        ELSE
            CALL DCFT (0, c(1), 1, ldz, cout(1), 1, ldz, nz, nsl, idir, &
                 tscale, fw_tablez_local(1, ip), ltabl, work, lwork)
-        END IF
      ELSE IF( isign > 0 ) THEN
         idir   =-1
         tscale = 1.0_DP
-        IF(is_exx_)THEN
-           CALL DCFT (0, c(1), 1, ldz, cout(1), 1, ldz, nz, nsl, idir, &
-                tscale, bw_tablez_exx(1, ip), ltabl, work, lwork)
-        ELSE
            CALL DCFT (0, c(1), 1, ldz, cout(1), 1, ldz, nz, nsl, idir, &
                 tscale, bw_tablez_local(1, ip), ltabl, work, lwork)
-        END IF
      END IF
 
 #if defined(__FFT_CLOCKS)
@@ -233,7 +199,7 @@
 !
 !
 
-   SUBROUTINE cft_2xy(r, nzl, nx, ny, ldx, ldy, isign, pl2ix, is_exx)
+   SUBROUTINE cft_2xy(r, nzl, nx, ny, ldx, ldy, isign, pl2ix)
 
 !     driver routine for nzl 2d complex fft's of lengths nx and ny
 !     input : r(ldx*ldy)  complex, transform is in-place
@@ -249,8 +215,6 @@
 
      INTEGER, INTENT(IN) :: isign, ldx, ldy, nx, ny, nzl
      INTEGER, OPTIONAL, INTENT(IN) :: pl2ix(:)
-     LOGICAL, OPTIONAL, INTENT(IN) :: is_exx
-     LOGICAL :: is_exx_
      COMPLEX (DP) :: r( : )
      INTEGER :: i, k, j, err, idir, ip, kk, void
      REAL(DP) :: tscale
@@ -258,8 +222,6 @@
      !INTEGER, SAVE :: dims( 4, ndims) = -1
      INTEGER, SAVE :: icurrent_local = 1
      INTEGER, SAVE :: dims_local( 4, ndims) = -1
-     INTEGER, SAVE :: icurrent_exx = 1
-     INTEGER, SAVE :: dims_exx( 4, ndims) = -1
      LOGICAL :: dofft( nfftx ), done
      INTEGER, PARAMETER  :: stdout = 6
 
@@ -276,14 +238,6 @@
      !REAL (DP), SAVE :: bw_tablex( ltabl, ndims ), bw_tabley( ltabl, ndims )
      REAL (DP), SAVE :: fw_tablex_local( ltabl, ndims ), fw_tabley_local( ltabl, ndims )
      REAL (DP), SAVE :: bw_tablex_local( ltabl, ndims ), bw_tabley_local( ltabl, ndims )
-     REAL (DP), SAVE :: fw_tablex_exx( ltabl, ndims ), fw_tabley_exx( ltabl, ndims )
-     REAL (DP), SAVE :: bw_tablex_exx( ltabl, ndims ), bw_tabley_exx( ltabl, ndims )
-
-     IF(PRESENT(is_exx))THEN
-        is_exx_ = is_exx
-     ELSE
-        is_exx_ = .FALSE.
-     END IF
 
      dofft( 1 : nx ) = .TRUE.
      IF( PRESENT( pl2ix ) ) THEN
@@ -305,13 +259,8 @@
        !   first check if there is already a table initialized
        !   for this combination of parameters
 
-       IF ( is_exx_ ) THEN
-          done = ( ny == dims_exx(1,ip) ) .AND. ( nx == dims_exx(3,ip) )
-          done = done .AND. ( ldx == dims_exx(2,ip) ) .AND.  ( nzl == dims_exx(4,ip) )
-       ELSE
           done = ( ny == dims_local(1,ip) ) .AND. ( nx == dims_local(3,ip) )
           done = done .AND. ( ldx == dims_local(2,ip) ) .AND.  ( nzl == dims_local(4,ip) )
-       END IF
        IF (done) EXIT
 
      END DO
@@ -326,16 +275,6 @@
 #if defined(__OPENMP)
 
        tscale = 1.0_DP / ( nx * ny )
-       IF ( is_exx_ ) THEN
-          CALL DCFT ( 1, r(1), ldx, 1, r(1), ldx, 1, ny, nx,  1, 1.0_DP, &
-               fw_tabley_exx( 1, icurrent_exx), ltabl, work(1), lwork )
-          CALL DCFT ( 1, r(1), ldx, 1, r(1), ldx, 1, ny, nx, -1, 1.0_DP, &
-               bw_tabley_exx(1, icurrent_exx), ltabl, work(1), lwork )
-          CALL DCFT ( 1, r(1), 1, ldx, r(1), 1, ldx, nx, ny,  1, &
-               tscale, fw_tablex_exx( 1, icurrent_exx), ltabl, work(1), lwork)
-          CALL DCFT ( 1, r(1), 1, ldx, r(1), 1, ldx, nx, ny, -1, &
-               1.0_DP, bw_tablex_exx(1, icurrent_exx), ltabl, work(1), lwork)
-       ELSE
           CALL DCFT ( 1, r(1), ldx, 1, r(1), ldx, 1, ny, nx,  1, 1.0_DP, &
                fw_tabley_local( 1, icurrent_local), ltabl, work(1), lwork )
           CALL DCFT ( 1, r(1), ldx, 1, r(1), ldx, 1, ny, nx, -1, 1.0_DP, &
@@ -344,21 +283,10 @@
                tscale, fw_tablex_local( 1, icurrent_local), ltabl, work(1), lwork)
           CALL DCFT ( 1, r(1), 1, ldx, r(1), 1, ldx, nx, ny, -1, &
                1.0_DP, bw_tablex_local(1, icurrent_local), ltabl, work(1), lwork)
-       END IF
 
 #else
 
        tscale = 1.0_DP / ( nx * ny )
-       IF ( is_exx_ ) THEN
-          CALL DCFT ( 1, r(1), ldx, 1, r(1), ldx, 1, ny, 1,  1, 1.0_DP, &
-               fw_tabley_exx( 1, icurrent_exx), ltabl, work(1), lwork )
-          CALL DCFT ( 1, r(1), ldx, 1, r(1), ldx, 1, ny, 1, -1, 1.0_DP, &
-               bw_tabley_exx(1, icurrent_exx), ltabl, work(1), lwork )
-          CALL DCFT ( 1, r(1), 1, ldx, r(1), 1, ldx, nx, ny,  1, &
-               tscale, fw_tablex_exx( 1, icurrent_exx), ltabl, work(1), lwork)
-          CALL DCFT ( 1, r(1), 1, ldx, r(1), 1, ldx, nx, ny, -1, &
-               1.0_DP, bw_tablex_exx(1, icurrent_exx), ltabl, work(1), lwork)
-       ELSE
           CALL DCFT ( 1, r(1), ldx, 1, r(1), ldx, 1, ny, 1,  1, 1.0_DP, &
                fw_tabley_local( 1, icurrent_local), ltabl, work(1), lwork )
           CALL DCFT ( 1, r(1), ldx, 1, r(1), ldx, 1, ny, 1, -1, 1.0_DP, &
@@ -367,21 +295,13 @@
                tscale, fw_tablex_local( 1, icurrent_local), ltabl, work(1), lwork)
           CALL DCFT ( 1, r(1), 1, ldx, r(1), 1, ldx, nx, ny, -1, &
                1.0_DP, bw_tablex_local(1, icurrent_local), ltabl, work(1), lwork)
-       END IF
 
 #endif
 
-       IF ( is_exx_ ) THEN
-          dims_exx(1,icurrent_exx) = ny; dims_exx(2,icurrent_exx) = ldx;
-          dims_exx(3,icurrent_exx) = nx; dims_exx(4,icurrent_exx) = nzl;
-          ip = icurrent_exx
-          icurrent_exx = MOD( icurrent_exx, ndims ) + 1
-       ELSE
           dims_local(1,icurrent_local) = ny; dims_local(2,icurrent_local) = ldx;
           dims_local(3,icurrent_local) = nx; dims_local(4,icurrent_local) = nzl;
           ip = icurrent_local
           icurrent_local = MOD( icurrent_local, ndims ) + 1
-       END IF
 
      END IF
 
@@ -400,32 +320,18 @@
       tscale = 1.0_DP / ( nx * ny )
       do k = 1, nzl
          kk = 1 + ( k - 1 ) * ldx * ldy
-         IF ( is_exx_ ) THEN
-            CALL DCFT ( 0, r( kk ), 1, ldx, r( kk ), 1, ldx, nx, ny, &
-                 1, tscale, fw_tablex_exx( 1, ip ), ltabl, work( 1 ), lwork)
-            CALL DCFT ( 0, r( kk ), ldx, 1, r( kk ), ldx, 1, ny, nx, &
-                 1, 1.0_DP, fw_tabley_exx(1, ip), ltabl, work( 1 ), lwork)
-         ELSE
             CALL DCFT ( 0, r( kk ), 1, ldx, r( kk ), 1, ldx, nx, ny, &
                  1, tscale, fw_tablex_local( 1, ip ), ltabl, work( 1 ), lwork)
             CALL DCFT ( 0, r( kk ), ldx, 1, r( kk ), ldx, 1, ny, nx, &
                  1, 1.0_DP, fw_tabley_local(1, ip), ltabl, work( 1 ), lwork)
-         END IF
       end do
    ELSE IF( isign > 0 ) THEN
       DO k = 1, nzl
          kk = 1 + ( k - 1 ) * ldx * ldy
-         IF ( is_exx_ ) THEN
             CALL DCFT ( 0, r( kk ), ldx, 1, r( kk ), ldx, 1, ny, nx, &
                  -1, 1.0_DP, bw_tabley_local(1, ip), ltabl, work( 1 ), lwork)
             CALL DCFT ( 0, r( kk ), 1, ldx, r( kk ), 1, ldx, nx, ny, &
                  -1, 1.0_DP, bw_tablex_local(1, ip), ltabl, work( 1 ), lwork)
-         ELSE
-            CALL DCFT ( 0, r( kk ), ldx, 1, r( kk ), ldx, 1, ny, nx, &
-                 -1, 1.0_DP, bw_tabley_local(1, ip), ltabl, work( 1 ), lwork)
-            CALL DCFT ( 0, r( kk ), 1, ldx, r( kk ), 1, ldx, nx, ny, &
-                 -1, 1.0_DP, bw_tablex_local(1, ip), ltabl, work( 1 ), lwork)
-         END IF
       END DO
    END IF
 
@@ -436,23 +342,13 @@
       tscale = 1.0_DP / ( nx * ny )
       do k = 1, nzl
          kk = 1 + ( k - 1 ) * ldx * ldy
-         IF ( is_exx_ ) THEN
-            CALL DCFT ( 0, r(kk), 1, ldx, r(kk), 1, ldx, nx, ny, idir, &
-                 tscale, fw_tablex_exx( 1, ip ), ltabl, work( 1 ), lwork)
-         ELSE
             CALL DCFT ( 0, r(kk), 1, ldx, r(kk), 1, ldx, nx, ny, idir, &
                  tscale, fw_tablex_local( 1, ip ), ltabl, work( 1 ), lwork)
-         END IF
          do i = 1, nx
             IF( dofft( i ) ) THEN
                kk = i + ( k - 1 ) * ldx * ldy
-               IF ( is_exx_ ) THEN
-                  call DCFT ( 0, r( kk ), ldx, 1, r( kk ), ldx, 1, ny, 1, &
-                       idir, 1.0_DP, fw_tabley_exx(1, ip), ltabl, work( 1 ), lwork)
-               ELSE
                   call DCFT ( 0, r( kk ), ldx, 1, r( kk ), ldx, 1, ny, 1, &
                        idir, 1.0_DP, fw_tabley_local(1, ip), ltabl, work( 1 ), lwork)
-               END IF
             END IF
          end do
       end do
@@ -462,23 +358,13 @@
          do i = 1, nx
             IF( dofft( i ) ) THEN
                kk = i + ( k - 1 ) * ldx * ldy
-               IF ( is_exx_ ) THEN
-                  call DCFT ( 0, r( kk ), ldx, 1, r( kk ), ldx, 1, ny, 1, &
-                       idir, 1.0_DP, bw_tabley_exx(1, ip), ltabl, work( 1 ), lwork)
-               ELSE
                   call DCFT ( 0, r( kk ), ldx, 1, r( kk ), ldx, 1, ny, 1, &
                        idir, 1.0_DP, bw_tabley_local(1, ip), ltabl, work( 1 ), lwork)
-               END IF
             END IF
          end do
          kk = 1 + ( k - 1 ) * ldx * ldy
-         IF ( is_exx_ ) THEN
-            CALL DCFT ( 0, r( kk ), 1, ldx, r( kk ), 1, ldx, nx, ny, idir, &
-                 1.0_DP, bw_tablex_exx(1, ip), ltabl, work( 1 ), lwork)
-         ELSE
             CALL DCFT ( 0, r( kk ), 1, ldx, r( kk ), 1, ldx, nx, ny, idir, &
                  1.0_DP, bw_tablex_local(1, ip), ltabl, work( 1 ), lwork)
-         END IF
       END DO
    END IF
 #endif
@@ -504,7 +390,7 @@
 !=----------------------------------------------------------------------=!
 !
 
-   SUBROUTINE cfft3d( f, nx, ny, nz, ldx, ldy, ldz, howmany, isign, is_exx )
+   SUBROUTINE cfft3d( f, nx, ny, nz, ldx, ldy, ldz, howmany, isign)
 
   !     driver routine for 3d complex fft of lengths nx, ny, nz
   !     input  :  f(ldx*ldy*ldz)  complex, transform is in-place
@@ -521,22 +407,12 @@
 
      INTEGER, INTENT(IN) :: nx, ny, nz, ldx, ldy, ldz, howmany, isign
      COMPLEX (DP) :: f(:)
-     LOGICAL, OPTIONAL, INTENT(IN) :: is_exx
-     LOGICAL :: is_exx_
      INTEGER :: i, k, j, err, idir, ip
      REAL(DP) :: tscale
      !INTEGER, SAVE :: icurrent = 1
      !INTEGER, SAVE :: dims(3,ndims) = -1
      INTEGER, SAVE :: icurrent_local = 1
      INTEGER, SAVE :: dims_local(3,ndims) = -1
-     INTEGER, SAVE :: icurrent_exx = 1
-     INTEGER, SAVE :: dims_local(3,ndims) = -1
-
-     IF(PRESENT(is_exx))THEN
-        is_exx_ = is_exx
-     ELSE
-        is_exx_ = .FALSE.
-     END IF
 
      IF ( nx < 1 ) &
          call fftx_error__('cfft3d',' nx is less than 1 ', 1)
@@ -555,20 +431,11 @@
        !   first check if there is already a table initialized
        !   for this combination of parameters
 
-       IF ( is_exx_ ) THEN
-          IF ( ( nx == dims_exx(1,i) ) .and. &
-               ( ny == dims_exx(2,i) ) .and. &
-               ( nz == dims_exx(3,i) ) ) THEN
-             ip = i
-             EXIT
-          END IF
-       ELSE
           IF ( ( nx == dims_local(1,i) ) .and. &
                ( ny == dims_local(2,i) ) .and. &
                ( nz == dims_local(3,i) ) ) THEN
              ip = i
              EXIT
-          END IF
        END IF
      END DO
 
@@ -579,19 +446,11 @@
 
        ! no initialization for 3d FFT's from ESSL
 
-       IF ( is_exx_ ) THEN
-          dims_exx(1,icurrent_exx) = nx
-          dims_exx(2,icurrent_exx) = ny
-          dims_exx(3,icurrent_exx) = nz
-          ip = icurrent_exx
-          icurrent_exx = MOD( icurrent_exx, ndims ) + 1
-       ELSE
           dims_local(1,icurrent_local) = nx
           dims_local(2,icurrent_local) = ny
           dims_local(3,icurrent_local) = nz
           ip = icurrent_local
           icurrent_local = MOD( icurrent_local, ndims ) + 1
-       END IF
 
      END IF
 
@@ -626,7 +485,7 @@
 !
 
 SUBROUTINE cfft3ds (f, nx, ny, nz, ldx, ldy, ldz, howmany, isign, &
-     do_fft_z, do_fft_y, is_exx)
+     do_fft_z, do_fft_y)
   !
   !     driver routine for 3d complex "reduced" fft - see cfft3d
   !     The 3D fft are computed only on lines and planes which have
@@ -641,8 +500,6 @@ SUBROUTINE cfft3ds (f, nx, ny, nz, ldx, ldy, ldz, howmany, isign, &
   implicit none
 
   integer :: nx, ny, nz, ldx, ldy, ldz, howmany, isign
-  LOGICAL, OPTIONAL, INTENT(IN) :: is_exx
-  LOGICAL :: is_exx_
   !
   !   logical dimensions of the fft
   !   physical dimensions of the f array
@@ -658,22 +515,12 @@ SUBROUTINE cfft3ds (f, nx, ny, nz, ldx, ldy, ldz, howmany, isign, &
   !INTEGER, SAVE :: dims(3,ndims) = -1
   INTEGER, SAVE :: icurrent_local = 1
   INTEGER, SAVE :: dims_local(3,ndims) = -1
-  INTEGER, SAVE :: icurrent_exx = 1
-  INTEGER, SAVE :: dims_exx(3,ndims) = -1
 
   INTEGER, PARAMETER :: ltabl = 20000 + 3 * nfftx
   !REAL (DP), SAVE :: fw_table( ltabl, 3, ndims )
   !REAL (DP), SAVE :: bw_table( ltabl, 3, ndims )
   REAL (DP), SAVE :: fw_table_local( ltabl, 3, ndims )
   REAL (DP), SAVE :: bw_table_local( ltabl, 3, ndims )
-  REAL (DP), SAVE :: fw_table_exx( ltabl, 3, ndims )
-  REAL (DP), SAVE :: bw_table_exx( ltabl, 3, ndims )
-
-  IF(PRESENT(is_exx))THEN
-     is_exx_ = is_exx
-  ELSE
-     is_exx_ = .FALSE.
-  END IF
 
   tscale = 1.0_DP
 
@@ -694,19 +541,11 @@ SUBROUTINE cfft3ds (f, nx, ny, nz, ldx, ldy, ldz, howmany, isign, &
        !   first check if there is already a table initialized
        !   for this combination of parameters
 
-       IF ( is_exx_ ) THEN
-          IF( ( nx == dims_exx(1,i) ) .and. ( ny == dims_exx(2,i) ) .and. &
-               ( nz == dims_exx(3,i) ) ) THEN
-             ip = i
-             EXIT
-          END IF
-       ELSE
           IF( ( nx == dims_local(1,i) ) .and. ( ny == dims_local(2,i) ) .and. &
                ( nz == dims_local(3,i) ) ) THEN
              ip = i
              EXIT
           END IF
-       END IF
 
      END DO
 
@@ -719,26 +558,6 @@ SUBROUTINE cfft3ds (f, nx, ny, nz, ldx, ldy, ldz, howmany, isign, &
        ! ESSL sign convention for fft's is the opposite of the "usual" one
        !
        tscale = 1.0_DP
-       IF ( is_exx_ ) THEN
-          !  x - direction
-          incx1 = 1; incx2 = ldx; m = ldy*nz
-          CALL DCFT ( 1, f(1), incx1, incx2, f(1), incx1, incx2, nx, m,  1, 1.0_DP, &
-               fw_table_exx( 1, 1, icurrent_exx), ltabl, work(1), lwork )
-          CALL DCFT ( 1, f(1), incx1, incx2, f(1), incx1, incx2, nx, m, -1, 1.0_DP, &
-               bw_table_exx(1, 1, icurrent_exx), ltabl, work(1), lwork )
-          !  y - direction
-          incx1 = ldx; incx2 = ldx*ldy; m = nz;
-          CALL DCFT ( 1, f(1), incx1, incx2, f(1), incx1, incx2, ny, m,  1, 1.0_DP, &
-               fw_table_exx( 1, 2, icurrent_exx), ltabl, work(1), lwork )
-          CALL DCFT ( 1, f(1), incx1, incx2, f(1), incx1, incx2, ny, m, -1, 1.0_DP, &
-               bw_table_exx(1, 2, icurrent_exx), ltabl, work(1), lwork )
-          !  z - direction
-          incx1 = ldx * ldy; incx2 = 1; m = 1
-          CALL DCFT ( 1, f(1), incx1, incx2, f(1), incx1, incx2, nz, m,  1, 1.0_DP, &
-               fw_table_exx(1, 3, icurrent_exx), ltabl, work(1), lwork )
-          CALL DCFT ( 1, f(1), incx1, incx2, f(1), incx1, incx2, nz, m, -1, 1.0_DP, &
-               bw_table_exx(1, 3, icurrent_exx), ltabl, work(1), lwork )
-       ELSE
           !  x - direction
           incx1 = 1; incx2 = ldx; m = ldy*nz
           CALL DCFT ( 1, f(1), incx1, incx2, f(1), incx1, incx2, nx, m,  1, 1.0_DP, &
@@ -757,21 +576,12 @@ SUBROUTINE cfft3ds (f, nx, ny, nz, ldx, ldy, ldz, howmany, isign, &
                fw_table_local(1, 3, icurrent_local), ltabl, work(1), lwork )
           CALL DCFT ( 1, f(1), incx1, incx2, f(1), incx1, incx2, nz, m, -1, 1.0_DP, &
                bw_table_local(1, 3, icurrent_local), ltabl, work(1), lwork )
-       END IF
 
-       IF ( is_exx_ ) THEN
-          dims_exx(1,icurrent_exx) = nx
-          dims_exx(2,icurrent_exx) = ny
-          dims_exx(3,icurrent_exx) = nz
-          ip = icurrent_exx
-          icurrent_exx = MOD( icurrent_exx, ndims ) + 1
-       ELSE
           dims_local(1,icurrent_local) = nx
           dims_local(2,icurrent_local) = ny
           dims_local(3,icurrent_local) = nz
           ip = icurrent_local
           icurrent_local = MOD( icurrent_local, ndims ) + 1
-       END IF
 
      END IF
 
