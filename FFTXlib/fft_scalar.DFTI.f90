@@ -72,10 +72,8 @@
 
      REAL (DP)  :: tscale
      INTEGER    :: i, err, idir, ip, void
-     INTEGER :: zdims( 3, ndims ) = -1
-     INTEGER :: icurrent = 1
-     INTEGER, SAVE :: zdims_local( 3, ndims ) = -1
-     INTEGER, SAVE :: icurrent_local = 1
+     INTEGER, SAVE :: zdims( 3, ndims ) = -1
+     INTEGER, SAVE :: icurrent = 1
      LOGICAL :: found
 
      INTEGER :: tid
@@ -88,16 +86,9 @@
 
      !   Intel MKL native FFT driver
 
-     TYPE(DFTI_DESCRIPTOR_ARRAY) :: hand( ndims )
-     LOGICAL :: dfti_first = .TRUE.
-     TYPE(DFTI_DESCRIPTOR_ARRAY), SAVE :: hand_local( ndims )
-     LOGICAL, SAVE :: dfti_first_local = .TRUE.
-	 INTEGER :: dfti_status = 0
-
-	 zdims = zdims_local
-	 icurrent = icurrent_local
-	 hand = hand_local
-	 dfti_first = dfti_first_local
+     TYPE(DFTI_DESCRIPTOR_ARRAY), SAVE :: hand( ndims )
+     LOGICAL, SAVE :: dfti_first = .TRUE.
+     INTEGER :: dfti_status = 0
      !
      CALL check_dims()
      !
@@ -136,11 +127,6 @@
      CALL stop_clock( 'cft_1z' )
 #endif
 
-	zdims_local = zdims
-	icurrent_local = icurrent
-	hand_local = hand
-	dfti_first_local = dfti_first
-
      RETURN
 
    CONTAINS !=------------------------------------------------=!
@@ -152,7 +138,7 @@
      END SUBROUTINE check_dims
 
      SUBROUTINE lookup()
-     IF( dfti_first ) THEN
+     IF( dfti_first .EQ. .TRUE. ) THEN
         DO ip = 1, ndims
            hand(ip)%desc => NULL()
         END DO
@@ -253,11 +239,9 @@
      COMPLEX (DP) :: r( : )
      INTEGER :: i, k, j, err, idir, ip, kk, void
      REAL(DP) :: tscale
-     INTEGER :: icurrent = 1
-     INTEGER :: dims( 4, ndims) = -1
-     INTEGER, SAVE :: icurrent_local = 1
-     INTEGER, SAVE :: dims_local( 4, ndims) = -1
-	 LOGICAL :: dofft( nfftx ), found
+     INTEGER, SAVE :: icurrent = 1
+     INTEGER, SAVE :: dims( 4, ndims) = -1
+     LOGICAL :: dofft( nfftx ), found
      INTEGER, PARAMETER  :: stdout = 6
 
 #if defined(__OPENMP)
@@ -268,16 +252,9 @@
      EXTERNAL :: omp_get_thread_num, omp_get_num_threads, omp_get_max_threads
 #endif
 
-     TYPE(DFTI_DESCRIPTOR_ARRAY) :: hand( ndims )
-     LOGICAL :: dfti_first = .TRUE.
-     TYPE(DFTI_DESCRIPTOR_ARRAY), SAVE :: hand_local( ndims )
-     LOGICAL, SAVE :: dfti_first_local = .TRUE.
+     TYPE(DFTI_DESCRIPTOR_ARRAY), SAVE :: hand( ndims )
+     LOGICAL, SAVE :: dfti_first = .TRUE.
      INTEGER :: dfti_status = 0
-	 
-	 dims = dims_local
-	 icurrent = icurrent_local
-	 hand = hand_local
-	 dfti_first = dfti_first_local
 
      dofft( 1 : nx ) = .TRUE.
      IF( PRESENT( pl2ix ) ) THEN
@@ -334,11 +311,6 @@
      CALL stop_clock( 'cft_2xy' )
 #endif
 
-	dims_local = dims
-	icurrent_local = icurrent
-	hand_local = hand
-	dfti_first_local = dfti_first
-
      RETURN
 
    CONTAINS !=------------------------------------------------=!
@@ -347,7 +319,7 @@
      END SUBROUTINE check_dims
 
      SUBROUTINE lookup()
-     IF( dfti_first ) THEN
+     IF( dfti_first .EQ. .TRUE. ) THEN
         DO ip = 1, ndims
            hand(ip)%desc => NULL()
         END DO
@@ -449,23 +421,14 @@
      COMPLEX (DP) :: f(:)
      INTEGER :: i, k, j, err, idir, ip
      REAL(DP) :: tscale
-     INTEGER :: icurrent = 1
-     INTEGER :: dims(4,ndims) = -1
-     INTEGER, SAVE :: icurrent_local = 1
-     INTEGER, SAVE :: dims_local(4,ndims) = -1
+     INTEGER, SAVE :: icurrent = 1
+     INTEGER, SAVE :: dims(4,ndims) = -1
 
      !   Intel MKL native FFT driver
 
-     TYPE(DFTI_DESCRIPTOR_ARRAY) :: hand(ndims)
-     LOGICAL :: dfti_first = .TRUE.
-     TYPE(DFTI_DESCRIPTOR_ARRAY), SAVE :: hand_local(ndims)
-     LOGICAL, SAVE :: dfti_first_local = .TRUE.
+     TYPE(DFTI_DESCRIPTOR_ARRAY), SAVE :: hand(ndims)
+     LOGICAL, SAVE :: dfti_first = .TRUE.
      INTEGER :: dfti_status = 0
-
-	 dims = dims_local
-	 icurrent = icurrent_local
-	 hand = hand_local
-	 dfti_first = dfti_first_local
 
      CALL check_dims()
 
@@ -506,11 +469,6 @@
         !
      END IF
 
-	 dims_local = dims
-	 icurrent_local = icurrent
-	 hand_local = hand
-	 dfti_first_local = dfti_first
-
      RETURN
 
    CONTAINS !=------------------------------------------------=!
@@ -527,7 +485,7 @@
      END SUBROUTINE check_dims
 
      SUBROUTINE lookup()
-     IF( dfti_first ) THEN
+     IF( dfti_first .EQ. .TRUE. ) THEN
         DO ip = 1, ndims
            hand(ip)%desc => NULL()
         END DO
@@ -618,7 +576,6 @@ SUBROUTINE cfft3ds (f, nx, ny, nz, ldx, ldy, ldz, howmany, isign, do_fft_z, do_f
   implicit none
 
   integer :: nx, ny, nz, ldx, ldy, ldz, isign, howmany
-  !
   complex(DP) :: f ( ldx * ldy * ldz )
   integer :: do_fft_y(:), do_fft_z(:)
   !

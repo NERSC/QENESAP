@@ -71,10 +71,10 @@
 
      REAL (DP)  :: tscale
      INTEGER    :: i, err, idir, ip, void
-     INTEGER :: zdims( 3, ndims ) = -1
-     INTEGER :: icurrent = 1
-     INTEGER, SAVE :: zdims_local( 3, ndims ) = -1
-     INTEGER, SAVE :: icurrent_local = 1
+     INTEGER, SAVE :: zdims( 3, ndims ) = -1
+     INTEGER, SAVE :: icurrent = 1
+!     INTEGER, SAVE :: zdims_local( 3, ndims ) = -1
+!     INTEGER, SAVE :: icurrent_local = 1
      LOGICAL :: done
      INTEGER :: tid
 
@@ -89,15 +89,15 @@
      !   for 32bit executables, C_POINTER is integer(4)
      !   for 64bit executables, C_POINTER is integer(8)
 
-     C_POINTER :: fw_planz( ndims ) = 0
-     C_POINTER :: bw_planz( ndims ) = 0
-     C_POINTER, SAVE :: fw_planz_local( ndims ) = 0
-     C_POINTER, SAVE :: bw_planz_local( ndims ) = 0
+     C_POINTER, SAVE :: fw_planz( ndims ) = 0
+     C_POINTER, SAVE :: bw_planz( ndims ) = 0
+!     C_POINTER, SAVE :: fw_planz_local( ndims ) = 0
+!     C_POINTER, SAVE :: bw_planz_local( ndims ) = 0
 
-	 zdims = zdims_local
-	 icurrent = icurrent_local
-	 fw_planz = fw_planz_local
-	 bw_planz = bw_planz_local
+!	 zdims = zdims_local
+!	 icurrent = icurrent_local
+!	 fw_planz = fw_planz_local
+!	 bw_planz = bw_planz_local
 
      IF( nsl < 0 ) THEN
        CALL fftx_error__(" fft_scalar: cft_1z ", " nsl out of range ", nsl)
@@ -134,10 +134,10 @@
         CALL dfftw_execute_dft( bw_planz( ip), c, cout)
      END IF
 
-	 zdims_local = zdims
-	 icurrent_local = icurrent
-	 fw_planz_local = fw_planz
-	 bw_planz_local = bw_planz
+!	 zdims_local = zdims
+!	 icurrent_local = icurrent
+!	 fw_planz_local = fw_planz
+!	 bw_planz_local = bw_planz
 
 #if defined(__FFT_CLOCKS)
      CALL stop_clock( 'cft_1z' )
@@ -215,10 +215,10 @@
      COMPLEX (DP) :: r( : )
      INTEGER :: i, k, j, err, idir, ip, kk, void
      REAL(DP) :: tscale
-     INTEGER :: icurrent = 1
-     INTEGER :: dims( 4, ndims) = -1
-     INTEGER, SAVE :: icurrent_local = 1
-     INTEGER, SAVE :: dims_local( 4, ndims) = -1
+     INTEGER, SAVE :: icurrent = 1
+     INTEGER, SAVE :: dims( 4, ndims) = -1
+!     INTEGER, SAVE :: icurrent_local = 1
+!     INTEGER, SAVE :: dims_local( 4, ndims) = -1
      LOGICAL :: dofft( nfftx ), done
      INTEGER, PARAMETER  :: stdout = 6
 
@@ -230,15 +230,15 @@
      EXTERNAL :: omp_get_thread_num, omp_get_num_threads, omp_get_max_threads
 #endif
 
-     C_POINTER :: fw_plan( 2, ndims ) = 0
-     C_POINTER :: bw_plan( 2, ndims ) = 0
-     C_POINTER, SAVE :: fw_plan_local( 2, ndims ) = 0
-     C_POINTER, SAVE :: bw_plan_local( 2, ndims ) = 0
+     C_POINTER, SAVE :: fw_plan( 2, ndims ) = 0
+     C_POINTER, SAVE :: bw_plan( 2, ndims ) = 0
+!     C_POINTER, SAVE :: fw_plan_local( 2, ndims ) = 0
+!     C_POINTER, SAVE :: bw_plan_local( 2, ndims ) = 0
 
-	 dims = dims_local
-	 icurrent = icurrent_local
-	 fw_plan = fw_plan_local
-	 bw_plan = bw_plan_local
+!	 dims = dims_local
+!	 icurrent = icurrent_local
+!	 fw_plan = fw_plan_local
+!	 bw_plan = bw_plan_local
 
      dofft( 1 : nx ) = .TRUE.
      IF( PRESENT( pl2ix ) ) THEN
@@ -312,10 +312,10 @@
         END IF
      END IF
 
-	 dims_local = dims
-	 icurrent_local = icurrent
-	 fw_plan_local = fw_plan
-	 bw_plan_local = bw_plan
+!	 dims_local = dims
+!	 icurrent_local = icurrent
+!	 fw_plan_local = fw_plan
+!	 bw_plan_local = bw_plan
 
 #if defined(__FFT_CLOCKS)
      CALL stop_clock( 'cft_2xy' )
@@ -426,23 +426,23 @@
      INTEGER :: ibeg, jbeg
      !>>>
      REAL(DP) :: tscale
-     INTEGER :: icurrent = 1
-     INTEGER :: dims(3,ndims) = -1
-     INTEGER, SAVE :: icurrent_local = 1
-     INTEGER, SAVE :: dims_local(3,ndims) = -1
+     INTEGER, SAVE :: icurrent = 1
+     INTEGER, SAVE :: dims(3,ndims) = -1
+!     INTEGER, SAVE :: icurrent_local = 1
+!     INTEGER, SAVE :: dims_local(3,ndims) = -1
      integer,parameter::nblk=8
 
-     C_POINTER :: fw_plan(ndims) = 0
-     C_POINTER :: bw_plan(ndims) = 0
-     C_POINTER, save :: fw_plan_local(ndims) = 0
-     C_POINTER, save :: bw_plan_local(ndims) = 0
+     C_POINTER, save :: fw_plan(ndims) = 0
+     C_POINTER, save :: bw_plan(ndims) = 0
+!     C_POINTER, save :: fw_plan_local(ndims) = 0
+!     C_POINTER, save :: bw_plan_local(ndims) = 0
      integer(8),dimension(ndims),save:: planFMX,planF1X,planFMY,planF1Y,planFMZ,planF1Z
      integer(8),dimension(ndims),save:: planBMX,planB1X,planBMY,planB1Y,planBMZ,planB1Z
 
-	 dims = dims_local
-	 icurrent = icurrent_local
-	 fw_plan = fw_plan_local
-	 bw_plan = bw_plan_local
+!	 dims = dims_local
+!	 icurrent = icurrent_local
+!	 fw_plan = fw_plan_local
+!	 bw_plan = bw_plan_local
 
      IF ( nx < 1 ) &
          call fftx_error__('cfft3d',' nx is less than 1 ', 1)
@@ -552,10 +552,10 @@
 
      END IF
 
-	 dims_local = dims
-	 icurrent_local = icurrent
-	 fw_plan_local = fw_plan
-	 bw_plan_local = bw_plan
+!	 dims_local = dims
+!	 icurrent_local = icurrent
+!	 fw_plan_local = fw_plan
+!	 bw_plan_local = bw_plan
 
      RETURN
 
@@ -719,21 +719,21 @@ SUBROUTINE cfft3ds (f, nx, ny, nz, ldx, ldy, ldz, howmany, isign, &
   integer :: m, incx1, incx2
   INTEGER :: i, k, j, err, idir, ip,  ii, jj
   REAL(DP) :: tscale
-  INTEGER :: icurrent = 1
-  INTEGER :: dims(3,ndims) = -1
-  INTEGER, SAVE :: icurrent_local = 1
-  INTEGER, SAVE :: dims_local(3,ndims) = -1
+  INTEGER, SAVE :: icurrent = 1
+  INTEGER, SAVE :: dims(3,ndims) = -1
+!  INTEGER, SAVE :: icurrent_local = 1
+!  INTEGER, SAVE :: dims_local(3,ndims) = -1
 
 
-  C_POINTER :: fw_plan ( 3, ndims ) = 0
-  C_POINTER :: bw_plan ( 3, ndims ) = 0
-  C_POINTER, SAVE :: fw_plan_local( 3, ndims ) = 0
-  C_POINTER, SAVE :: bw_plan_local( 3, ndims ) = 0
+  C_POINTER, SAVE :: fw_plan ( 3, ndims ) = 0
+  C_POINTER, SAVE :: bw_plan ( 3, ndims ) = 0
+!  C_POINTER, SAVE :: fw_plan_local( 3, ndims ) = 0
+!  C_POINTER, SAVE :: bw_plan_local( 3, ndims ) = 0
   
-	dims = dims_local
-	icurrent = icurrent_local
-	fw_plan = fw_plan_local
-	bw_plan = bw_plan_local
+!	dims = dims_local
+!	icurrent = icurrent_local
+!	fw_plan = fw_plan_local
+!	bw_plan = bw_plan_local
 
   tscale = 1.0_DP
 
@@ -834,10 +834,10 @@ SUBROUTINE cfft3ds (f, nx, ny, nz, ldx, ldy, ldz, howmany, isign, &
 
      END IF
 
-	 dims_local = dims
-	 icurrent_local = icurrent
-	 fw_plan_local = fw_plan
-	 bw_plan_local = bw_plan
+!	 dims_local = dims
+!	 icurrent_local = icurrent
+!	 fw_plan_local = fw_plan
+!	 bw_plan_local = bw_plan
 
      RETURN
 

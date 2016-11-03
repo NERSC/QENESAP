@@ -65,10 +65,8 @@
 
      REAL (DP)  :: tscale
      INTEGER    :: i, err, idir, ip, void
-     !INTEGER, SAVE :: zdims( 3, ndims ) = -1
-     !INTEGER, SAVE :: icurrent = 1
-     INTEGER, SAVE :: zdims_local( 3, ndims ) = -1
-     INTEGER, SAVE :: icurrent_local = 1
+     INTEGER, SAVE :: zdims( 3, ndims ) = -1
+     INTEGER, SAVE :: icurrent = 1
      LOGICAL :: done
 
      INTEGER :: tid
@@ -87,12 +85,10 @@
      !   NEC MathKeisan
 
      INTEGER, PARAMETER :: ltabl = 2 * nfftx + 64
-     !REAL (DP), SAVE :: tablez (ltabl, ndims)
-     REAL (DP), SAVE :: tablez_local (ltabl, ndims)
+     REAL (DP), SAVE :: tablez (ltabl, ndims)
      REAL (DP)       :: work(4*nz*nsl)
      COMPLEX (DP)    :: DUMMY
-     !INTEGER, SAVE :: isys = 1
-     INTEGER, SAVE :: isys_local = 1
+     INTEGER, SAVE :: isys = 1
 
      IF( nsl < 0 ) THEN
        CALL fftx_error__(" fft_scalar: cft_1z ", " nsl out of range ", nsl)
@@ -107,7 +103,7 @@
         !   first check if there is already a table initialized
         !   for this combination of parameters
 
-           done = ( nz == zdims_local(1,ip) )
+           done = ( nz == zdims(1,ip) )
         IF (done) EXIT
      END DO
 
@@ -119,13 +115,13 @@
        ! WRITE( stdout, fmt="('DEBUG cft_1z, reinitializing tables ', I3)" ) icurrent
           
           CALL ZZFFTM (0, nz, 1, 1.0_DP, DUMMY, ldz, DUMMY, ldz, &
-               tablez_local (1, icurrent_local), work, isys_local)
+               tablez (1, icurrent), work, isys)
 
-          zdims_local(1,icurrent_local) = nz
-          zdims_local(2,icurrent_local) = nsl
-          zdims_local(3,icurrent_local) = ldz
-          ip = icurrent_local
-          icurrent_local = MOD( icurrent_local, ndims ) + 1
+          zdims(1,icurrent) = nz
+          zdims(2,icurrent) = nsl
+          zdims(3,icurrent) = ldz
+          ip = icurrent
+          icurrent = MOD( icurrent, ndims ) + 1
 
      END IF
 
@@ -146,7 +142,7 @@
         tscale = 1.0_DP
      END IF
         IF (isign /= 0) CALL ZZFFTM (idir, nz, nsl, tscale, c(1), ldz, &
-             cout(1), ldz, tablez_local (1, ip), work, isys_local)
+             cout(1), ldz, tablez (1, ip), work, isys)
 
 #if defined(__FFT_CLOCKS)
      CALL stop_clock( 'cft_1z' )
@@ -190,8 +186,8 @@
      COMPLEX (DP) :: r( : )
      INTEGER :: i, k, j, err, idir, ip, kk, void
      REAL(DP) :: tscale
-     INTEGER, SAVE :: icurrent_local = 1
-     INTEGER, SAVE :: dims_local( 4, ndims) = -1
+     INTEGER, SAVE :: icurrent = 1
+     INTEGER, SAVE :: dims( 4, ndims) = -1
      LOGICAL :: dofft( nfftx ), done
      INTEGER, PARAMETER  :: stdout = 6
 
@@ -205,11 +201,11 @@
 
 
      INTEGER, PARAMETER :: ltabl = 2*nfftx + 64
-     REAL (DP), SAVE :: tablex_local(ltabl, ndims), tabley_local(ltabl, ndims)
+     REAL (DP), SAVE :: tablex(ltabl, ndims), tabley(ltabl, ndims)
      REAL (DP)       :: work(4*nx*ny)
      COMPLEX (DP) :: XY(ldx*ny)
      COMPLEX (DP) :: DUMMY
-     INTEGER, SAVE :: isys_local = 1
+     INTEGER, SAVE :: isys = 1
 
      dofft( 1 : nx ) = .TRUE.
      IF( PRESENT( pl2ix ) ) THEN
@@ -231,8 +227,8 @@
        !   first check if there is already a table initialized
        !   for this combination of parameters
 
-          done = ( ny == dims_local(1,ip) ) .AND. ( nx == dims_local(3,ip) )
-          done = done .AND. ( ldx == dims_local(2,ip) ) .AND.  ( nzl == dims_local(4,ip) )
+          done = ( ny == dims(1,ip) ) .AND. ( nx == dims(3,ip) )
+          done = done .AND. ( ldx == dims(2,ip) ) .AND.  ( nzl == dims(4,ip) )
        IF (done) EXIT
 
      END DO
@@ -245,14 +241,14 @@
        ! WRITE( stdout, fmt="('DEBUG cft_2xy, reinitializing tables ', I3)" ) icurrent
 
           CALL ZZFFT(0, ny, 1.0_DP, DUMMY, DUMMY, &
-               tabley_local (1, icurrent_local), work, isys_local)
+               tabley (1, icurrent), work, isys)
           CALL ZZFFTM  (0, nx, 1, 1.0_DP, DUMMY, ldx, DUMMY, ldx, &
-               tablex_local(1, icurrent_local), work, isys_local)
+               tablex(1, icurrent), work, isys)
           
-          dims_local(1,icurrent_local) = ny; dims_local(2,icurrent_local) = ldx;
-          dims_local(3,icurrent_local) = nx; dims_local(4,icurrent_local) = nzl;
-          ip = icurrent_local
-          icurrent_local = MOD( icurrent_local, ndims ) + 1
+          dims(1,icurrent) = ny; dims(2,icurrent) = ldx;
+          dims(3,icurrent) = nx; dims(4,icurrent) = nzl;
+          ip = icurrent
+          icurrent = MOD( icurrent, ndims ) + 1
        
      END IF
 
@@ -273,15 +269,15 @@
           kk = k * ldx * ldy
 ! FORWARD: ny FFTs in the X direction
              CALL ZZFFTM ( idir, nx, ny, tscale, r(kk+1), ldx, r(kk+1), ldx, &
-               tablex_local (1, ip), work(1), isys_local )
+               tablex (1, ip), work(1), isys )
 ! FORWARD: nx FFTs in the Y direction
           DO i = 1, nx
              IF ( dofft(i) ) THEN
                 DO j = 0, ny-1
                    XY(j+1) = r(i + (j) * ldx + kk)
                 END DO
-                   CALL ZZFFT(idir, ny, 1.0_DP, XY, XY, tabley_local (1, ip), &
-                        work(1), isys_local)
+                   CALL ZZFFT(idir, ny, 1.0_DP, XY, XY, tabley (1, ip), &
+                        work(1), isys)
                 DO j = 0, ny-1
                    r(i + (j) * ldx + kk) = XY(j+1)
                 END DO
@@ -301,8 +297,8 @@
                 DO j = 0, ny-1
                    XY(j+1) = r(i + (j) * ldx + kk)
                 END DO
-                   CALL ZZFFT(idir, ny, 1.0_DP, XY, XY, tabley_local (1, ip), &
-                        work(1), isys_local)
+                   CALL ZZFFT(idir, ny, 1.0_DP, XY, XY, tabley (1, ip), &
+                        work(1), isys)
                 DO j = 0, ny-1
                    r(i + (j) * ldx + kk) = XY(j+1)
                 END DO
@@ -310,7 +306,7 @@
           END DO
 ! BACKWARD: ny FFTs in the X direction
              CALL ZZFFTM ( idir, nx, ny, tscale, r(kk+1), ldx, r(kk+1), ldx, &
-                  tablex_local (1, ip), work(1), isys_local )
+                  tablex (1, ip), work(1), isys )
        END DO
 
      END IF
@@ -355,14 +351,14 @@
      COMPLEX (DP) :: f(:)
      INTEGER :: i, k, j, err, idir, ip
      REAL(DP) :: tscale
-     INTEGER, SAVE :: icurrent_local = 1
-     INTEGER, SAVE :: dims_local(3,ndims) = -1
+     INTEGER, SAVE :: icurrent = 1
+     INTEGER, SAVE :: dims(3,ndims) = -1
 
      INTEGER, PARAMETER :: ltabl = 60
      INTEGER, PARAMETER :: lwork = 195+6*nfftx
-     INTEGER, SAVE  :: iw0_local(ltabl, ndims)
+     INTEGER, SAVE  :: iw0(ltabl, ndims)
      INTEGER :: k_off, kj_offset
-     REAL (DP), SAVE :: auxp_local (lwork, ndims)
+     REAL (DP), SAVE :: auxp (lwork, ndims)
      ! not sure whether auxp is work space or not
      COMPLEX(DP), DIMENSION(:), ALLOCATABLE :: cw2
      COMPLEX (DP) :: f_out(size(f))
@@ -396,9 +392,9 @@
        !   first check if there is already a table initialized
        !   for this combination of parameters
 
-          IF ( ( nx == dims_local(1,i) ) .and. &
-               ( ny == dims_local(2,i) ) .and. &
-               ( nz == dims_local(3,i) ) ) THEN
+          IF ( ( nx == dims(1,i) ) .and. &
+               ( ny == dims(2,i) ) .and. &
+               ( nz == dims(3,i) ) ) THEN
              ip = i
              EXIT
        END IF
@@ -412,25 +408,25 @@
 #if defined(ASL)
 #if defined(MICRO)
           CALL hfc3fb (nx,ny,nz, f(1) , ldx, ldy, ldz, 0, &
-               iw0_local(1,icurrent_local), auxp_local(1,icurrent_local), cw2(1), nbtasks, err)
+               iw0(1,icurrent), auxp(1,icurrent), cw2(1), nbtasks, err)
 #else
           CALL zfc3fb (nx,ny,nz, f(1), ldx, ldy, ldz, 0, &
-               iw0_local(1,icurrent_local), auxp_local(1,icurrent_local), cw2(1), err)
+               iw0(1,icurrent), auxp(1,icurrent), cw2(1), err)
 #endif
 #else
        ! for some reason the error variable is not set by this driver on NEC SX machines
        err = 0 
           CALL ZZFFT3D (0, nx,ny,nz, 1.0_DP, f(1), ldx, ldy, &
-               &      f(1), ldx, ldy, auxp_local(1,icurrent_local), cw2(1), err)
+               &      f(1), ldx, ldy, auxp(1,icurrent), cw2(1), err)
 #endif
 
        IF (err /= 0) CALL fftx_error__('cfft3d','FFT init returned an error ', err)
 
-          dims_local(1,icurrent_local) = nx
-          dims_local(2,icurrent_local) = ny
-          dims_local(3,icurrent_local) = nz
-          ip = icurrent_local
-          icurrent_local = MOD( icurrent_local, ndims ) + 1
+          dims(1,icurrent) = nx
+          dims(2,icurrent) = ny
+          dims(3,icurrent) = nz
+          ip = icurrent
+          icurrent = MOD( icurrent, ndims ) + 1
 
      END IF
 
@@ -441,10 +437,10 @@
 #if defined(ASL)
 #if defined(MICRO)
         CALL hfc3bf (nx,ny,nz, f(1), ldx,ldy, ldz, &
-             -isign, iw0_local(1,ip), auxp_local(1,ip), cw2(1), nbtasks, err)
+             -isign, iw0(1,ip), auxp(1,ip), cw2(1), nbtasks, err)
 #else
         CALL zfc3bf (nx,ny,nz, f(1), ldx,ldy, ldz, &
-             -isign, iw0_local(1,ip), auxp_local(1,ip), cw2(1), err)
+             -isign, iw0(1,ip), auxp(1,ip), cw2(1), err)
 #endif
      IF ( isign < 0) THEN
         tscale = 1.0_DP / DBLE( nx * ny * nz )
@@ -458,7 +454,7 @@
         tscale = tscale / DBLE( nx * ny * nz )
      END IF
         CALL ZZFFT3D (isign, nx,ny,nz, tscale, f(1), ldx,ldy, &
-             f_out(1), ldx,ldy, auxp_local(1,ip), cw2(1), err)
+             f_out(1), ldx,ldy, auxp(1,ip), cw2(1), err)
 !$omp parallel do private(j,i,k_off,kj_offset)
      do k=1,nz
         k_off = (k-1)*ldx*ldy
