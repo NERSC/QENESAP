@@ -1000,7 +1000,9 @@ MODULE exx
     ENDIF
     !
     !   All band groups must have the complete set of wavefunctions
-    IF (negrp>1) CALL mp_sum(exxbuff, inter_egrp_comm)
+    IF(gamma_only) THEN
+       IF (negrp>1) CALL mp_sum(exxbuff, inter_egrp_comm)
+    END IF
     !
     !   Each wavefunction in exxbuff is computed by a single pool
     !   Sum the results so that all pools have the complete set of
@@ -1709,6 +1711,7 @@ MODULE exx
     INTEGER :: ii, jstart, jend, jcount, jind
     INTEGER :: ialloc
     INTEGER :: ijt, njt, jblock_start, jblock_end
+    COMPLEX(DP), ALLOCATABLE :: exxtemp(:,:)
     !
     CALL start_clock ('vexx_init')
     !
@@ -1723,6 +1726,8 @@ MODULE exx
     ELSE
        ALLOCATE( temppsic(nrxxs,ialloc), result(nrxxs,ialloc) )
     ENDIF
+    !
+    ALLOCATE( exxtemp(nrxxs*npol, jblock) )
     !
     IF(okvan) ALLOCATE(deexx(nkb,ialloc))
     !
@@ -1848,6 +1853,9 @@ MODULE exx
        !
        jblock_start = (ijt - 1) * jblock + 1
        jblock_end = min(jblock_start+jblock-1,nbnd)
+       !
+       !gather exxbuff for jblock_start:jblock_end
+       call exxbuff_comm(exxtemp,ikq,nrxxs*npol,jblock_start,jblock_end)
 
 
     DO ii=1, nibands(my_egrp_id+1)
@@ -1890,7 +1898,7 @@ MODULE exx
 !$omp parallel do collapse(2) default(shared) firstprivate(jstart,jend) private(jbnd,ir)
              DO jbnd=jstart, jend
                    DO ir = 1, nrxxs
-                      rhoc(ir,jbnd-jstart+1) = ( CONJG(exxbuff(ir,jbnd,ikq))*temppsic_nc(ir,1,ii) + CONJG(exxbuff(nrxxs+ir,jbnd,ikq))*temppsic_nc(ir,2,ii) )/omega
+                      rhoc(ir,jbnd-jstart+1) = ( CONJG(exxtemp(ir,jbnd-jblock_start+1))*temppsic_nc(ir,1,ii) + CONJG(exxtemp(nrxxs+ir,jbnd-jblock_start+1))*temppsic_nc(ir,2,ii) )/omega
                    END DO
              END DO
 !$omp end parallel do
@@ -1908,7 +1916,7 @@ MODULE exx
 					ir_end = min(ir_start+nblock-1,nrxxs)
 !DIR$ vector nontemporal (rhoc)
 					DO ir = ir_start, ir_end
-						rhoc(ir,jbnd-jstart+1)=CONJG(exxbuff(ir,jbnd,ikq))*temppsic(ir,ii) * omega_inv
+						rhoc(ir,jbnd-jstart+1)=CONJG(exxtemp(ir,jbnd-jblock_start+1))*temppsic(ir,ii) * omega_inv
 					ENDDO
 				ENDDO
 			ENDDO
@@ -2027,8 +2035,8 @@ MODULE exx
 !$omp parallel do default(shared) firstprivate(jstart,jend) private(ir,jbnd)
 			DO ir = 1, nrxxs
 				DO jbnd=jstart, jend
-					result_nc(ir,1,ii)= result_nc(ir,1,ii) + vc(ir,jbnd-jstart+1) * exxbuff(ir,jbnd,ikq)
-					result_nc(ir,2,ii)= result_nc(ir,2,ii) + vc(ir,jbnd-jstart+1) * exxbuff(ir+nrxxs,jbnd,ikq)
+					result_nc(ir,1,ii)= result_nc(ir,1,ii) + vc(ir,jbnd-jstart+1) * exxtemp(ir,jbnd-jblock_start+1)
+					result_nc(ir,2,ii)= result_nc(ir,2,ii) + vc(ir,jbnd-jstart+1) * exxtemp(ir+nrxxs,jbnd-jblock_start+1)
 				ENDDO
 			ENDDO
 !$omp end parallel do
@@ -2048,7 +2056,7 @@ MODULE exx
 					ir_end = min(ir_start+nblock-1,nrxxs)
 !!dir$ vector nontemporal (result)
 					DO ir = ir_start, ir_end
-						result(ir,ii) = result(ir,ii) + vc(ir,jbnd-jstart+1)*exxbuff(ir,jbnd,ikq)
+						result(ir,ii) = result(ir,ii) + vc(ir,jbnd-jstart+1)*exxtemp(ir,jbnd-jblock_start+1)
 					ENDDO
 				ENDDO
 			ENDDO
@@ -2726,6 +2734,7 @@ MODULE exx
     INTEGER :: intra_bgrp_comm_
     INTEGER :: ii, ialloc, jstart, jend, ipair
     INTEGER :: ijt, njt, jblock_start, jblock_end
+    COMPLEX(DP), ALLOCATABLE :: exxtemp(:,:)
     !
     CALL start_clock ('energy_init')
     !
@@ -2743,6 +2752,8 @@ MODULE exx
     ELSE
        ALLOCATE(temppsic(nrxxs,ialloc))
     ENDIF
+    !
+    ALLOCATE( exxtemp(nrxxs*npol, jblock) )
     !
     energy=0.0_DP
     !
@@ -2824,6 +2835,18 @@ MODULE exx
        !
        !
        !
+          ! 
+          IQ_LOOP : &
+          DO iq = 1,nqs
+             !
+             ikq  = index_xkq(current_ik,iq)
+             ik   = index_xk(ikq)
+             !
+             xkq = xkq_collect(:,ikq)
+             !
+             CALL g2_convolution(exx_fft%ngmt, exx_fft%gt, xkp, xkq, iq, ikk)
+             IF ( okvan .AND..NOT.tqr ) CALL qvan_init (exx_fft%ngmt, xkq, xkp)
+             !
        njt = nbnd / jblock
        if (mod(nbnd, jblock) .ne. 0) njt = njt + 1
        !
@@ -2832,6 +2855,9 @@ MODULE exx
        !
           jblock_start = (ijt - 1) * jblock + 1
           jblock_end = min(jblock_start+jblock-1,nbnd)
+          !
+          !gather exxbuff for jblock_start:jblock_end
+          call exxbuff_comm(exxtemp,ikq,nrxxs*npol,jblock_start,jblock_end)
        !
        JBND_LOOP : &
        DO ii=1, nibands(my_egrp_id+1)
@@ -2860,18 +2886,6 @@ MODULE exx
           ibnd_inner_start=jstart
           ibnd_inner_end=jend
           ibnd_inner_count=jend-jstart+1
-          ! 
-          IQ_LOOP : &
-          DO iq = 1,nqs
-             !
-             ikq  = index_xkq(current_ik,iq)
-             ik   = index_xk(ikq)
-             !
-             xkq = xkq_collect(:,ikq)
-             !
-             CALL g2_convolution(exx_fft%ngmt, exx_fft%gt, xkp, xkq, iq, ikk)
-             IF ( okvan .AND..NOT.tqr ) CALL qvan_init (exx_fft%ngmt, xkq, xkp)
-             !
 			 
 			 !allocate arrays
 			 ALLOCATE( rhoc(nrxxs,ibnd_inner_count) )!, vcarr(ibnd_inner_count) )
@@ -2884,8 +2898,8 @@ MODULE exx
 !$omp parallel do collapse(2) default(shared) private(ir,ibnd) firstprivate(ibnd_inner_start,ibnd_inner_end)
 					DO ibnd = ibnd_inner_start, ibnd_inner_end
 						DO ir = 1, nrxxs
-							rhoc(ir,ibnd-ibnd_inner_start+1)=(CONJG(exxbuff(ir      ,ibnd,ikq))*temppsic_nc(ir,1,ii) + &
-									CONJG(exxbuff(ir+nrxxs,ibnd,ikq))*temppsic_nc(ir,2,ii) ) * omega_inv
+							rhoc(ir,ibnd-ibnd_inner_start+1)=(CONJG(exxtemp(ir,ibnd-jblock_start+1))*temppsic_nc(ir,1,ii) + &
+									CONJG(exxtemp(ir+nrxxs,ibnd-jblock_start+1))*temppsic_nc(ir,2,ii) ) * omega_inv
 						ENDDO
 					ENDDO
 !$omp end parallel do
@@ -2902,7 +2916,7 @@ MODULE exx
 							ir_end = min(ir_start+nblock-1,nrxxs)
 !DIR$ vector nontemporal (rhoc)
 							DO ir = ir_start, ir_end
-								rhoc(ir,ibnd-ibnd_inner_start+1)=CONJG(exxbuff(ir,ibnd,ikq))*temppsic(ir,ii) * omega_inv
+								rhoc(ir,ibnd-ibnd_inner_start+1)=CONJG(exxtemp(ir,ibnd-jblock_start+1))*temppsic(ir,ii) * omega_inv
 							ENDDO
 						ENDDO
 					ENDDO
@@ -2965,15 +2979,15 @@ MODULE exx
 			
 			!deallocate memory
 			DEALLOCATE( rhoc )
-			IF ( okvan .AND..NOT.tqr ) CALL qvan_clean ( )
-          ENDDO &
-          IQ_LOOP
        ENDDO &
        JBND_LOOP
        !
        ENDDO &
        IJT_LOOP
-       !
+			IF ( okvan .AND..NOT.tqr ) CALL qvan_clean ( )
+          ENDDO &
+          IQ_LOOP
+      !
        CALL stop_clock ('energy_j')
        !
     ENDDO &
@@ -3166,6 +3180,7 @@ MODULE exx
     REAL(DP) :: qq, xk_cryst(3), sxk(3), xkq(3), vc(3,3), x, q(3)
     ! temp array for vcut_spheric
     REAL(DP) :: delta(3,3)
+    COMPLEX(DP), ALLOCATABLE :: exxtemp(:,:)
     
     CALL start_clock ('exx_stress')
     
@@ -3181,6 +3196,8 @@ MODULE exx
     exx_stress_ = 0._dp
     allocate( tempphic(nrxxs), temppsic(nrxxs), rhoc(nrxxs), fac(ngm) )
     allocate( fac_tens(3,3,ngm), fac_stress(ngm) )
+    !
+    ALLOCATE( exxtemp(nrxxs*npol, nbnd) )
     !
     nqi=nqs
     !
@@ -3221,6 +3238,9 @@ MODULE exx
                 ikq  = index_xkq(current_k,iq)
                 ik   = index_xk(ikq)
                 isym = abs(index_sym(ikq))
+                !
+                !gather exxbuff for all bands
+                call exxbuff_comm(exxtemp,ikq,nrxxs*npol,1,nbnd)
 
                 ! FIXME: use cryst_to_cart and company as above..
                 xk_cryst(:)=at(1,:)*xk(1,ik)+at(2,:)*xk(2,ik)+at(3,:)*xk(3,ik)
@@ -3376,7 +3396,7 @@ MODULE exx
                       ! calculate rho in real space
 !$omp parallel do default(shared), private(ir)
                       DO ir = 1, nrxxs
-                          tempphic(ir) = exxbuff(ir,ibnd,ikq)
+                          tempphic(ir) = exxtemp(ir,ibnd)
                           rhoc(ir)     = CONJG(tempphic(ir))*temppsic(ir) / omega
                       ENDDO
 !$omp end parallel do
@@ -4961,6 +4981,58 @@ END SUBROUTINE compute_becpsi
   END SUBROUTINE transform_to_local
   !-----------------------------------------------------------------------
   !
+  !-----------------------------------------------------------------------
+  SUBROUTINE exxbuff_comm(exxtemp,ikq,lda,jstart,jend)
+  !-----------------------------------------------------------------------
+    USE mp_exx,               ONLY : my_egrp_id, inter_egrp_comm, jblock, &
+                                     all_end, negrp
+    USE mp,             ONLY : mp_bcast
+#if defined(__MPI)
+    USE parallel_include, ONLY : MPI_STATUS_SIZE, MPI_DOUBLE_COMPLEX
+#endif
+    COMPLEX(DP), intent(inout) :: exxtemp(lda,jblock)
+    INTEGER, intent(in) :: ikq, lda, jstart, jend
+    INTEGER :: jbnd, iegrp, ierr, request_exxbuff(jblock)
+#if defined(__MPI)
+    INTEGER :: istatus(MPI_STATUS_SIZE)
+#endif
+
+
+    CALL start_clock ('comm_buff')
+
+    DO jbnd=jstart, jend
+       !determine which band group has this value of exxbuff
+       DO iegrp=1, negrp
+          IF(all_end(iegrp) >= jbnd) exit
+       END DO
+
+       IF (iegrp == my_egrp_id+1) THEN
+          exxtemp(:,jbnd-jstart+1) = exxbuff(:,jbnd,ikq)
+       END IF
+
+!       CALL mp_bcast(exxtemp(:,jbnd-jstart+1),iegrp-1,inter_egrp_comm)
+#if defined(__MPI)
+       CALL MPI_IBCAST(exxtemp(:,jbnd-jstart+1), &
+            lda, &
+            MPI_DOUBLE_COMPLEX, &
+            iegrp-1, &
+            inter_egrp_comm, &
+            request_exxbuff(jbnd-jstart+1), ierr)
+#endif
+    END DO
+
+    DO jbnd=jstart, jend
+#if defined(__MPI)
+       CALL MPI_WAIT(request_exxbuff(jbnd-jstart+1), istatus, ierr)
+#endif
+    END DO
+
+    CALL stop_clock ('comm_buff')
+  !
+  !-----------------------------------------------------------------------
+  END SUBROUTINE exxbuff_comm
+  !-----------------------------------------------------------------------
+  
 
 
 
