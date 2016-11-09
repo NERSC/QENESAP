@@ -1369,6 +1369,9 @@ MODULE exx
     COMPLEX(DP), ALLOCATABLE :: big_result(:,:)
     INTEGER :: iegrp, iproc, nproc_egrp, ii, ipair
     INTEGER :: jbnd, jstart, jend
+    COMPLEX(DP), ALLOCATABLE :: exxtemp(:,:), psiwork(:)
+    INTEGER :: ijt, njt, jblock_start, jblock_end
+    INTEGER :: index_start, index_end, exxtemp_index
     !
     ialloc = nibands(my_egrp_id+1)
     !
@@ -1379,6 +1382,9 @@ MODULE exx
     ALLOCATE( result(nrxxs,ialloc), temppsic_dble(nrxxs) )
     ALLOCATE( temppsic_aimag(nrxxs) )
     ALLOCATE( result_g(n) )
+    ALLOCATE( psiwork(nrxxs) )
+    !
+    ALLOCATE( exxtemp(nrxxs*npol, jblock) )
     !
     ALLOCATE(rhoc(nrxxs,nbnd), vc(nrxxs,nbnd))
     IF(okvan) ALLOCATE(deexx(nkb))
@@ -1388,6 +1394,7 @@ MODULE exx
     !
     allocate(big_result(n,m))
     big_result = 0.0_DP
+    result = 0.0_DP
     !
     ! Here the loops start
     !
@@ -1402,6 +1409,20 @@ MODULE exx
        CALL g2_convolution(exx_fft%ngmt, exx_fft%gt, xkp, xkq, iq, current_k) 
        IF ( okvan .AND..NOT.tqr ) CALL qvan_init (exx_fft%ngmt, xkq, xkp)
        !
+       njt = nbnd / (2*jblock)
+       if (mod(nbnd, (2*jblock)) .ne. 0) njt = njt + 1
+       !
+       IJT_LOOP : &
+       DO ijt=1, njt
+          !
+          jblock_start = (ijt - 1) * (2*jblock) + 1
+          jblock_end = min(jblock_start+(2*jblock)-1,nbnd)
+          index_start = (ijt - 1) * jblock + 1
+          index_end = min(index_start+jblock-1,nbnd/2)
+          !
+          !gather exxbuff for jblock_start:jblock_end
+          call exxbuff_comm_gamma(exxtemp,ikq,nrxxs*npol,jblock_start,jblock_end,jblock)
+       !
        LOOP_ON_PSI_BANDS : &
        DO ii = 1,  nibands(my_egrp_id+1)
           !
@@ -1411,7 +1432,7 @@ MODULE exx
           !
           IF(okvan) deexx = 0.0_DP
           !
-          result(:,ii) = 0.0_DP
+          psiwork = 0.0_DP
           !
           l_fft_doubleband = .FALSE.
           l_fft_singleband = .FALSE.
@@ -1422,10 +1443,8 @@ MODULE exx
           IF( l_fft_doubleband ) THEN 
 !$omp parallel do  default(shared), private(ig)
              DO ig = 1, exx_fft%npwt
-!                result( exx_fft%nlt(ig) )  =       psi(ig, im) + (0._DP,1._DP) * psi(ig, im+1)
-!                result( exx_fft%nltm(ig) ) = CONJG(psi(ig, im) - (0._DP,1._DP) * psi(ig, im+1))
-                result( exx_fft%nlt(ig), ii )  =       psi(ig, ii) + (0._DP,1._DP) * psi(ig, ii+1)
-                result( exx_fft%nltm(ig), ii ) = CONJG(psi(ig, ii) - (0._DP,1._DP) * psi(ig, ii+1))
+                psiwork( exx_fft%nlt(ig) )  =       psi(ig, ii) + (0._DP,1._DP) * psi(ig, ii+1)
+                psiwork( exx_fft%nltm(ig) ) = CONJG(psi(ig, ii) - (0._DP,1._DP) * psi(ig, ii+1))
              ENDDO
 !$omp end parallel do
           ENDIF
@@ -1433,25 +1452,22 @@ MODULE exx
           IF( l_fft_singleband ) THEN 
 !$omp parallel do  default(shared), private(ig)
              DO ig = 1, exx_fft%npwt
-!                result( exx_fft%nlt(ig) )  =       psi(ig,im) 
-!                result( exx_fft%nltm(ig) ) = CONJG(psi(ig,im))
-                result( exx_fft%nlt(ig), ii )  =       psi(ig,ii) 
-                result( exx_fft%nltm(ig), ii ) = CONJG(psi(ig,ii))
+                psiwork( exx_fft%nlt(ig) )  =       psi(ig,ii) 
+                psiwork( exx_fft%nltm(ig) ) = CONJG(psi(ig,ii))
              ENDDO
 !$omp end parallel do
           ENDIF
           !
           IF( l_fft_doubleband.OR.l_fft_singleband) THEN
-             CALL invfft ('CustomWave', result(:,ii), exx_fft%dfftt, is_exx=.TRUE.)
+             CALL invfft ('CustomWave', psiwork, exx_fft%dfftt, is_exx=.TRUE.)
 !$omp parallel do default(shared), private(ir)
              DO ir = 1, nrxxs
-                temppsic_dble(ir)  = DBLE ( result(ir,ii) )
-                temppsic_aimag(ir) = AIMAG( result(ir,ii) )
+                temppsic_dble(ir)  = DBLE ( psiwork(ir) )
+                temppsic_aimag(ir) = AIMAG( psiwork(ir) )
              ENDDO
 !$omp end parallel do
           ENDIF
           !
-          result(:,ii) = 0.0_DP
           !
           !determine which j-bands to calculate
           jstart = 0
@@ -1467,6 +1483,9 @@ MODULE exx
              END IF
           END DO
           !
+          jstart = max(jstart,jblock_start)
+          jend = min(jend,jblock_end)
+          !
           h_ibnd = jstart/2
           IF(MOD(jstart,2)==0) THEN
              h_ibnd=h_ibnd-1
@@ -1475,10 +1494,15 @@ MODULE exx
              ibnd_loop_start=jstart
           ENDIF
           !
+          exxtemp_index = max(0, (jstart-jblock_start)/2 )
+          !
           IBND_LOOP_GAM : &
           DO jbnd=ibnd_loop_start,jend, 2 !for each band of psi
              !
              h_ibnd = h_ibnd + 1
+             !
+             exxtemp_index = exxtemp_index + 1
+             !
              IF( jbnd < jstart ) THEN
                 x1 = 0.0_DP
              ELSE
@@ -1498,13 +1522,13 @@ MODULE exx
              IF( MOD(ii,2) == 0 ) THEN 
 !$omp parallel do default(shared), private(ir)
                 DO ir = 1, nrxxs
-                   rhoc(ir,ii) = exxbuff(ir,h_ibnd,ikq) * temppsic_aimag(ir) / omega 
+                   rhoc(ir,ii) = exxtemp(ir,exxtemp_index) * temppsic_aimag(ir) / omega 
                 ENDDO
 !$omp end parallel do
              ELSE
 !$omp parallel do default(shared), private(ir)
                 DO ir = 1, nrxxs
-                   rhoc(ir,ii) = exxbuff(ir,h_ibnd,ikq) * temppsic_dble(ir) / omega 
+                   rhoc(ir,ii) = exxtemp(ir,exxtemp_index) * temppsic_dble(ir) / omega 
                 ENDDO
 !$omp end parallel do
              ENDIF 
@@ -1576,8 +1600,8 @@ MODULE exx
              !
 !$omp parallel do default(shared), private(ir)
              DO ir = 1, nrxxs
-                result(ir,ii) = result(ir,ii)+x1* DBLE(vc(ir,ii))* DBLE(exxbuff(ir,h_ibnd,ikq))&
-                                       +x2*AIMAG(vc(ir,ii))*AIMAG(exxbuff(ir,h_ibnd,ikq))
+                result(ir,ii) = result(ir,ii)+x1* DBLE(vc(ir,ii))* DBLE(exxtemp(ir,exxtemp_index))&
+                                       +x2*AIMAG(vc(ir,ii))*AIMAG(exxtemp(ir,exxtemp_index))
              ENDDO
 !$omp end parallel do
              !
@@ -1586,6 +1610,8 @@ MODULE exx
        !
        ENDDO &
        LOOP_ON_PSI_BANDS
+    ENDDO &
+    IJT_LOOP
        IF ( okvan .AND..NOT.tqr ) CALL qvan_clean ()
     ENDDO &
     INTERNAL_LOOP_ON_Q
@@ -2405,7 +2431,7 @@ MODULE exx
     USE mp_pools,                ONLY : inter_pool_comm
     USE mp_exx,                  ONLY : inter_egrp_comm, intra_egrp_comm, negrp, &
                                         init_index_over_band, max_pairs, egrp_pairs, &
-                                        my_egrp_id, nibands, ibands
+                                        my_egrp_id, nibands, ibands, jblock
     USE mp,                      ONLY : mp_sum
     USE fft_interfaces,          ONLY : fwfft, invfft
     USE gvect,                   ONLY : ecutrho
@@ -2444,6 +2470,9 @@ MODULE exx
     LOGICAL :: l_fft_singleband
     INTEGER :: jmax, npw
     INTEGER :: istart, iend, ipair, ii, ialloc
+    COMPLEX(DP), ALLOCATABLE :: exxtemp(:,:)
+    INTEGER :: ijt, njt, jblock_start, jblock_end
+    INTEGER :: index_start, index_end, exxtemp_index
     !
     CALL init_index_over_band(inter_egrp_comm,nbnd,nbnd)
     !
@@ -2457,6 +2486,8 @@ MODULE exx
     ALLOCATE(temppsic(nrxxs), temppsic_dble(nrxxs),temppsic_aimag(nrxxs)) 
     ALLOCATE( rhoc(nrxxs) )
     ALLOCATE( vkb_exx(npwx,nkb) )
+    !
+    ALLOCATE( exxtemp(nrxxs*npol, jblock) )
     !
     energy=0.0_DP
     !
@@ -2497,6 +2528,20 @@ MODULE exx
              jmax = jbnd 
              EXIT
           ENDDO
+          !
+          njt = nbnd / (2*jblock)
+          if (mod(nbnd, (2*jblock)) .ne. 0) njt = njt + 1
+          !
+          IJT_LOOP : &
+          DO ijt=1, njt
+             !
+             jblock_start = (ijt - 1) * (2*jblock) + 1
+             jblock_end = min(jblock_start+(2*jblock)-1,nbnd)
+             index_start = (ijt - 1) * jblock + 1
+             index_end = min(index_start+jblock-1,nbnd/2)
+             !
+             !gather exxbuff for jblock_start:jblock_end
+             call exxbuff_comm_gamma(exxtemp,ikq,nrxxs*npol,jblock_start,jblock_end,jblock)
           !
           JBND_LOOP : &
           DO ii = 1, nibands(my_egrp_id+1)
@@ -2558,6 +2603,9 @@ MODULE exx
                 END IF
              END DO
              !
+             istart = max(istart,jblock_start)
+             iend = min(iend,jblock_end)
+             !
              h_ibnd = istart/2
              IF(MOD(istart,2)==0) THEN
                 h_ibnd=h_ibnd-1
@@ -2566,10 +2614,14 @@ MODULE exx
                 ibnd_loop_start=istart
              ENDIF
              !
+             exxtemp_index = max(0, (istart-jblock_start)/2 )
+             !
              IBND_LOOP_GAM : &
              DO ibnd = ibnd_loop_start, iend, 2       !for each band of psi
                 !
                 h_ibnd = h_ibnd + 1
+                !
+                exxtemp_index = exxtemp_index + 1
                 !
                 IF ( ibnd < istart ) THEN
                    x1 = 0.0_DP
@@ -2590,13 +2642,13 @@ MODULE exx
                    rhoc = 0.0_DP
 !$omp parallel do default(shared), private(ir)
                    DO ir = 1, nrxxs
-                      rhoc(ir) = exxbuff(ir,h_ibnd,ikq) * temppsic_aimag(ir) / omega
+                      rhoc(ir) = exxtemp(ir,exxtemp_index) * temppsic_aimag(ir) / omega
                    ENDDO
 !$omp end parallel do
                 ELSE
 !$omp parallel do default(shared), private(ir)
                    DO ir = 1, nrxxs
-                      rhoc(ir) = exxbuff(ir,h_ibnd,ikq) * temppsic_dble(ir) / omega
+                      rhoc(ir) = exxtemp(ir,exxtemp_index) * temppsic_dble(ir) / omega
                    ENDDO
 !$omp end parallel do
                 ENDIF
@@ -2651,6 +2703,8 @@ MODULE exx
              IBND_LOOP_GAM
           ENDDO &
           JBND_LOOP
+          ENDDO &
+          IJT_LOOP
           IF ( okvan .AND..NOT.tqr ) CALL qvan_clean ( )
           !
        ENDDO &
@@ -3240,7 +3294,11 @@ MODULE exx
                 isym = abs(index_sym(ikq))
                 !
                 !gather exxbuff for all bands
-                call exxbuff_comm(exxtemp,ikq,nrxxs*npol,1,nbnd)
+                IF(gamma_only) THEN
+                   call exxbuff_comm_gamma(exxtemp,ikq,nrxxs*npol,1,nbnd,nbnd)
+                ELSE
+                   call exxbuff_comm(exxtemp,ikq,nrxxs*npol,1,nbnd)
+                END IF
 
                 ! FIXME: use cryst_to_cart and company as above..
                 xk_cryst(:)=at(1,:)*xk(1,ik)+at(2,:)*xk(2,ik)+at(3,:)*xk(3,ik)
@@ -3361,7 +3419,7 @@ MODULE exx
                         ! calculate rho in real space
 !$omp parallel do default(shared), private(ir)
                         DO ir = 1, nrxxs
-                            tempphic(ir) = exxbuff(ir,h_ibnd,ikq)
+                            tempphic(ir) = exxtemp(ir,h_ibnd)
                             rhoc(ir)     = CONJG(tempphic(ir))*temppsic(ir) / omega
                         ENDDO
 !$omp end parallel do
@@ -4990,9 +5048,9 @@ END SUBROUTINE compute_becpsi
 #if defined(__MPI)
     USE parallel_include, ONLY : MPI_STATUS_SIZE, MPI_DOUBLE_COMPLEX
 #endif
-    COMPLEX(DP), intent(inout) :: exxtemp(lda,jblock)
+    COMPLEX(DP), intent(inout) :: exxtemp(lda,jend-jstart+1)
     INTEGER, intent(in) :: ikq, lda, jstart, jend
-    INTEGER :: jbnd, iegrp, ierr, request_exxbuff(jblock)
+    INTEGER :: jbnd, iegrp, ierr, request_exxbuff(jend-jstart+1)
 #if defined(__MPI)
     INTEGER :: istatus(MPI_STATUS_SIZE)
 #endif
@@ -5032,7 +5090,83 @@ END SUBROUTINE compute_becpsi
   !-----------------------------------------------------------------------
   END SUBROUTINE exxbuff_comm
   !-----------------------------------------------------------------------
-  
+  !
+  !-----------------------------------------------------------------------
+  SUBROUTINE exxbuff_comm_gamma(exxtemp,ikq,lda,jstart,jend,jlength)
+  !-----------------------------------------------------------------------
+    USE mp_exx,               ONLY : my_egrp_id, inter_egrp_comm, jblock, &
+                                     all_end, negrp
+    USE mp,             ONLY : mp_bcast
+#if defined(__MPI)
+    USE parallel_include, ONLY : MPI_STATUS_SIZE, MPI_DOUBLE
+#endif
+    COMPLEX(DP), intent(inout) :: exxtemp(lda,jlength)
+    INTEGER, intent(in) :: ikq, lda, jstart, jend, jlength
+    INTEGER :: jbnd, iegrp, ierr, request_exxbuff(jend-jstart+1), ir
+#if defined(__MPI)
+    INTEGER :: istatus(MPI_STATUS_SIZE)
+#endif
+    REAL(DP) :: work(lda,jend-jstart+1)
+
+
+    CALL start_clock ('comm_buff')
+    WRITE(6,*)'###'
+
+    DO jbnd=jstart, jend
+       !determine which band group has this value of exxbuff
+       DO iegrp=1, negrp
+          IF(all_end(iegrp) >= jbnd) exit
+       END DO
+
+       IF (iegrp == my_egrp_id+1) THEN
+          WRITE(6,*)'setting work',jbnd
+!          exxtemp(:,jbnd-jstart+1) = exxbuff(:,jbnd,ikq)
+          IF( MOD(jbnd,2) == 1 ) THEN
+             work(:,jbnd-jstart+1) = REAL(exxbuff(:,jbnd/2+1,ikq))
+          ELSE
+             work(:,jbnd-jstart+1) = AIMAG(exxbuff(:,jbnd/2,ikq))
+          END IF
+       END IF
+
+!       CALL mp_bcast(exxtemp(:,jbnd-jstart+1),iegrp-1,inter_egrp_comm)
+       WRITE(6,*)'broadcasting: ',jbnd,jbnd/2+1,work(1,jbnd-jstart+1)
+#if defined(__MPI)
+       CALL MPI_IBCAST(work(:,jbnd-jstart+1), &
+            lda, &
+            MPI_DOUBLE, &
+            iegrp-1, &
+            inter_egrp_comm, &
+            request_exxbuff(jbnd-jstart+1), ierr)
+#endif
+    END DO
+
+    DO jbnd=jstart, jend
+       WRITE(6,*)'waiting: ',jbnd
+#if defined(__MPI)
+       CALL MPI_WAIT(request_exxbuff(jbnd-jstart+1), istatus, ierr)
+#endif
+    END DO
+
+    DO jbnd=jstart, jend, 2
+       DO ir=1, lda
+          exxtemp(ir,1+(jbnd-jstart+1)/2) = CMPLX( work(ir,jbnd-jstart+1), work(ir,jbnd-jstart+2) )
+       END DO
+    END DO
+
+    WRITE(6,*)'exxtemp: '
+    DO jbnd=1, (jend-jstart+1)/2
+       WRITE(6,*)exxtemp(1,jbnd)
+    END DO
+    WRITE(6,*)'exxbuff: '
+    DO jbnd=1+jstart/2, jend/2
+       WRITE(6,*)exxbuff(1,jbnd,1)
+    END DO
+
+    CALL stop_clock ('comm_buff')
+  !
+  !-----------------------------------------------------------------------
+  END SUBROUTINE exxbuff_comm_gamma
+  !-----------------------------------------------------------------------
 
 
 
