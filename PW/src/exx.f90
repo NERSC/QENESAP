@@ -1735,7 +1735,7 @@ MODULE exx
     COMPLEX(DP), ALLOCATABLE :: big_result(:,:)
     INTEGER :: ir_out, ipair, jbnd
     INTEGER :: ii, jstart, jend, jcount, jind
-    INTEGER :: ialloc
+    INTEGER :: ialloc, ending_im
     INTEGER :: ijt, njt, jblock_start, jblock_end
     COMPLEX(DP), ALLOCATABLE :: exxtemp(:,:)
     !
@@ -2148,7 +2148,12 @@ MODULE exx
     CALL stop_clock ('vexx_sum')
 	CALL start_clock ('vexx_hpsi')
     IF (iexx_istart(my_egrp_id+1).gt.0) THEN
-       DO im=1, iexx_iend(my_egrp_id+1) - iexx_istart(my_egrp_id+1) + 1
+       IF (negrp == 1) then
+          ending_im = m
+       ELSE
+          ending_im = iexx_iend(my_egrp_id+1) - iexx_istart(my_egrp_id+1) + 1
+       END IF
+       DO im=1, ending_im
 !$omp parallel do default(shared), private(ig) firstprivate(im,n)
 		DO ig = 1, n
           hpsi(ig,im)=hpsi(ig,im) + big_result(ig,im+iexx_istart(my_egrp_id+1)-1)
