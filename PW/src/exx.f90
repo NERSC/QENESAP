@@ -1225,6 +1225,7 @@ MODULE exx
     ENDDO
     !
     DEALLOCATE(phi, evcq, vkbq, igkq, gk, ngkq)
+    DEALLOCATE(exxtemp)
     ! suite of the dirty trick: reset npwx to its original value
     npwx = npwx_
     intra_bgrp_comm = intra_bgrp_comm_
@@ -1665,6 +1666,8 @@ MODULE exx
     DEALLOCATE( result, temppsic_dble, temppsic_aimag) 
     !
     DEALLOCATE(rhoc, vc, fac )
+    !
+    DEALLOCATE(exxtemp)
     !
     IF(okvan) DEALLOCATE( deexx )
     !
@@ -2185,6 +2188,8 @@ MODULE exx
     DEALLOCATE(big_result)
     !
     DEALLOCATE(fac, facb )
+    !
+    DEALLOCATE(exxtemp)
     !
     IF(okvan) DEALLOCATE( deexx)
     CALL stop_clock ('vexx_deal')
@@ -2728,6 +2733,8 @@ MODULE exx
     !
     DEALLOCATE(temppsic,temppsic_dble,temppsic_aimag) 
     !
+    DEALLOCATE(exxtemp)
+    !
     DEALLOCATE(rhoc, fac )
     CALL deallocate_bec_type(becpsi)
     !
@@ -3068,6 +3075,8 @@ MODULE exx
     ELSE
        DEALLOCATE(temppsic) 
     ENDIF
+    !
+    DEALLOCATE(exxtemp)
     !
     DEALLOCATE(fac)
     CALL deallocate_bec_type(becpsi)
@@ -3496,6 +3505,7 @@ MODULE exx
     ENDDO ! ikk
 
     DEALLOCATE(tempphic, temppsic, rhoc, fac, fac_tens, fac_stress )
+    DEALLOCATE(exxtemp)
     !
     CALL mp_sum( exx_stress_, intra_egrp_comm )
     CALL mp_sum( exx_stress_, inter_egrp_comm )
