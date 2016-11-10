@@ -765,8 +765,8 @@ MODULE exx
     CALL init_index_over_band(inter_egrp_comm,nbnd,nbnd)
 
     !this will cause exxbuff to be calculated for every band
-    ibnd_start_new = 1
-    ibnd_end_new = nbnd
+    ibnd_start_new = iexx_start
+    ibnd_end_new = iexx_end
 
     IF ( gamma_only ) THEN
         ibnd_buff_start = ibnd_start_new/2
@@ -1129,6 +1129,7 @@ MODULE exx
     COMPLEX(DP) :: fp, fm
     INTEGER :: intra_bgrp_comm_
     INTEGER :: ibnd_start_, ibnd_end_
+    COMPLEX(DP), ALLOCATABLE :: exxtemp(:,:)
     !
     IF(.not. okvan) RETURN
     !
@@ -1161,12 +1162,20 @@ MODULE exx
     ALLOCATE(evcq(npwq,nbnd))
     ALLOCATE(phi(dffts%nnr))
     !
+    ALLOCATE( exxtemp(exx_fft%dfftt%nnr*npol, nbnd) )
+    !
     DO ikq = 1,nkqs
       !
       ! prepare the g-vectors mapping
       CALL gk_sort(xkq_collect(:, ikq), ngm, g, gcutw, ngkq(ikq), igkq, gk )
       ! prepare the |beta> function at k+q
       CALL init_us_2(ngkq(ikq), igkq, xkq_collect(:, ikq), vkbq)
+      !
+      IF(gamma_only) THEN
+         call exxbuff_comm_gamma(exxtemp,ikq,exx_fft%dfftt%nnr*npol,1,nbnd,nbnd)
+      ELSE
+         call exxbuff_comm(exxtemp,ikq,exx_fft%dfftt%nnr*npol,1,nbnd)
+      END IF
       !
       ! take rotated phi to G space
       IF (gamma_only) THEN
@@ -1182,7 +1191,7 @@ MODULE exx
 
          DO ibnd = ibnd_loop_start,ibnd_end,2
             h_ibnd = h_ibnd + 1
-            phi(:) = exxbuff(:,h_ibnd,ikq)
+            phi(:) = exxtemp(:,h_ibnd)
             CALL fwfft ('Wave', phi, dffts, is_exx=.TRUE.)
             IF (ibnd < ibnd_end) THEN
                ! two ffts at the same time
@@ -1200,7 +1209,7 @@ MODULE exx
          ENDDO
       ELSE
          DO ibnd = ibnd_start,ibnd_end
-            phi(:) = exxbuff(:,ibnd,ikq)
+            phi(:) = exxtemp(:,ibnd)
             CALL fwfft ('Wave', phi, dffts, is_exx=.TRUE.)
             DO j = 1, ngkq(ikq)
                evcq(j, ibnd)   =  phi(nls(igkq(j)))
