@@ -1773,9 +1773,9 @@ MODULE exx
     big_result = 0.0_DP
     !
     !allocate arrays for rhoc and vc
-    ALLOCATE(rhoc(nrxxs,nbnd), vc(nrxxs,nbnd))
-	prhoc(1:nrxxs*nbnd) => rhoc(:,:)
-	pvc(1:nrxxs*nbnd) => vc(:,:)
+    ALLOCATE(rhoc(nrxxs,jblock), vc(nrxxs,jblock))
+    prhoc(1:nrxxs*jblock) => rhoc(:,:)
+    pvc(1:nrxxs*jblock) => vc(:,:)
     !
     CALL stop_clock ('vexx_init')
     !
