@@ -2487,6 +2487,7 @@ MODULE exx
     COMPLEX(DP), ALLOCATABLE :: exxtemp(:,:)
     INTEGER :: ijt, njt, jblock_start, jblock_end
     INTEGER :: index_start, index_end, exxtemp_index
+    INTEGER :: calbec_start, calbec_end
     !
     CALL init_index_over_band(inter_egrp_comm,nbnd,nbnd)
     !
@@ -2520,7 +2521,10 @@ MODULE exx
        ! prepare the |beta> function at k+q
        CALL init_us_2(npw, igk_exx(:,ikk), xkp, vkb_exx)
        ! compute <beta_I|psi_j> at this k+q point, for all band and all projectors
-       CALL calbec(npw, vkb_exx, evc_exx, becpsi, nbnd)
+       calbec_start = ibands(1,my_egrp_id+1)
+       calbec_end = ibands(nibands(my_egrp_id+1),my_egrp_id+1)
+       CALL calbec(npw, vkb_exx, evc_exx(:,calbec_start:calbec_end), &
+            becpsi%r(:,calbec_start:calbec_end), nibands(my_egrp_id+1) )
        !
        IQ_LOOP : &
        DO iq = 1,nqs
