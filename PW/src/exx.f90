@@ -999,11 +999,6 @@ MODULE exx
 #endif 
     ENDIF
     !
-    !   All band groups must have the complete set of wavefunctions
-    IF(gamma_only) THEN
-       IF (negrp>1) CALL mp_sum(exxbuff, inter_egrp_comm)
-    END IF
-    !
     !   Each wavefunction in exxbuff is computed by a single pool
     !   Sum the results so that all pools have the complete set of
     !   wavefunctions in exxbuff (i.e. from every kpoint: may waste a
@@ -2858,7 +2853,8 @@ MODULE exx
        intra_bgrp_comm_ = intra_bgrp_comm
        intra_bgrp_comm = intra_egrp_comm
        IF (okvan.or.okpaw) THEN
-          CALL compute_becpsi (npw, igk_exx(:,ikk), xkp, evc_exx, becpsi%k)
+          CALL compute_becpsi (npw, igk_exx(:,ikk), xkp, evc_exx(:,ibands(1,my_egrp_id+1)), &
+               becpsi%k(:,ibands(1,my_egrp_id+1)) )
        END IF
        intra_bgrp_comm = intra_bgrp_comm_
        !
@@ -3543,13 +3539,14 @@ SUBROUTINE compute_becpsi (npw_, igk_, q_, evc_exx, becpsi_k)
   USE uspp,       ONLY : nkb, nhtol, nhtolm, indv
   USE uspp_param, ONLY : upf, lmaxkb, nhm, nh
   USE becmod,     ONLY : calbec
+  USE mp_exx,     ONLY : ibands, nibands, my_egrp_id
   !
   implicit none
   !
   INTEGER, INTENT (IN) :: npw_, igk_ (npw_)
   REAL(dp), INTENT(IN) :: q_(3)
-  COMPLEX(dp), INTENT(IN) :: evc_exx(npwx,nbnd)
-  COMPLEX(dp), INTENT(OUT) :: becpsi_k(nkb,nbnd)
+  COMPLEX(dp), INTENT(IN) :: evc_exx(npwx,nibands(my_egrp_id+1))
+  COMPLEX(dp), INTENT(OUT) :: becpsi_k(nkb,nibands(my_egrp_id+1))
   COMPLEX(dp) :: vkb_ (npwx, 1)
   !
   !     Local variables
@@ -3564,7 +3561,10 @@ SUBROUTINE compute_becpsi (npw_, igk_, q_, evc_exx, becpsi_k)
 
   real(DP), allocatable :: xdata(:)
   integer :: iq
+  integer :: istart, iend
 
+  istart = ibands(1,my_egrp_id+1)
+  iend = ibands(nibands(my_egrp_id+1),my_egrp_id+1)
   !
   !
   if (lmaxkb.lt.0) return
@@ -3663,7 +3663,8 @@ SUBROUTINE compute_becpsi (npw_, igk_, q_, evc_exx, becpsi_k)
                  vkb_(ig, 1) = (0.0_dp, 0.0_dp)
               enddo
               !
-              CALL calbec(npw_, vkb_, evc_exx, becpsi_k(jkb:jkb,:), nbnd)
+              CALL calbec(npw_, vkb_, evc_exx, becpsi_k(jkb:jkb,:), &
+                   nibands(my_egrp_id+1))
               !
            enddo
         endif
@@ -5134,7 +5135,6 @@ END SUBROUTINE compute_becpsi
 
 
     CALL start_clock ('comm_buff')
-    WRITE(6,*)'###'
 
     DO jbnd=jstart, jend
        !determine which band group has this value of exxbuff
@@ -5143,7 +5143,6 @@ END SUBROUTINE compute_becpsi
        END DO
 
        IF (iegrp == my_egrp_id+1) THEN
-          WRITE(6,*)'setting work',jbnd
 !          exxtemp(:,jbnd-jstart+1) = exxbuff(:,jbnd,ikq)
           IF( MOD(jbnd,2) == 1 ) THEN
              work(:,jbnd-jstart+1) = REAL(exxbuff(:,jbnd/2+1,ikq))
@@ -5153,7 +5152,6 @@ END SUBROUTINE compute_becpsi
        END IF
 
 !       CALL mp_bcast(exxtemp(:,jbnd-jstart+1),iegrp-1,inter_egrp_comm)
-       WRITE(6,*)'broadcasting: ',jbnd,jbnd/2+1,work(1,jbnd-jstart+1)
 #if defined(__MPI)
        CALL MPI_IBCAST(work(:,jbnd-jstart+1), &
             lda, &
@@ -5165,7 +5163,6 @@ END SUBROUTINE compute_becpsi
     END DO
 
     DO jbnd=jstart, jend
-       WRITE(6,*)'waiting: ',jbnd
 #if defined(__MPI)
        CALL MPI_WAIT(request_exxbuff(jbnd-jstart+1), istatus, ierr)
 #endif
@@ -5175,15 +5172,6 @@ END SUBROUTINE compute_becpsi
        DO ir=1, lda
           exxtemp(ir,1+(jbnd-jstart+1)/2) = CMPLX( work(ir,jbnd-jstart+1), work(ir,jbnd-jstart+2) )
        END DO
-    END DO
-
-    WRITE(6,*)'exxtemp: '
-    DO jbnd=1, (jend-jstart+1)/2
-       WRITE(6,*)exxtemp(1,jbnd)
-    END DO
-    WRITE(6,*)'exxbuff: '
-    DO jbnd=1+jstart/2, jend/2
-       WRITE(6,*)exxbuff(1,jbnd,1)
     END DO
 
     CALL stop_clock ('comm_buff')
