@@ -1255,7 +1255,7 @@ MODULE exx
     USE mp_exx,         ONLY : negrp, inter_egrp_comm, init_index_over_band
     USE wvfct,          ONLY : nbnd
     !<<<
-    USE mp,             ONLY : mp_abort
+    USE mp,             ONLY : mp_abort, mp_barrier
     USE mp_world,       ONLY : world_comm
     USE control_flags,  ONLY : iprint
     !>>>
@@ -1308,6 +1308,7 @@ MODULE exx
     !<<<
     IF(iprint.eq.1)THEN
        CALL print_clock_pw()
+       CALL mp_barrier( world_comm )
        CALL mp_abort ( 1, world_comm )
        STOP 1
     END IF
