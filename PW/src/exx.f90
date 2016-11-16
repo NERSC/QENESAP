@@ -2492,7 +2492,7 @@ MODULE exx
     !
     CALL init_index_over_band(inter_egrp_comm,nbnd,nbnd)
     !
-    CALL transform_evc_to_exx(1)
+    CALL transform_evc_to_exx(0)
     !
     ialloc = nibands(my_egrp_id+1)
     !
@@ -2524,7 +2524,9 @@ MODULE exx
        ! compute <beta_I|psi_j> at this k+q point, for all band and all projectors
        calbec_start = ibands(1,my_egrp_id+1)
        calbec_end = ibands(nibands(my_egrp_id+1),my_egrp_id+1)
-       CALL calbec(npw, vkb_exx, evc_exx(:,calbec_start:calbec_end), &
+       !CALL calbec(npw, vkb_exx, evc_exx(:,calbec_start:calbec_end), &
+       !     becpsi%r(:,calbec_start:calbec_end), nibands(my_egrp_id+1) )
+       CALL calbec(npw, vkb_exx, evc_exx, &
             becpsi%r(:,calbec_start:calbec_end), nibands(my_egrp_id+1) )
        !
        IQ_LOOP : &
@@ -2581,9 +2583,9 @@ MODULE exx
 !$omp parallel do  default(shared), private(ig)
                 DO ig = 1, exx_fft%npwt
                    temppsic( exx_fft%nlt(ig) )  = &
-                          evc_exx(ig,jbnd) + (0._DP,1._DP) * evc_exx(ig,jbnd+1)
+                          evc_exx(ig,ii) + (0._DP,1._DP) * evc_exx(ig,ii+1)
                    temppsic( exx_fft%nltm(ig) ) = &
-                    CONJG(evc_exx(ig,jbnd) - (0._DP,1._DP) * evc_exx(ig,jbnd+1))
+                    CONJG(evc_exx(ig,ii) - (0._DP,1._DP) * evc_exx(ig,ii+1))
                 ENDDO
 !$omp end parallel do
              ENDIF
@@ -2591,8 +2593,8 @@ MODULE exx
              IF( l_fft_singleband ) THEN 
 !$omp parallel do  default(shared), private(ig)
                 DO ig = 1, exx_fft%npwt
-                   temppsic( exx_fft%nlt(ig) )  =       evc_exx(ig,jbnd) 
-                   temppsic( exx_fft%nltm(ig) ) = CONJG(evc_exx(ig,jbnd))
+                   temppsic( exx_fft%nlt(ig) )  =       evc_exx(ig,ii) 
+                   temppsic( exx_fft%nltm(ig) ) = CONJG(evc_exx(ig,ii))
                 ENDDO
 !$omp end parallel do
              ENDIF
@@ -2815,7 +2817,7 @@ MODULE exx
     !
     CALL init_index_over_band(inter_egrp_comm,nbnd,nbnd)
     !
-    CALL transform_evc_to_exx(1)
+    CALL transform_evc_to_exx(0)
     !
     ialloc = nibands(my_egrp_id+1)
     !
@@ -2858,7 +2860,7 @@ MODULE exx
        intra_bgrp_comm_ = intra_bgrp_comm
        intra_bgrp_comm = intra_egrp_comm
        IF (okvan.or.okpaw) THEN
-          CALL compute_becpsi (npw, igk_exx(:,ikk), xkp, evc_exx(:,ibands(1,my_egrp_id+1)), &
+          CALL compute_becpsi (npw, igk_exx(:,ikk), xkp, evc_exx, &
                becpsi%k(:,ibands(1,my_egrp_id+1)) )
        END IF
        intra_bgrp_comm = intra_bgrp_comm_
@@ -2887,8 +2889,8 @@ MODULE exx
              !
 !$omp parallel do default(shared), private(ig)
              DO ig = 1, npw
-                temppsic_nc(exx_fft%nlt(igk_exx(ig,ikk)),1,ii) = evc_exx(ig,jbnd)
-                temppsic_nc(exx_fft%nlt(igk_exx(ig,ikk)),2,ii) = evc_exx(npwx+ig,jbnd)
+                temppsic_nc(exx_fft%nlt(igk_exx(ig,ikk)),1,ii) = evc_exx(ig,ii)
+                temppsic_nc(exx_fft%nlt(igk_exx(ig,ikk)),2,ii) = evc_exx(npwx+ig,ii)
              ENDDO
 !$omp end parallel do
              !
@@ -2898,7 +2900,7 @@ MODULE exx
           ELSE
 !$omp parallel do default(shared), private(ig)
              DO ig = 1, npw
-                temppsic(exx_fft%nlt(igk_exx(ig,ikk)),ii) = evc_exx(ig,jbnd)
+                temppsic(exx_fft%nlt(igk_exx(ig,ikk)),ii) = evc_exx(ig,ii)
              ENDDO
 !$omp end parallel do
              !
@@ -3266,7 +3268,7 @@ MODULE exx
     
     CALL start_clock ('exx_stress')
     
-    CALL change_data_structure(.TRUE.)
+    CALL transform_evc_to_exx(0)
 
     IF (npool>1) CALL errore('exx_stress','stress not available with pools',1)
     IF (noncolin) CALL errore('exx_stress','noncolinear stress not implemented',1)
@@ -3446,7 +3448,7 @@ MODULE exx
             temppsic(:) = ( 0._dp, 0._dp )
 !$omp parallel do default(shared), private(ig)
             DO ig = 1, npw
-                temppsic(exx_fft%nlt(igk_exx(ig,ikk))) = evc_exx(ig,jbnd)
+                temppsic(exx_fft%nlt(igk_exx(ig,ikk))) = evc_exx(ig,ii)
             ENDDO
 !$omp end parallel do
             !
@@ -3454,7 +3456,7 @@ MODULE exx
 !$omp parallel do default(shared), private(ig)
                 DO ig = 1, npw
                     temppsic(exx_fft%nltm(igk_exx(ig,ikk))) = &
-                         conjg(evc_exx(ig,jbnd))
+                         conjg(evc_exx(ig,ii))
                 ENDDO
 !$omp end parallel do
             ENDIF
@@ -4699,9 +4701,6 @@ END SUBROUTINE compute_becpsi
     IF (first_data_structure_change) THEN
        CALL ggen( gamma_only, at, bg, intra_egrp_comm, no_global_sort = .FALSE., is_exx=.true. )
        allocate( ig_l2g_exx(ngm), g_exx(3,ngm), gg_exx(ngm) )
-       !<<<
-       WRITE(6,*)'allocating g_exx',size(g_exx,1),size(g_exx,2)
-       !>>>
        allocate( mill_exx(3,ngm), nl_exx(ngm) )
        allocate( nls_exx(ngms) )
        allocate( nlm_exx(size(nlm) ) )
