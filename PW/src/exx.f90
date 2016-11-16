@@ -4320,7 +4320,7 @@ END SUBROUTINE compute_becpsi
     USE mp_pools,     ONLY : nproc_pool, me_pool
     USE mp_exx,       ONLY : intra_egrp_comm, inter_egrp_comm, &
          nproc_egrp, me_egrp, negrp, my_egrp_id, nibands, ibands, &
-         all_start, all_end
+         max_ibands, all_start, all_end
 #if defined(__MPI)
     USE parallel_include, ONLY : MPI_STATUS_SIZE, MPI_DOUBLE_COMPLEX
 #endif
@@ -4348,6 +4348,7 @@ END SUBROUTINE compute_becpsi
 #if defined(__MPI)
     INTEGER :: istatus(MPI_STATUS_SIZE)
 #endif
+    INTEGER :: requests(max_ibands+2,negrp)
     !
     CALL start_clock ('comm1')
     lda_max_local = maxval(lda_local)
@@ -4379,12 +4380,12 @@ END SUBROUTINE compute_becpsi
                 END DO
              END IF
 #if defined(__MPI)
-             CALL MPI_GATHERV( psi_gather(:, ibands(im,iegrp) ), &
+             CALL MPI_IGATHERV( psi_gather(:, ibands(im,iegrp) ), &
                   lda_max_local, MPI_DOUBLE_COMPLEX, &
                   psi_work, &
                   recvcount, displs, MPI_DOUBLE_COMPLEX, &
                   iegrp-1, &
-                  inter_egrp_comm, ierr )
+                  inter_egrp_comm, requests(im,iegrp), ierr )
 #endif
           END DO
        END DO
@@ -4410,21 +4411,39 @@ END SUBROUTINE compute_becpsi
                 DO j=1, negrp
                    displs(j) = (j-1)*(lda_max_local*m) + &
                         lda_max_local*(im+all_start(iegrp)-2)
-!                        lda_max_local*(im+all_start(iegrp)-1)
                 END DO
              END IF
 #if defined(__MPI)
-             CALL MPI_GATHERV( psi_gather(:, im+all_start(iegrp)-1 ), &
+             CALL MPI_IGATHERV( psi_gather(:, im+all_start(iegrp)-1 ), &
                   lda_max_local, MPI_DOUBLE_COMPLEX, &
                   psi_work, &
                   recvcount, displs, MPI_DOUBLE_COMPLEX, &
                   iegrp-1, &
-                  inter_egrp_comm, ierr )
+                  inter_egrp_comm, requests(im,iegrp), ierr )
 #endif
           END DO
        END DO
           
     END IF
+    !
+    IF(type.eq.0)THEN
+       DO iegrp=1, negrp
+          DO im=1, nibands(iegrp)
+#if defined(__MPI)
+             CALL MPI_WAIT(requests(im,iegrp), istatus, ierr)
+#endif
+          END DO
+       END DO
+    ELSEIF(type.eq.2)THEN
+       DO iegrp=1, negrp
+          DO im=1, all_end(iegrp) - all_start(iegrp) + 1
+#if defined(__MPI)
+             CALL MPI_WAIT(requests(im,iegrp), istatus, ierr)
+#endif
+          END DO
+       END DO
+    END IF
+    !
     CALL stop_clock ('comm2')
     CALL start_clock ('comm3')
     !
