@@ -128,7 +128,6 @@ MODULE exx
      INTEGER :: size
      INTEGER, ALLOCATABLE :: indices(:)
      COMPLEX(DP), ALLOCATABLE :: msg(:,:)
-     COMPLEX(DP), ALLOCATABLE :: msg_evc(:,:)
   END TYPE comm_packet
   TYPE(comm_packet), ALLOCATABLE :: comm_recv(:,:), comm_send(:,:)
   TYPE(comm_packet), ALLOCATABLE :: comm_recv_reverse(:,:)
@@ -4097,8 +4096,7 @@ END SUBROUTINE compute_becpsi
           IF (count.gt.0) THEN
              IF (.not.ALLOCATED(comm_recv(iproc+1,ik)%msg)) THEN
                 ALLOCATE(comm_recv(iproc+1,ik)%indices(count))
-                ALLOCATE(comm_recv(iproc+1,ik)%msg(count,max_ibands))
-                ALLOCATE(comm_recv(iproc+1,ik)%msg_evc(count,nbnd))
+                ALLOCATE(comm_recv(iproc+1,ik)%msg(count,max_ibands+2))
              END IF
           END IF
           !
@@ -4135,8 +4133,7 @@ END SUBROUTINE compute_becpsi
           IF (count.gt.0) THEN
              IF (.not.ALLOCATED(comm_send(iproc+1,ik)%msg)) THEN
                 ALLOCATE(comm_send(iproc+1,ik)%indices(count))
-                ALLOCATE(comm_send(iproc+1,ik)%msg(count,max_ibands))
-                ALLOCATE(comm_send(iproc+1,ik)%msg_evc(count,nbnd))
+                ALLOCATE(comm_send(iproc+1,ik)%msg(count,max_ibands+2))
              END IF
           END IF
           !
@@ -4462,12 +4459,12 @@ END SUBROUTINE compute_becpsi
                 END DO
              ELSE IF (type.eq.1) THEN !evc
                 DO im=1, m
-                   comm_send(iproc+1,current_ik)%msg_evc(i,im) = &
+                   comm_send(iproc+1,current_ik)%msg(i,im) = &
                         psi_work(ig,im,1+(j-1)/nproc_egrp)
                 END DO
              ELSE IF ( type.eq.2 ) THEN !evc2
                 DO im=1, all_end(my_egrp_id+1) - all_start(my_egrp_id+1) + 1
-                   comm_send(iproc+1,current_ik)%msg_evc(i,im) = &
+                   comm_send(iproc+1,current_ik)%msg(i,im) = &
                         psi_work(ig,im+all_start(my_egrp_id+1)-1,1+(j-1)/nproc_egrp)
                 END DO
              END IF
@@ -4484,12 +4481,12 @@ END SUBROUTINE compute_becpsi
                   iproc, 100+iproc*nproc_egrp+me_egrp, &
                   intra_egrp_comm, request_send(iproc+1), ierr )
           ELSE IF (type.eq.1) THEN !evc
-             CALL MPI_ISEND( comm_send(iproc+1,current_ik)%msg_evc, &
+             CALL MPI_ISEND( comm_send(iproc+1,current_ik)%msg, &
                   comm_send(iproc+1,current_ik)%size*m, MPI_DOUBLE_COMPLEX, &
                   iproc, 100+iproc*nproc_egrp+me_egrp, &
                   intra_egrp_comm, request_send(iproc+1), ierr )
           ELSE IF (type.eq.2) THEN !evc2
-             CALL MPI_ISEND( comm_send(iproc+1,current_ik)%msg_evc, &
+             CALL MPI_ISEND( comm_send(iproc+1,current_ik)%msg, &
                   comm_send(iproc+1,current_ik)%size*(all_end(my_egrp_id+1)-all_start(my_egrp_id+1)+1), &
                   MPI_DOUBLE_COMPLEX, &
                   iproc, 100+iproc*nproc_egrp+me_egrp, &
@@ -4515,12 +4512,12 @@ END SUBROUTINE compute_becpsi
                   iproc, 100+me_egrp*nproc_egrp+iproc, &
                   intra_egrp_comm, request_recv(iproc+1), ierr )
           ELSE IF (type.eq.1) THEN !evc
-             CALL MPI_IRECV( comm_recv(iproc+1,current_ik)%msg_evc, &
+             CALL MPI_IRECV( comm_recv(iproc+1,current_ik)%msg, &
                   comm_recv(iproc+1,current_ik)%size*m, MPI_DOUBLE_COMPLEX, &
                   iproc, 100+me_egrp*nproc_egrp+iproc, &
                   intra_egrp_comm, request_recv(iproc+1), ierr )
           ELSE IF (type.eq.2) THEN !evc2
-             CALL MPI_IRECV( comm_recv(iproc+1,current_ik)%msg_evc, &
+             CALL MPI_IRECV( comm_recv(iproc+1,current_ik)%msg, &
                   comm_recv(iproc+1,current_ik)%size*(all_end(my_egrp_id+1)-all_start(my_egrp_id+1)+1), &
                   MPI_DOUBLE_COMPLEX, &
                   iproc, 100+me_egrp*nproc_egrp+iproc, &
@@ -4554,11 +4551,11 @@ END SUBROUTINE compute_becpsi
                 END DO
              ELSE IF (type.eq.1) THEN !evc
                 DO im=1, m
-                   psi_out(ig,im) = comm_recv(iproc+1,current_ik)%msg_evc(i,im)
+                   psi_out(ig,im) = comm_recv(iproc+1,current_ik)%msg(i,im)
                 END DO
              ELSE IF (type.eq.2) THEN !evc2
                 DO im=1, all_end(my_egrp_id+1) - all_start(my_egrp_id+1) + 1
-                   psi_out(ig,im) = comm_recv(iproc+1,current_ik)%msg_evc(i,im)
+                   psi_out(ig,im) = comm_recv(iproc+1,current_ik)%msg(i,im)
                 END DO
              END IF
              !
