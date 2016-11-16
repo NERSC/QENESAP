@@ -827,21 +827,21 @@ MODULE exx
              if ( ibnd < iexx_end ) then
                 IF ( ibnd == ibnd_loop_start .and. MOD(iexx_start,2) == 0 ) THEN
                    DO ig=1,exx_fft%npwt
-                      psic_exx(exx_fft%nlt(ig))  = ( 0._dp, 1._dp )*evc_exx(ig,ibnd+1)
-                      psic_exx(exx_fft%nltm(ig)) = ( 0._dp, 1._dp )*CONJG(evc_exx(ig,ibnd+1))
+                      psic_exx(exx_fft%nlt(ig))  = ( 0._dp, 1._dp )*evc_exx(ig,ibnd-ibnd_loop_start+2)
+                      psic_exx(exx_fft%nltm(ig)) = ( 0._dp, 1._dp )*CONJG(evc_exx(ig,ibnd-ibnd_loop_start+2))
                    END DO
                 ELSE
                    DO ig=1,exx_fft%npwt
-                      psic_exx(exx_fft%nlt(ig))  = evc_exx(ig,ibnd_exx)  &
-                           + ( 0._dp, 1._dp ) * evc_exx(ig,ibnd_exx+1)
-                      psic_exx(exx_fft%nltm(ig)) = CONJG( evc_exx(ig,ibnd_exx) ) &
-                           + ( 0._dp, 1._dp ) * CONJG( evc_exx(ig,ibnd_exx+1) )
+                      psic_exx(exx_fft%nlt(ig))  = evc_exx(ig,ibnd-ibnd_loop_start+1)  &
+                           + ( 0._dp, 1._dp ) * evc_exx(ig,ibnd-ibnd_loop_start+2)
+                      psic_exx(exx_fft%nltm(ig)) = CONJG( evc_exx(ig,ibnd-ibnd_loop_start+1) ) &
+                           + ( 0._dp, 1._dp ) * CONJG( evc_exx(ig,ibnd-ibnd_loop_start+2) )
                    END DO
                 END IF
              else
                 DO ig=1,exx_fft%npwt
-                   psic_exx(exx_fft%nlt (ig)) = evc_exx(ig,ibnd_exx)
-                   psic_exx(exx_fft%nltm(ig)) = CONJG( evc_exx(ig,ibnd_exx) )
+                   psic_exx(exx_fft%nlt (ig)) = evc_exx(ig,ibnd-ibnd_loop_start+1)
+                   psic_exx(exx_fft%nltm(ig)) = CONJG( evc_exx(ig,ibnd-ibnd_loop_start+1) )
                 END DO
              end if
 
@@ -866,13 +866,13 @@ MODULE exx
                 ENDDO
 !$omp parallel do default(shared) private(ig) firstprivate(npw,ik,ibnd_exx)
                 DO ig=1,npw
-                   temppsic_nc(exx_fft%nlt(igk_exx(ig,ik)),1) = evc_exx(ig,ibnd_exx)
+                   temppsic_nc(exx_fft%nlt(igk_exx(ig,ik)),1) = evc_exx(ig,ibnd-iexx_start+1)
                 ENDDO
 !$omp end parallel do
                 CALL invfft ('CustomWave', temppsic_nc(:,1), exx_fft%dfftt, is_exx=.TRUE.)
 !$omp parallel do default(shared) private(ig) firstprivate(npw,ik,ibnd_exx,npwx)
                 DO ig=1,npw
-                   temppsic_nc(exx_fft%nlt(igk_exx(ig,ik)),2) = evc_exx(ig+npwx,ibnd_exx)
+                   temppsic_nc(exx_fft%nlt(igk_exx(ig,ik)),2) = evc_exx(ig+npwx,ibnd-iexx_start+1)
                 ENDDO
 !$omp end parallel do
                 CALL invfft ('CustomWave', temppsic_nc(:,2), exx_fft%dfftt, is_exx=.TRUE.)
@@ -883,7 +883,7 @@ MODULE exx
                 ENDDO
 !$omp parallel do default(shared) private(ig) firstprivate(npw,ik,ibnd_exx)
                 DO ig=1,npw
-                   temppsic(exx_fft%nlt(igk_exx(ig,ik))) = evc_exx(ig,ibnd_exx)
+                   temppsic(exx_fft%nlt(igk_exx(ig,ik))) = evc_exx(ig,ibnd-iexx_start+1)
                 ENDDO
 !$omp end parallel do
                 CALL invfft ('CustomWave', temppsic, exx_fft%dfftt, is_exx=.TRUE.)
@@ -3753,6 +3753,7 @@ END SUBROUTINE compute_becpsi
     USE wavefunctions_module, ONLY : evc
     USE control_flags,        ONLY : io_level
     USE buffers,              ONLY : open_buffer, get_buffer, save_buffer
+    USE mp_exx,               ONLY : max_ibands
     !
     !
     IMPLICIT NONE
@@ -3821,7 +3822,7 @@ END SUBROUTINE compute_becpsi
     ! get evc_exx
     !
     IF(.not.allocated(evc_exx))THEN
-       ALLOCATE(evc_exx(lda,nbnd))
+       ALLOCATE(evc_exx(lda,max_ibands+2))
        !
        ! ... open files/buffer for wavefunctions (nwordwfc set in openfil)
        ! ... io_level > 1 : open file, otherwise: open buffer
@@ -4557,8 +4558,7 @@ END SUBROUTINE compute_becpsi
                 END DO
              ELSE IF (type.eq.2) THEN !evc2
                 DO im=1, all_end(my_egrp_id+1) - all_start(my_egrp_id+1) + 1
-                   psi_out(ig,im+all_start(my_egrp_id+1)-1) = &
-                        comm_recv(iproc+1,current_ik)%msg_evc(i,im)
+                   psi_out(ig,im) = comm_recv(iproc+1,current_ik)%msg_evc(i,im)
                 END DO
              END IF
              !
