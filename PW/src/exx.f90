@@ -1207,8 +1207,8 @@ MODULE exx
 
          DO ibnd = ibnd_loop_start,ibnd_end,2
             h_ibnd = h_ibnd + 1
-            phi(:) = exxbuff(:,h_ibnd,ikq)
-			CALL fwfft ('Wave', phi, dffts)
+            phi(:) = exxtemp(:,h_ibnd)
+            CALL fwfft ('Wave', phi, dffts)
             IF (ibnd < ibnd_end) THEN
                ! two ffts at the same time
                DO j = 1, ngkq(ikq)
@@ -1225,8 +1225,8 @@ MODULE exx
          ENDDO
       ELSE
          DO ibnd = ibnd_start,ibnd_end
-            phi(:) = exxbuff(:,ibnd,ikq)
-			CALL fwfft ('Wave', phi, dffts)
+            phi(:) = exxtemp(:,ibnd)
+            CALL fwfft ('Wave', phi, dffts)
             DO j = 1, ngkq(ikq)
                evcq(j, ibnd)   =  phi(nls(igkq(j)))
             ENDDO
@@ -1468,26 +1468,6 @@ MODULE exx
              !
              IF( l_fft_doubleband ) THEN
 !$omp parallel do  default(shared), private(ig)
-             DO ig = 1, exx_fft%npwt
-                result( exx_fft%nlt(ig), ii )  =       psi(ig,ii) 
-                result( exx_fft%nltm(ig), ii ) = CONJG(psi(ig,ii))
-             ENDDO
-!$omp end parallel do
-          ENDIF
-          !
-          IF( l_fft_doubleband.OR.l_fft_singleband) THEN
-#ifdef __USE_3D_FFT
-			CALL invfft ('CustomLocal', result(:,ii), exx_fft%dfftt)
-#else
-			CALL invfft ('CustomWave', result(:,ii), exx_fft%dfftt)
-#endif
-!$omp parallel do default(shared), private(ir)
-             DO ir = 1, nrxxs
-                temppsic_dble(ir)  = DBLE ( result(ir,ii) )
-                temppsic_aimag(ir) = AIMAG( result(ir,ii) )
-             ENDDO
-!$omp end parallel do
-!$omp parallel do default(shared), private(ig)
                 DO ig = 1, exx_fft%npwt
                    psiwork( exx_fft%nlt(ig) )  =       psi(ig, ii) + (0._DP,1._DP) * psi(ig, ii+1)
                    psiwork( exx_fft%nltm(ig) ) = conjg(psi(ig, ii) - (0._DP,1._DP) * psi(ig, ii+1))
@@ -1505,53 +1485,20 @@ MODULE exx
              ENDIF
              !
              IF( l_fft_doubleband.or.l_fft_singleband) THEN
-                CALL invfft ('CustomWave', psiwork, exx_fft%dfftt)
+#ifdef __USE_3D_FFT
+			CALL invfft ('CustomLocal', psiwork, exx_fft%dfftt)
+#else
+			CALL invfft ('CustomWave', psiwork, exx_fft%dfftt)
+#endif
 !$omp parallel do default(shared), private(ir)
                 DO ir = 1, nrxxs
                    temppsic_dble(ir)  = dble ( psiwork(ir) )
                    temppsic_aimag(ir) = aimag( psiwork(ir) )
                 ENDDO
 !$omp end parallel do
-             ENDIF 
-             !
-             ! bring rho to G-space
-             !
-             !   >>>> add augmentation in REAL SPACE here
-             IF(okvan .AND. tqr) THEN
-                IF(jbnd>=jstart) &
-                CALL addusxx_r(rhoc(:,ii), _CX(becxx(ikq)%r(:,jbnd)), _CX(becpsi%r(:,ii)))
-                IF(ibnd<ibnd_end) &
-                CALL addusxx_r(rhoc(:,ii),_CY(becxx(ikq)%r(:,jbnd+1)),_CX(becpsi%r(:,ii)))
-             ENDIF
-             !
-			 !DEBUG
-#ifdef __USE_3D_FFT
-			 CALL fwfft ('CustomLocal', rhoc(:,ii), exx_fft%dfftt)
-#else
-             CALL fwfft ('Custom', rhoc(:,ii), exx_fft%dfftt)
-#endif
-			 !DEBUG
-             !   >>>> add augmentation in G SPACE here
-             IF(okvan .AND. .NOT. tqr) THEN
-                ! contribution from one band added to real (in real space) part of rhoc
-                IF(jbnd>=jstart) &
-                   CALL addusxx_g(exx_fft, rhoc(:,ii), xkq,  xkp, 'r', &
-                   becphi_r=becxx(ikq)%r(:,jbnd), becpsi_r=becpsi%r(:,ii) )
-                ! contribution from following band added to imaginary (in real space) part of rhoc
-                IF(jbnd<jend) &
-                   CALL addusxx_g(exx_fft, rhoc(:,ii), xkq,  xkp, 'i', &
-                   becphi_r=becxx(ikq)%r(:,jbnd+1), becpsi_r=becpsi%r(:,ii) )
              ENDIF
              !
              !
-             !brings back v in real space
-			 !DEBUG
-#ifdef __USE_3D_FFT
-			 CALL invfft ('CustomLocal', vc(:,ii), exx_fft%dfftt) 
-#else
-             CALL invfft ('Custom', vc(:,ii), exx_fft%dfftt) 
-#endif
-			 !DEBUG
              !determine which j-bands to calculate
              jstart = 0
              jend = 0
@@ -1626,7 +1573,7 @@ MODULE exx
                         CALL addusxx_r(rhoc(:,ii),_CY(becxx(ikq)%r(:,jbnd+1)),_CX(becpsi%r(:,ii)))
                 ENDIF
                 !
-                CALL fwfft ('Custom', rhoc(:,ii), exx_fft%dfftt, is_exx=.TRUE.)
+                CALL fwfft ('Custom', rhoc(:,ii), exx_fft%dfftt)
                 !   >>>> add augmentation in G SPACE here
                 IF(okvan .and. .not. tqr) THEN
                    ! contribution from one band added to real (in real space) part of rhoc
@@ -1662,7 +1609,7 @@ MODULE exx
                 ENDIF
                 !
                 !brings back v in real space
-                CALL invfft ('Custom', vc(:,ii), exx_fft%dfftt, is_exx=.TRUE.)
+                CALL invfft ('Custom', vc(:,ii), exx_fft%dfftt)
                 !
                 !   >>>>  compute <psi|H_fock REAL SPACE here
                 IF(okvan .and. tqr) THEN
@@ -3411,30 +3358,6 @@ MODULE exx
         IF (nks > 1) &
             CALL get_buffer(evc_exx, nwordwfc_exx, iunwfc_exx, ikk)
 
-        ! loop over bands
-        DO jbnd = 1, nbnd
-            !
-            temppsic(:) = ( 0._dp, 0._dp )
-!$omp parallel do default(shared), private(ig)
-            DO ig = 1, npw
-                temppsic(exx_fft%nlt(igk_exx(ig,ikk))) = evc_exx(ig,jbnd)
-            ENDDO
-!$omp end parallel do
-            !
-            IF(gamma_only) THEN
-!$omp parallel do default(shared), private(ig)
-                DO ig = 1, npw
-                    temppsic(exx_fft%nltm(igk_exx(ig,ikk))) = &
-                         conjg(evc_exx(ig,jbnd))
-                ENDDO
-!$omp end parallel do
-            ENDIF
-#ifdef __USE_3D_FFT
-			CALL invfft ('CustomLocal', temppsic, exx_fft%dfftt)
-#else
-            CALL invfft ('CustomWave', temppsic, exx_fft%dfftt)
-#endif
-
             DO iqi = 1, nqi
                 !
                 iq=iqi
@@ -3602,7 +3525,7 @@ MODULE exx
 !$omp end parallel do
             ENDIF
 
-            CALL invfft ('CustomWave', temppsic, exx_fft%dfftt, is_exx=.TRUE.)
+            CALL invfft ('CustomWave', temppsic, exx_fft%dfftt)
 
                 IF (gamma_only) THEN
                     !
