@@ -1487,7 +1487,7 @@ MODULE exx
                 temppsic_aimag(ir) = AIMAG( result(ir,ii) )
              ENDDO
 !$omp end parallel do
-!$omp parallel do default(shared), private(ig) shared(nlt,nltm)
+!$omp parallel do default(shared), private(ig)
                 DO ig = 1, exx_fft%npwt
                    psiwork( exx_fft%nlt(ig) )  =       psi(ig, ii) + (0._DP,1._DP) * psi(ig, ii+1)
                    psiwork( exx_fft%nltm(ig) ) = conjg(psi(ig, ii) - (0._DP,1._DP) * psi(ig, ii+1))
@@ -1505,7 +1505,7 @@ MODULE exx
              ENDIF
              !
              IF( l_fft_doubleband.or.l_fft_singleband) THEN
-                CALL invfft ('CustomWave', psiwork, exx_fft%dfftt, is_exx=.TRUE.)
+                CALL invfft ('CustomWave', psiwork, exx_fft%dfftt)
 !$omp parallel do default(shared), private(ir)
                 DO ir = 1, nrxxs
                    temppsic_dble(ir)  = dble ( psiwork(ir) )
