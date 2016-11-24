@@ -4405,6 +4405,9 @@ END SUBROUTINE compute_becpsi
        END DO
        DO iegrp=1, negrp
           DO im=1, all_end(iegrp) - all_start(iegrp) + 1
+             !
+             IF(all_start(iegrp).eq.0) CYCLE
+             !
              IF ( my_egrp_id.eq.(iegrp-1) ) THEN
                 DO j=1, negrp
                    displs(j) = (j-1)*(lda_max_local*m) + &
@@ -4435,6 +4438,7 @@ END SUBROUTINE compute_becpsi
     ELSEIF(type.eq.2)THEN
        DO iegrp=1, negrp
           DO im=1, all_end(iegrp) - all_start(iegrp) + 1
+             IF(all_start(iegrp).eq.0) CYCLE
 #if defined(__MPI)
              CALL MPI_WAIT(requests(im,iegrp), istatus, ierr)
 #endif
