@@ -4484,10 +4484,12 @@ END SUBROUTINE compute_becpsi
                         psi_work(ig,im,1+(j-1)/nproc_egrp)
                 END DO
              ELSE IF ( type.eq.2 ) THEN !evc2
-                DO im=1, all_end(my_egrp_id+1) - all_start(my_egrp_id+1) + 1
-                   comm_send(iproc+1,current_ik)%msg(i,im) = &
-                        psi_work(ig,im+all_start(my_egrp_id+1)-1,1+(j-1)/nproc_egrp)
-                END DO
+                IF(all_start(my_egrp_id+1).gt.0) THEN
+                   DO im=1, all_end(my_egrp_id+1) - all_start(my_egrp_id+1) + 1
+                      comm_send(iproc+1,current_ik)%msg(i,im) = &
+                           psi_work(ig,im+all_start(my_egrp_id+1)-1,1+(j-1)/nproc_egrp)
+                   END DO
+                END IF
              END IF
              !
           END DO
