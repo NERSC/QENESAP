@@ -141,6 +141,7 @@ SUBROUTINE electrons()
      !
      ! ... From now on: hybrid DFT only
      !
+     !<<<
      IF ( stopped_by_user .OR. .NOT. conv_elec ) THEN
         conv_elec=.FALSE.
         IF ( .NOT. first) THEN
@@ -158,6 +159,7 @@ SUBROUTINE electrons()
         END IF
         RETURN
      END IF
+     !>>>
      !
      first =  first .AND. .NOT. exx_is_active ( )
      !
@@ -253,6 +255,9 @@ SUBROUTINE electrons()
      WRITE( stdout,'(/5x,"EXX: now go back to refine exchange calculation")')
      !
      IF ( check_stop_now() ) THEN
+        !<<<
+        WRITE(6,*)'STOPPING IN ELECTRONS'
+        !>>>
         WRITE(stdout,'(5x,"Calculation (EXX) stopped after iteration #", &
                         & i6)') iter
         conv_elec=.FALSE.
@@ -433,11 +438,13 @@ SUBROUTINE electrons_scf ( printout, exxen )
   !
   DO idum = 1, niter
      !
-     IF ( check_stop_now() ) THEN
-        conv_elec=.FALSE.
-        CALL save_in_electrons (iter, dr2, ethr, et )
-        GO TO 10
-     END IF
+     !<<<
+     !IF ( check_stop_now() ) THEN
+     !   conv_elec=.FALSE.
+     !   CALL save_in_electrons (iter, dr2, ethr, et )
+     !   GO TO 10
+     !END IF
+     !>>>
      iter = iter + 1
      !
      WRITE( stdout, 9010 ) iter, ecutwfc, mixing_beta

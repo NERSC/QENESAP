@@ -109,12 +109,14 @@ SUBROUTINE c_bands( iter )
      !
      nkdum  = kunit * ( nkstot / kunit / npool )
      !
-     IF (ik .le. nkdum) THEN
-        IF (check_stop_now()) THEN
-           CALL save_in_cbands(ik, ethr, avg_iter, et )
-           RETURN
-        END IF
-     ENDIF
+     !<<<
+     !IF (ik .le. nkdum) THEN
+     !   IF (check_stop_now()) THEN
+     !      CALL save_in_cbands(ik, ethr, avg_iter, et )
+     !      RETURN
+     !   END IF
+     !ENDIF
+     !>>>
      !
   END DO k_loop
   !
@@ -667,10 +669,12 @@ SUBROUTINE c_bands_nscf( )
         ! ... stop requested by user: save restart information,
         ! ... save wavefunctions to file
         !
-        IF (check_stop_now()) THEN
-           CALL save_in_cbands(ik, ethr, avg_iter, et )
-           RETURN
-        END IF
+        !<<<
+        !IF (check_stop_now()) THEN
+        !   CALL save_in_cbands(ik, ethr, avg_iter, et )
+        !   RETURN
+        !END IF
+        !>>>
      ENDIF
      !
      ! report about timing
