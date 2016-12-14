@@ -3843,7 +3843,7 @@ END SUBROUTINE compute_becpsi
        ! ... open files/buffer for wavefunctions (nwordwfc set in openfil)
        ! ... io_level > 1 : open file, otherwise: open buffer
        !
-       nwordwfc_exx  = nbnd*npwx_exx*npol
+       nwordwfc_exx  = size(evc_exx)
        CALL open_buffer( iunwfc_exx, 'wfc_exx', nwordwfc_exx, io_level, &
             exst_mem, exst_file )
     END IF
