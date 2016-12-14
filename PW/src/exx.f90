@@ -1964,11 +1964,9 @@ MODULE exx
           !   >>>> add augmentation in REAL space HERE
           CALL start_clock ('vexx_augr')
           IF(okvan .and. tqr) THEN ! augment the "charge" in real space
-!$omp parallel do default(shared) firstprivate(jstart,jend) private(jbnd)
 		  DO jbnd=jstart, jend
              CALL addusxx_r(rhoc(:,jbnd-jstart+1), becxx(ikq)%k(:,jbnd), becpsi%k(:,ibnd))
 		  ENDDO
-!$omop end parallel do
           ENDIF
           CALL stop_clock ('vexx_augr')
           !
@@ -1986,11 +1984,9 @@ MODULE exx
           !   >>>> add augmentation in G space HERE
           CALL start_clock ('vexx_augg')
           IF(okvan .and. .not. tqr) THEN
-!$omp parallel do default(shared) firstprivate(jstart,jend) private(jbnd)
 	 		DO jbnd=jstart, jend
 				CALL addusxx_g(exx_fft, rhoc(:,jbnd-jstart+1), xkq, xkp, 'c', becphi_c=becxx(ikq)%k(:,jbnd),becpsi_c=becpsi%k(:,ibnd))
 			ENDDO
-!$omp end parallel do
           ENDIF
           CALL stop_clock ('vexx_augg')
           !   >>>> charge done
@@ -2022,11 +2018,9 @@ MODULE exx
           ! compute alpha_I,j,k+q = \sum_J \int <beta_J|phi_j,k+q> V_i,j,k,q Q_I,J(r) d3r
           CALL start_clock ('vexx_ultr')
           IF(okvan .and. .not. tqr) THEN
-!$omp parallel do default(shared) firstprivate(jstart,jend) private(jbnd)
 			DO jbnd=jstart, jend
              CALL newdxx_g(exx_fft, vc(:,jbnd-jstart+1), xkq, xkp, 'c', deexx(:,ii), becphi_c=becxx(ikq)%k(:,jbnd))
 			ENDDO
-!$omp end parallel do
           ENDIF
           CALL stop_clock ('vexx_ultr')
           !
@@ -2045,22 +2039,18 @@ MODULE exx
           ! Add ultrasoft contribution (REAL SPACE)
           CALL start_clock ('vexx_ultg')
           IF(okvan .and. tqr) THEN
-!$omp parallel do default(shared) firstprivate(jstart,jend) private(jbnd)
 			DO jbnd=jstart, jend
 			  CALL newdxx_r(vc(:,jbnd-jstart+1), becxx(ikq)%k(:,jbnd),deexx(:,ii))
 			ENDDO
-!$omp end parallel do
 		  ENDIF
           CALL stop_clock ('vexx_ultg')
           !
           ! Add PAW one-center contribution
           CALL start_clock ('vexx_paw')
           IF(okpaw) THEN
-!$omp parallel do default(shared) private(jbnd)
 			DO jbnd=jstart, jend
              CALL PAW_newdxx(x_occupation(jbnd,ik)/nqs, becxx(ikq)%k(:,jbnd), becpsi%k(:,ibnd), deexx(:,ii))
 			ENDDO
-!$omp end parallel do
           ENDIF
           CALL stop_clock ('vexx_paw')
           !
@@ -2152,6 +2142,7 @@ MODULE exx
        CALL stop_clock ('vexx_out2')
 
     END DO
+
 	
 	!deallocate temporary arrays
 	DEALLOCATE(rhoc, vc)
