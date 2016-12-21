@@ -1362,7 +1362,7 @@ MODULE exx
     REAL(DP),ALLOCATABLE :: temppsic_dble (:)
     REAL(DP),ALLOCATABLE :: temppsic_aimag(:)
     !
-    COMPLEX(DP),ALLOCATABLE :: rhoc(:,:), vc(:,:), deexx(:)
+    COMPLEX(DP),ALLOCATABLE :: rhoc(:,:), vc(:,:), deexx(:,:)
     REAL(DP),   ALLOCATABLE :: fac(:)
     INTEGER          :: ibnd, ik, im , ikq, iq, ipol
     INTEGER          :: ir, ig
@@ -1397,7 +1397,7 @@ MODULE exx
     ALLOCATE( exxtemp(nrxxs*npol, jblock) )
     !
     ALLOCATE(rhoc(nrxxs,nbnd), vc(nrxxs,nbnd))
-    IF(okvan) ALLOCATE(deexx(nkb))
+    IF(okvan) ALLOCATE(deexx(nkb,ialloc))
     !
     current_ik = global_kpoint_index ( nkstot, current_k )
     xkp = xk(:,current_k)
@@ -1405,6 +1405,10 @@ MODULE exx
     allocate(big_result(n,m))
     big_result = 0.0_DP
     result = 0.0_DP
+    !
+    DO ii=1, nibands(my_egrp_id+1)
+       IF(okvan) deexx(:,ii) = 0.0_DP
+    END DO
     !
     ! Here the loops start
     !
@@ -1439,8 +1443,6 @@ MODULE exx
              ibnd = ibands(ii,my_egrp_id+1)
              !
              IF (ibnd.eq.0.or.ibnd.gt.m) CYCLE
-             !
-             IF(okvan) deexx = 0.0_DP
              !
              psiwork = 0.0_DP
              !
@@ -1548,9 +1550,9 @@ MODULE exx
                 !   >>>> add augmentation in REAL SPACE here
                 IF(okvan .and. tqr) THEN
                    IF(jbnd>=jstart) &
-                        CALL addusxx_r(rhoc(:,ii), _CX(becxx(ikq)%r(:,jbnd)), _CX(becpsi%r(:,ii)))
-                   IF(ibnd<ibnd_end) &
-                        CALL addusxx_r(rhoc(:,ii),_CY(becxx(ikq)%r(:,jbnd+1)),_CX(becpsi%r(:,ii)))
+                        CALL addusxx_r(rhoc(:,ii), _CX(becxx(ikq)%r(:,jbnd)), _CX(becpsi%r(:,ibnd)))
+                   IF(jbnd<jend) &
+                        CALL addusxx_r(rhoc(:,ii),_CY(becxx(ikq)%r(:,jbnd+1)),_CX(becpsi%r(:,ibnd)))
                 ENDIF
                 !
                 CALL fwfft ('Custom', rhoc(:,ii), exx_fft%dfftt, is_exx=.TRUE.)
@@ -1559,11 +1561,11 @@ MODULE exx
                    ! contribution from one band added to real (in real space) part of rhoc
                    IF(jbnd>=jstart) &
                         CALL addusxx_g(exx_fft, rhoc(:,ii), xkq,  xkp, 'r', &
-                        becphi_r=becxx(ikq)%r(:,jbnd), becpsi_r=becpsi%r(:,ii) )
+                        becphi_r=becxx(ikq)%r(:,jbnd), becpsi_r=becpsi%r(:,ibnd) )
                    ! contribution from following band added to imaginary (in real space) part of rhoc
                    IF(jbnd<jend) &
                         CALL addusxx_g(exx_fft, rhoc(:,ii), xkq,  xkp, 'i', &
-                        becphi_r=becxx(ikq)%r(:,jbnd+1), becpsi_r=becpsi%r(:,ii) )
+                        becphi_r=becxx(ikq)%r(:,jbnd+1), becpsi_r=becpsi%r(:,ibnd) )
                 ENDIF
                 !   >>>> charge density done
                 !
@@ -1581,10 +1583,10 @@ MODULE exx
                 !   >>>>  compute <psi|H_fock G SPACE here
                 IF(okvan .and. .not. tqr) THEN
                    IF(jbnd>=jstart) &
-                        CALL newdxx_g(exx_fft, vc(:,ii), xkq, xkp, 'r', deexx, &
+                        CALL newdxx_g(exx_fft, vc(:,ii), xkq, xkp, 'r', deexx(:,ii), &
                            becphi_r=x1*becxx(ikq)%r(:,jbnd))
-                   IF(ibnd<ibnd_end) &
-                        CALL newdxx_g(exx_fft, vc(:,ii), xkq, xkp, 'i', deexx, &
+                   IF(jbnd<jend) &
+                        CALL newdxx_g(exx_fft, vc(:,ii), xkq, xkp, 'i', deexx(:,ii), &
                             becphi_r=x2*becxx(ikq)%r(:,jbnd+1))
                 ENDIF
                 !
@@ -1594,16 +1596,16 @@ MODULE exx
                 !   >>>>  compute <psi|H_fock REAL SPACE here
                 IF(okvan .and. tqr) THEN
                    IF(jbnd>=jstart) &
-                        CALL newdxx_r(vc(:,ii), cmplx(x1*becxx(ikq)%r(:,jbnd), 0.0_DP, KIND=DP), deexx)
+                        CALL newdxx_r(vc(:,ii), cmplx(x1*becxx(ikq)%r(:,jbnd), 0.0_DP, KIND=DP), deexx(:,ii))
                    IF(jbnd<jend) &
-                        CALL newdxx_r(vc(:,ii), cmplx(0.0_DP,-x2*becxx(ikq)%r(:,jbnd+1), KIND=DP), deexx)
+                        CALL newdxx_r(vc(:,ii), cmplx(0.0_DP,-x2*becxx(ikq)%r(:,jbnd+1), KIND=DP), deexx(:,ii))
                 ENDIF
                 !
                 IF(okpaw) THEN
                    IF(jbnd>=jstart) &
-                        CALL PAW_newdxx(x1/nqs, _CX(becxx(ikq)%r(:,jbnd)), _CX(becpsi%r(:,ii)), deexx)
+                        CALL PAW_newdxx(x1/nqs, _CX(becxx(ikq)%r(:,jbnd)), _CX(becpsi%r(:,ibnd)), deexx(:,ii))
                    IF(jbnd<jend) &
-                        CALL PAW_newdxx(x2/nqs, _CX(becxx(ikq)%r(:,jbnd+1)), _CX(becpsi%r(:,ii)), deexx)
+                        CALL PAW_newdxx(x2/nqs, _CX(becxx(ikq)%r(:,jbnd+1)), _CX(becpsi%r(:,ibnd)), deexx(:,ii))
                 ENDIF
                 !
                 ! accumulates over bands and k points
@@ -1633,8 +1635,7 @@ MODULE exx
        IF (ibnd.eq.0.or.ibnd.gt.m) CYCLE
        !
        IF(okvan) THEN
-          CALL mp_sum(deexx,intra_egrp_comm)
-          CALL mp_sum(deexx,inter_egrp_comm)
+          CALL mp_sum(deexx(:,ii),intra_egrp_comm)
        ENDIF
        !
        !
@@ -1648,7 +1649,7 @@ MODULE exx
        !
        ! add non-local \sum_I |beta_I> \alpha_Ii (the sum on i is outside)
        IF(okvan) CALL add_nlxx_pot (lda, big_result(:,ibnd), xkp, n, &
-            igk_exx(1,current_k), deexx, eps_occ, exxalfa)
+            igk_exx(1,current_k), deexx(:,ii), eps_occ, exxalfa)
     END DO
     !
     CALL result_sum(n*npol, m, big_result)
@@ -2456,6 +2457,7 @@ MODULE exx
     USE klist,                   ONLY : xk, ngk, nks, nkstot
     USE lsda_mod,                ONLY : lsda, current_spin, isk
     USE mp_pools,                ONLY : inter_pool_comm
+    USE mp_bands,                ONLY : intra_bgrp_comm
     USE mp_exx,                  ONLY : inter_egrp_comm, intra_egrp_comm, negrp, &
                                         init_index_over_band, max_pairs, egrp_pairs, &
                                         my_egrp_id, nibands, ibands, jblock
@@ -2500,6 +2502,7 @@ MODULE exx
     INTEGER :: ijt, njt, jblock_start, jblock_end
     INTEGER :: index_start, index_end, exxtemp_index
     INTEGER :: calbec_start, calbec_end
+    INTEGER :: intra_bgrp_comm_
     !
     CALL init_index_over_band(inter_egrp_comm,nbnd,nbnd)
     !
@@ -2535,8 +2538,12 @@ MODULE exx
        ! compute <beta_I|psi_j> at this k+q point, for all band and all projectors
        calbec_start = ibands(1,my_egrp_id+1)
        calbec_end = ibands(nibands(my_egrp_id+1),my_egrp_id+1)
+       !
+       intra_bgrp_comm_ = intra_bgrp_comm
+       intra_bgrp_comm = intra_egrp_comm
        CALL calbec(npw, vkb_exx, evc_exx, &
-            becpsi%r(:,calbec_start:calbec_end), nibands(my_egrp_id+1) )
+            becpsi, nibands(my_egrp_id+1) )
+       intra_bgrp_comm = intra_bgrp_comm_
        !
        IQ_LOOP : &
        DO iq = 1,nqs
@@ -2697,10 +2704,10 @@ MODULE exx
                 IF(okvan .and..not.tqr) THEN
                    IF(ibnd>=istart ) &
                       CALL addusxx_g( exx_fft, rhoc, xkq, xkp, 'r', &
-                      becphi_r=becxx(ikq)%r(:,ibnd), becpsi_r=becpsi%r(:,jbnd) )
+                      becphi_r=becxx(ikq)%r(:,ibnd), becpsi_r=becpsi%r(:,jbnd-calbec_start+1) )
                    IF(ibnd<iend) &
                       CALL addusxx_g( exx_fft, rhoc, xkq, xkp, 'i', &
-                      becphi_r=becxx(ikq)%r(:,ibnd+1), becpsi_r=becpsi%r(:,jbnd) )
+                      becphi_r=becxx(ikq)%r(:,ibnd+1), becpsi_r=becpsi%r(:,jbnd-calbec_start+1) )
                 ENDIF
                 !
                 vc = 0.0_DP
@@ -3036,11 +3043,9 @@ MODULE exx
                 CALL start_clock ('exxenergy_augr')
                 ! augment the "charge" in G space
                 IF(okvan .and. .not. tqr) THEN
-!$omp parallel do default(shared) private(ibnd) firstprivate(ibnd_inner_start,ibnd_inner_end)
                    DO ibnd = ibnd_inner_start, ibnd_inner_end
                       CALL addusxx_g(exx_fft, rhoc(:,ibnd-ibnd_inner_start+1), xkq, xkp, 'c', becphi_c=becxx(ikq)%k(:,ibnd),becpsi_c=becpsi%k(:,jbnd))
                    ENDDO
-!$omp end parallel do
                 ENDIF
                 CALL stop_clock ('exxenergy_augr')
                 !
@@ -4678,7 +4683,7 @@ END SUBROUTINE compute_becpsi
     IF (first_data_structure_change) THEN
        allocate( ig_l2g_loc(ngm), g_loc(3,ngm), gg_loc(ngm) )
        allocate( mill_loc(3,ngm), nl_loc(ngm) )
-       allocate( nls_loc(ngms) )
+       allocate( nls_loc(size(nls)) )
        allocate( nlm_loc(size(nlm)) )
        allocate( nlsm_loc(size(nlsm)) )
        ig_l2g_loc = ig_l2g
@@ -4747,9 +4752,9 @@ END SUBROUTINE compute_becpsi
        CALL ggen( gamma_only, at, bg, intra_egrp_comm, no_global_sort = .FALSE., is_exx=.true. )
        allocate( ig_l2g_exx(ngm), g_exx(3,ngm), gg_exx(ngm) )
        allocate( mill_exx(3,ngm), nl_exx(ngm) )
-       allocate( nls_exx(ngms) )
+       allocate( nls_exx(size(nls)) )
        allocate( nlm_exx(size(nlm) ) )
-       allocate( nlsm_exx(size(nlm) ) )
+       allocate( nlsm_exx(size(nlsm) ) )
        ig_l2g_exx = ig_l2g
        g_exx = g
        gg_exx = gg
