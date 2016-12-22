@@ -16,7 +16,6 @@ SUBROUTINE data_structure_custom(fc, smap_exx, gamma_only)
   USE cell_base,  ONLY : at, bg, tpiba, tpiba2
   USE klist,      ONLY : xk, nks
   USE mp,         ONLY : mp_sum, mp_max,mp_barrier
-  !<<<
   USE mp_exx,     ONLY : me_egrp, nproc_egrp, inter_egrp_comm, &
                          intra_egrp_comm, root_egrp, ntask_groups 
   USE fft_types,  ONLY : fft_type_init
@@ -34,9 +33,7 @@ SUBROUTINE data_structure_custom(fc, smap_exx, gamma_only)
   REAL (DP) :: gkcut
   INTEGER :: ik, ngm_, ngs_, ngw_
   INTEGER :: me, nproc, inter_comm, intra_comm, root
-  !<<<
   TYPE (sticks_map) :: smap_exx ! Stick map descriptor
-  !>>>
 
   INTEGER :: kpoint
 #if defined (__MPI)
@@ -84,19 +81,11 @@ SUBROUTINE data_structure_custom(fc, smap_exx, gamma_only)
   !
   ! ... set up fft descriptors, including parallel stuff: sticks, planes, etc.
   !
-  !<<<
-!<<<<<<< HEAD
-!  CALL pstickset_custom( gamma_only, bg, gcutm, gkcut, fc%gcutmt, &
-!                  dfftp, fc%dfftt, ngw_ , ngm_, ngs_, me, root, nproc, &
-!                  intra_comm, 1 )
-!=======
   CALL fft_type_init( fc%dfftt, smap_exx, "rho", gamma_only, lpara, intra_comm, at, bg, fc%gcutmt, fc%gcutmt/gkcut )
   ngs_ = fc%dfftt%ngl( fc%dfftt%mype + 1 )
   IF( gamma_only ) THEN
      ngs_ = (ngs_ + 1)/2
   END IF
-!>>>>>>> main-dev
-  !>>>
   !
   !     on output, ngm_ and ngs_ contain the local number of G-vectors
   !     for the two grids. Initialize local and global number of G-vectors
