@@ -1639,9 +1639,6 @@ MODULE exx
                                qvan_init, qvan_clean
     USE paw_exx,        ONLY : PAW_newdxx
     USE io_global,      ONLY : stdout
-    !DEBUG
-    USE itt_sde_fortran
-    !DEBUG
     !
     !
     IMPLICIT NONE
