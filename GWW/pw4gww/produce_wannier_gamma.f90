@@ -104,15 +104,15 @@
        endif
 
 !setup parallel environment
-#ifndef __MPI
+#if !defined(__MPI)
          l_pmatrix=.false.
 #endif
-#ifndef __SCALAPACK
+#if !defined(__SCALAPACK)
          l_pmatrix=.false.
 #endif
 
          if(l_pmatrix) then
-#ifdef __SCALAPACK
+#if defined(__SCALAPACK)
             call blacs_pinfo(p_mpime,p_nproc)
             write(stdout,*) 'PINFO',p_mpime,p_nproc
        !     nprow=int(sqrt(real(p_nproc)))
@@ -480,7 +480,7 @@
                    call start_clock('self_basis')
                    call davcio(evc,2*nwordwfc,iunwfc,is,-1)
                    if(.not.l_real) then 
-                      call self_basis_lanczos(nset,n_self_lanczos,numw_prod,nsteps_lanczos_self,is,l_full,n_full)
+                      call self_basis_lanczos(nset,n_self_lanczos,numw_prod,nsteps_lanczos_self,is,l_full,n_full(is))
                    else
 !NOT_TO_BE_INCLUDED_START
                       call self_basis_lanczos_real(nset,n_self_lanczos,numw_prod,nsteps_lanczos_self,is)

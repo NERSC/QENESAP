@@ -1,5 +1,16 @@
- 
+!
+! Copyright (C) 2003-2016 Quantum ESPRESSO group
+! This file is distributed under the terms of the
+! GNU General Public License. See the file `License'
+! in the root directory of the present distribution,
+! or http://www.gnu.org/copyleft/gpl.txt .
+!
 MODULE qes_libs_module
+! This module contains some basic subroutines initialize data_type used for
+! reading and writing  XML files produced by Quantum ESPRESSO package.
+!
+! Written by Giovanni Borghi, A. Ferretti, ... (2015).
+!
 
    USE qes_types_module
    USE iotk_module
@@ -9,9 +20,9 @@ MODULE qes_libs_module
    CHARACTER(32)           :: fmtstr
    !
    PRIVATE :: attr, fmtstr
-
+!
 CONTAINS
-
+!
 SUBROUTINE qes_write_closed(iun, obj)
    IMPLICIT NONE
 
@@ -76,9 +87,9 @@ SUBROUTINE qes_write_status(iun, obj)
    attr = " "
 
    CALL iotk_write_begin(iun, TRIM(obj%tagname), attr=TRIM(attr))
-   !
-   WRITE(iun, '(I12)') obj%status
-   !
+      !
+         WRITE(iun, '(I12)') obj%status
+         !
    CALL iotk_write_end(iun, TRIM(obj%tagname))
    !
 END SUBROUTINE qes_write_status
@@ -121,7 +132,7 @@ SUBROUTINE qes_write_scalarQuantity(iun, obj)
 
    CALL iotk_write_begin(iun, TRIM(obj%tagname), attr=TRIM(attr))
       !
-      WRITE(iun, '(E20.7)') obj%scalarQuantity
+      WRITE(iun, '(E24.16)') obj%scalarQuantity
    CALL iotk_write_end(iun, TRIM(obj%tagname))
    !
 END SUBROUTINE qes_write_scalarQuantity
@@ -168,10 +179,10 @@ SUBROUTINE qes_write_finiteFieldOut(iun, obj)
    CALL iotk_write_begin(iun, TRIM(obj%tagname), attr=TRIM(attr))
       !
       CALL iotk_write_begin(iun, 'electronicDipole')
-         WRITE(iun, '(3(E20.7))') obj%electronicDipole
+         WRITE(iun, '(3(E24.16))') obj%electronicDipole
       CALL iotk_write_end(iun, 'electronicDipole')
       CALL iotk_write_begin(iun, 'ionicDipole')
-         WRITE(iun, '(3(E20.7))') obj%ionicDipole
+         WRITE(iun, '(3(E24.16))') obj%ionicDipole
       CALL iotk_write_end(iun, 'ionicDipole')
    CALL iotk_write_end(iun, TRIM(obj%tagname))
    !
@@ -216,15 +227,19 @@ SUBROUTINE qes_write_k_point(iun, obj)
    IF(obj%weight_ispresent) THEN
       CALL iotk_write_attr(attr, 'weight', obj%weight)
    END IF
+   IF(obj%label_ispresent) THEN
+      CALL iotk_write_attr(attr, 'label', TRIM(obj%label))
+   END IF
 
    CALL iotk_write_begin(iun, TRIM(obj%tagname), attr=TRIM(attr))
       !
-      WRITE(iun, '(3(E20.7))') obj%k_point
+      WRITE(iun, '(3(E24.16))') obj%k_point
    CALL iotk_write_end(iun, TRIM(obj%tagname))
    !
 END SUBROUTINE qes_write_k_point
 
-SUBROUTINE qes_init_k_point(obj, tagname, weight, weight_ispresent, k_point)
+SUBROUTINE qes_init_k_point(obj, tagname, weight, weight_ispresent, label, label_ispresent, &
+                              k_point)
    IMPLICIT NONE
 
    TYPE(k_point_type) :: obj
@@ -232,6 +247,8 @@ SUBROUTINE qes_init_k_point(obj, tagname, weight, weight_ispresent, k_point)
    INTEGER  :: i
    LOGICAL  :: weight_ispresent
    REAL(DP), OPTIONAL :: weight
+   LOGICAL  :: label_ispresent
+   CHARACTER(len=*), OPTIONAL :: label
    REAL(DP), DIMENSION(3) :: k_point
 
    obj%tagname = TRIM(tagname)
@@ -239,6 +256,12 @@ SUBROUTINE qes_init_k_point(obj, tagname, weight, weight_ispresent, k_point)
    obj%weight_ispresent = weight_ispresent
    IF (obj%weight_ispresent) THEN
       obj%weight = weight
+   ENDIF
+
+
+   obj%label_ispresent = label_ispresent
+   IF (obj%label_ispresent) THEN
+      obj%label = TRIM(label)
    ENDIF
 
    obj%k_point = k_point
@@ -270,15 +293,19 @@ SUBROUTINE qes_write_atom(iun, obj)
    IF(obj%position_ispresent) THEN
       CALL iotk_write_attr(attr, 'position', TRIM(obj%position))
    END IF
+   IF(obj%index_ispresent) THEN
+      CALL iotk_write_attr(attr, 'index', obj%index)
+   END IF
 
    CALL iotk_write_begin(iun, TRIM(obj%tagname), attr=TRIM(attr))
       !
-      WRITE(iun, '(3(E20.7))') obj%atom
+      WRITE(iun, '(3(E24.16))') obj%atom
    CALL iotk_write_end(iun, TRIM(obj%tagname))
    !
 END SUBROUTINE qes_write_atom
 
-SUBROUTINE qes_init_atom(obj, tagname, name, position, position_ispresent, atom)
+SUBROUTINE qes_init_atom(obj, tagname, name, position, position_ispresent, index, index_ispresent, &
+                              atom)
    IMPLICIT NONE
 
    TYPE(atom_type) :: obj
@@ -287,6 +314,8 @@ SUBROUTINE qes_init_atom(obj, tagname, name, position, position_ispresent, atom)
    CHARACTER(len=*) :: name
    LOGICAL  :: position_ispresent
    CHARACTER(len=*), OPTIONAL :: position
+   LOGICAL  :: index_ispresent
+   INTEGER , OPTIONAL :: index
    REAL(DP), DIMENSION(3) :: atom
 
    obj%tagname = TRIM(tagname)
@@ -297,6 +326,12 @@ SUBROUTINE qes_init_atom(obj, tagname, name, position, position_ispresent, atom)
    obj%position_ispresent = position_ispresent
    IF (obj%position_ispresent) THEN
       obj%position = TRIM(position)
+   ENDIF
+
+
+   obj%index_ispresent = index_ispresent
+   IF (obj%index_ispresent) THEN
+      obj%index = index
    ENDIF
 
    obj%atom = atom
@@ -336,7 +371,7 @@ SUBROUTINE qes_write_phase(iun, obj)
 
    CALL iotk_write_begin(iun, TRIM(obj%tagname), attr=TRIM(attr))
       !
-      WRITE(iun, '(E20.7)') obj%phase
+      WRITE(iun, '(E24.16)') obj%phase
    CALL iotk_write_end(iun, TRIM(obj%tagname))
    !
 END SUBROUTINE qes_write_phase
@@ -481,10 +516,10 @@ SUBROUTINE qes_write_polarization(iun, obj)
       CALL qes_write_scalarQuantity(iun, obj%polarization)
       !
       CALL iotk_write_begin(iun, 'modulus')
-         WRITE(iun, '(E20.7)') obj%modulus
+         WRITE(iun, '(E24.16)') obj%modulus
       CALL iotk_write_end(iun, 'modulus')
       CALL iotk_write_begin(iun, 'direction')
-         WRITE(iun, '(3(E20.7))') obj%direction
+         WRITE(iun, '(3(E24.16))') obj%direction
       CALL iotk_write_end(iun, 'direction')
    CALL iotk_write_end(iun, TRIM(obj%tagname))
    !
@@ -535,7 +570,7 @@ SUBROUTINE qes_write_ionicPolarization(iun, obj)
       CALL qes_write_atom(iun, obj%ion)
       !
       CALL iotk_write_begin(iun, 'charge')
-         WRITE(iun, '(E20.7)') obj%charge
+         WRITE(iun, '(E24.16)') obj%charge
       CALL iotk_write_end(iun, 'charge')
       CALL qes_write_phase(iun, obj%phase)
       !
@@ -638,55 +673,6 @@ SUBROUTINE qes_reset_electronicPolarization(obj)
 END SUBROUTINE qes_reset_electronicPolarization
 
 
-SUBROUTINE qes_write_vector(iun, obj)
-   IMPLICIT NONE
-
-   INTEGER  :: iun
-   TYPE(vector_type) :: obj
-   !
-   INTEGER  :: i
-
-   IF (.NOT. obj%lwrite) RETURN
-   attr = " "
-
-   CALL iotk_write_begin(iun, TRIM(obj%tagname), attr=TRIM(attr))
-      !
-      CALL iotk_write_begin(iun,'vec')
-         WRITE(fmtstr,'(a)') '(5E20.7)'
-         WRITE(iun, fmtstr) obj%vec
-      CALL iotk_write_end(iun,'vec')
-      !
-   CALL iotk_write_end(iun, TRIM(obj%tagname))
-   !
-END SUBROUTINE qes_write_vector
-
-SUBROUTINE qes_init_vector(obj, tagname, ndim_vec, vec)
-   IMPLICIT NONE
-
-   TYPE(vector_type) :: obj
-   CHARACTER(len=*) :: tagname
-   INTEGER  :: i
-   INTEGER  :: ndim_vec
-   REAL(DP), DIMENSION(:) :: vec
-
-   obj%tagname = TRIM(tagname)
-   ALLOCATE(obj%vec(ndim_vec))
-   obj%vec(:) = vec(:)
-
-END SUBROUTINE qes_init_vector
-
-SUBROUTINE qes_reset_vector(obj)
-   IMPLICIT NONE
-   TYPE(vector_type) :: obj
-   INTEGER  :: i
-
-   obj%tagname = ""
-
-   IF (ALLOCATED(obj%vec))  DEALLOCATE(obj%vec)
-
-END SUBROUTINE qes_reset_vector
-
-
 SUBROUTINE qes_write_BerryPhaseOutput(iun, obj)
    IMPLICIT NONE
 
@@ -727,9 +713,9 @@ SUBROUTINE qes_init_BerryPhaseOutput(obj, tagname, polarization, totalPhase, &
    TYPE(polarization_type) :: polarization
    TYPE(phase_type) :: totalPhase
    INTEGER  :: ndim_ionicPolarization
-   TYPE(ionicPolarization_type), DIMENSION(:) :: ionicPolarization
+   TYPE(ionicPolarization_type ), DIMENSION( ndim_ionicPolarization )  :: ionicPolarization
    INTEGER  :: ndim_electronicPolarization
-   TYPE(electronicPolarization_type), DIMENSION(:) :: electronicPolarization
+   TYPE(electronicPolarization_type ), DIMENSION( ndim_electronicPolarization )  :: electronicPolarization
 
    obj%tagname = TRIM(tagname)
    obj%polarization = polarization
@@ -768,6 +754,56 @@ SUBROUTINE qes_reset_BerryPhaseOutput(obj)
 END SUBROUTINE qes_reset_BerryPhaseOutput
 
 
+SUBROUTINE qes_write_vector(iun, obj)
+   IMPLICIT NONE
+
+   INTEGER  :: iun
+   TYPE(vector_type) :: obj
+   !
+   INTEGER  :: i
+
+   IF (.NOT. obj%lwrite) RETURN
+   attr = " "
+
+   CALL iotk_write_begin(iun, TRIM(obj%tagname), attr=TRIM(attr))
+      !
+      CALL iotk_write_begin(iun,'vec')
+         WRITE(fmtstr,'(a)') '(5E24.16)'
+         WRITE(iun, fmtstr) obj%vec
+      CALL iotk_write_end(iun,'vec')
+      !
+   CALL iotk_write_end(iun, TRIM(obj%tagname))
+   !
+END SUBROUTINE qes_write_vector
+
+SUBROUTINE qes_init_vector(obj, tagname, ndim_vec, vec)
+   IMPLICIT NONE
+
+   TYPE(vector_type) :: obj
+   CHARACTER(len=*) :: tagname
+   INTEGER  :: i
+   INTEGER  :: ndim_vec
+   REAL(DP), DIMENSION(ndim_vec) :: vec
+
+   obj%tagname = TRIM(tagname)
+   ALLOCATE(obj%vec(ndim_vec))
+   obj%vec(:) = vec(:)
+   obj%ndim_vec = ndim_vec
+
+END SUBROUTINE qes_init_vector
+
+SUBROUTINE qes_reset_vector(obj)
+   IMPLICIT NONE
+   TYPE(vector_type) :: obj
+   INTEGER  :: i
+
+   obj%tagname = ""
+
+   IF (ALLOCATED(obj%vec))  DEALLOCATE(obj%vec)
+
+END SUBROUTINE qes_reset_vector
+
+
 SUBROUTINE qes_write_ks_energies(iun, obj)
    IMPLICIT NONE
 
@@ -787,12 +823,12 @@ SUBROUTINE qes_write_ks_energies(iun, obj)
          WRITE(iun, '(I12)') obj%npw
       CALL iotk_write_end(iun, 'npw')
       CALL iotk_write_begin(iun,'eigenvalues')
-         WRITE(fmtstr,'(a)') '(5E20.7)'
+         WRITE(fmtstr,'(a)') '(5E24.16)'
          WRITE(iun, fmtstr) obj%eigenvalues
       CALL iotk_write_end(iun,'eigenvalues')
       !
       CALL iotk_write_begin(iun,'occupations')
-         WRITE(fmtstr,'(a)') '(5E20.7)'
+         WRITE(fmtstr,'(a)') '(5E24.16)'
          WRITE(iun, fmtstr) obj%occupations
       CALL iotk_write_end(iun,'occupations')
       !
@@ -810,17 +846,19 @@ SUBROUTINE qes_init_ks_energies(obj, tagname, k_point, npw, ndim_eigenvalues, ei
    TYPE(k_point_type) :: k_point
    INTEGER  :: npw
    INTEGER  :: ndim_eigenvalues
-   REAL(DP), DIMENSION(:) :: eigenvalues
+   REAL(DP), DIMENSION(ndim_eigenvalues) :: eigenvalues
    INTEGER  :: ndim_occupations
-   REAL(DP), DIMENSION(:) :: occupations
+   REAL(DP), DIMENSION(ndim_occupations) :: occupations
 
    obj%tagname = TRIM(tagname)
    obj%k_point = k_point
    obj%npw = npw
    ALLOCATE(obj%eigenvalues(ndim_eigenvalues))
    obj%eigenvalues(:) = eigenvalues(:)
+   obj%ndim_eigenvalues = ndim_eigenvalues
    ALLOCATE(obj%occupations(ndim_occupations))
    obj%occupations(:) = occupations(:)
+   obj%ndim_occupations = ndim_occupations
 
 END SUBROUTINE qes_init_ks_energies
 
@@ -873,10 +911,10 @@ SUBROUTINE qes_write_magnetization(iun, obj)
          ENDIF
       CALL iotk_write_end(iun, 'spinorbit',indentation=.FALSE.)
       CALL iotk_write_begin(iun, 'total')
-         WRITE(iun, '(E20.7)') obj%total
+         WRITE(iun, '(E24.16)') obj%total
       CALL iotk_write_end(iun, 'total')
       CALL iotk_write_begin(iun, 'absolute')
-         WRITE(iun, '(E20.7)') obj%absolute
+         WRITE(iun, '(E24.16)') obj%absolute
       CALL iotk_write_end(iun, 'absolute')
       CALL iotk_write_begin(iun, 'do_magnetization',new_line=.FALSE.)
          IF (obj%do_magnetization) THEN
@@ -938,13 +976,13 @@ SUBROUTINE qes_write_reciprocal_lattice(iun, obj)
    CALL iotk_write_begin(iun, TRIM(obj%tagname), attr=TRIM(attr))
       !
       CALL iotk_write_begin(iun, 'b1')
-         WRITE(iun, '(3(E20.7))') obj%b1
+         WRITE(iun, '(3(E24.16))') obj%b1
       CALL iotk_write_end(iun, 'b1')
       CALL iotk_write_begin(iun, 'b2')
-         WRITE(iun, '(3(E20.7))') obj%b2
+         WRITE(iun, '(3(E24.16))') obj%b2
       CALL iotk_write_end(iun, 'b2')
       CALL iotk_write_begin(iun, 'b3')
-         WRITE(iun, '(3(E20.7))') obj%b3
+         WRITE(iun, '(3(E24.16))') obj%b3
       CALL iotk_write_end(iun, 'b3')
    CALL iotk_write_end(iun, TRIM(obj%tagname))
    !
@@ -1063,7 +1101,7 @@ SUBROUTINE qes_init_equivalent_atoms(obj, tagname, nat, ndim_index_list, index_l
    INTEGER  :: i
    INTEGER  :: nat
    INTEGER  :: ndim_index_list
-   INTEGER, DIMENSION(:) :: index_list
+   INTEGER, DIMENSION(ndim_index_list) :: index_list
 
    obj%tagname = TRIM(tagname)
 
@@ -1071,6 +1109,7 @@ SUBROUTINE qes_init_equivalent_atoms(obj, tagname, nat, ndim_index_list, index_l
 
    ALLOCATE(obj%index_list(ndim_index_list))
    obj%index_list(:) = index_list(:)
+   obj%ndim_index_list = ndim_index_list
 
 END SUBROUTINE qes_init_equivalent_atoms
 
@@ -1180,7 +1219,7 @@ SUBROUTINE qes_write_matrix(iun, obj)
 
    CALL iotk_write_begin(iun, TRIM(obj%tagname), attr=TRIM(attr))
       !
-      WRITE(fmtstr,'(a)') '(5E20.7)'
+      WRITE(fmtstr,'(a)') '(5E24.16)'
       DO i = 1, SIZE(obj%mat,2)
          WRITE(iun, fmtstr) obj%mat(:,i)
       ENDDO
@@ -1197,11 +1236,13 @@ SUBROUTINE qes_init_matrix(obj, tagname, ndim1_mat, ndim2_mat, mat)
    INTEGER  :: i
    INTEGER  :: ndim1_mat
    INTEGER  :: ndim2_mat
-   REAL(DP), DIMENSION(:,:) :: mat
+   REAL(DP), DIMENSION(ndim1_mat,ndim2_mat) :: mat
 
    obj%tagname = TRIM(tagname)
    ALLOCATE(obj%mat(ndim1_mat,ndim2_mat))
    obj%mat(:,:) = mat(:,:)
+   obj%ndim1_mat = ndim1_mat
+   obj%ndim2_mat = ndim2_mat
 
 END SUBROUTINE qes_init_matrix
 
@@ -1236,7 +1277,7 @@ SUBROUTINE qes_write_symmetry(iun, obj)
       !
       IF(obj%fractional_translation_ispresent) THEN
          CALL iotk_write_begin(iun, 'fractional_translation')
-            WRITE(iun, '(3(E20.7))') obj%fractional_translation
+            WRITE(iun, '(3(E24.16))') obj%fractional_translation
          CALL iotk_write_end(iun, 'fractional_translation')
       ENDIF
       !
@@ -1381,7 +1422,7 @@ SUBROUTINE qes_write_opt_conv(iun, obj)
          WRITE(iun, '(I12)') obj%n_opt_steps
       CALL iotk_write_end(iun, 'n_opt_steps')
       CALL iotk_write_begin(iun, 'grad_norm')
-         WRITE(iun, '(E20.7)') obj%grad_norm
+         WRITE(iun, '(E24.16)') obj%grad_norm
       CALL iotk_write_end(iun, 'grad_norm')
    CALL iotk_write_end(iun, TRIM(obj%tagname))
    !
@@ -1430,7 +1471,7 @@ SUBROUTINE qes_write_scf_conv(iun, obj)
          WRITE(iun, '(I12)') obj%n_scf_steps
       CALL iotk_write_end(iun, 'n_scf_steps')
       CALL iotk_write_begin(iun, 'scf_error')
-         WRITE(iun, '(E20.7)') obj%scf_error
+         WRITE(iun, '(E24.16)') obj%scf_error
       CALL iotk_write_end(iun, 'scf_error')
    CALL iotk_write_end(iun, TRIM(obj%tagname))
    !
@@ -1478,7 +1519,7 @@ SUBROUTINE qes_write_species(iun, obj)
       !
       IF(obj%mass_ispresent) THEN
          CALL iotk_write_begin(iun, 'mass')
-            WRITE(iun, '(E20.7)') obj%mass
+            WRITE(iun, '(E24.16)') obj%mass
          CALL iotk_write_end(iun, 'mass')
       ENDIF
       !
@@ -1487,19 +1528,19 @@ SUBROUTINE qes_write_species(iun, obj)
       CALL iotk_write_end(iun, 'pseudo_file',indentation=.FALSE.)
       IF(obj%starting_magnetization_ispresent) THEN
          CALL iotk_write_begin(iun, 'starting_magnetization')
-            WRITE(iun, '(E20.7)') obj%starting_magnetization
+            WRITE(iun, '(E24.16)') obj%starting_magnetization
          CALL iotk_write_end(iun, 'starting_magnetization')
       ENDIF
       !
       IF(obj%spin_teta_ispresent) THEN
          CALL iotk_write_begin(iun, 'spin_teta')
-            WRITE(iun, '(E20.7)') obj%spin_teta
+            WRITE(iun, '(E24.16)') obj%spin_teta
          CALL iotk_write_end(iun, 'spin_teta')
       ENDIF
       !
       IF(obj%spin_phi_ispresent) THEN
          CALL iotk_write_begin(iun, 'spin_phi')
-            WRITE(iun, '(E20.7)') obj%spin_phi
+            WRITE(iun, '(E24.16)') obj%spin_phi
          CALL iotk_write_end(iun, 'spin_phi')
       ENDIF
       !
@@ -1587,48 +1628,54 @@ SUBROUTINE qes_write_total_energy(iun, obj)
    CALL iotk_write_begin(iun, TRIM(obj%tagname), attr=TRIM(attr))
       !
       CALL iotk_write_begin(iun, 'etot')
-         WRITE(iun, '(E20.7)') obj%etot
+         WRITE(iun, '(E24.16)') obj%etot
       CALL iotk_write_end(iun, 'etot')
       IF(obj%eband_ispresent) THEN
          CALL iotk_write_begin(iun, 'eband')
-            WRITE(iun, '(E20.7)') obj%eband
+            WRITE(iun, '(E24.16)') obj%eband
          CALL iotk_write_end(iun, 'eband')
       ENDIF
       !
       IF(obj%ehart_ispresent) THEN
          CALL iotk_write_begin(iun, 'ehart')
-            WRITE(iun, '(E20.7)') obj%ehart
+            WRITE(iun, '(E24.16)') obj%ehart
          CALL iotk_write_end(iun, 'ehart')
       ENDIF
       !
       IF(obj%vtxc_ispresent) THEN
          CALL iotk_write_begin(iun, 'vtxc')
-            WRITE(iun, '(E20.7)') obj%vtxc
+            WRITE(iun, '(E24.16)') obj%vtxc
          CALL iotk_write_end(iun, 'vtxc')
       ENDIF
       !
       IF(obj%etxc_ispresent) THEN
          CALL iotk_write_begin(iun, 'etxc')
-            WRITE(iun, '(E20.7)') obj%etxc
+            WRITE(iun, '(E24.16)') obj%etxc
          CALL iotk_write_end(iun, 'etxc')
       ENDIF
       !
       IF(obj%ewald_ispresent) THEN
          CALL iotk_write_begin(iun, 'ewald')
-            WRITE(iun, '(E20.7)') obj%ewald
+            WRITE(iun, '(E24.16)') obj%ewald
          CALL iotk_write_end(iun, 'ewald')
       ENDIF
       !
       IF(obj%demet_ispresent) THEN
          CALL iotk_write_begin(iun, 'demet')
-            WRITE(iun, '(E20.7)') obj%demet
+            WRITE(iun, '(E24.16)') obj%demet
          CALL iotk_write_end(iun, 'demet')
       ENDIF
       !
       IF(obj%efieldcorr_ispresent) THEN
          CALL iotk_write_begin(iun, 'efieldcorr')
-            WRITE(iun, '(E20.7)') obj%efieldcorr
+            WRITE(iun, '(E24.16)') obj%efieldcorr
          CALL iotk_write_end(iun, 'efieldcorr')
+      ENDIF
+      !
+      IF(obj%potentiostat_contr_ispresent) THEN
+         CALL iotk_write_begin(iun, 'potentiostat_contr')
+            WRITE(iun, '(E24.16)') obj%potentiostat_contr
+         CALL iotk_write_end(iun, 'potentiostat_contr')
       ENDIF
       !
    CALL iotk_write_end(iun, TRIM(obj%tagname))
@@ -1638,7 +1685,8 @@ END SUBROUTINE qes_write_total_energy
 SUBROUTINE qes_init_total_energy(obj, tagname, etot, eband_ispresent, eband, &
                               ehart_ispresent, ehart, vtxc_ispresent, vtxc, etxc_ispresent, &
                               etxc, ewald_ispresent, ewald, demet_ispresent, demet, &
-                              efieldcorr_ispresent, efieldcorr)
+                              efieldcorr_ispresent, efieldcorr, &
+                              potentiostat_contr_ispresent, potentiostat_contr)
    IMPLICIT NONE
 
    TYPE(total_energy_type) :: obj
@@ -1659,6 +1707,8 @@ SUBROUTINE qes_init_total_energy(obj, tagname, etot, eband_ispresent, eband, &
    REAL(DP) :: demet
    LOGICAL  :: efieldcorr_ispresent
    REAL(DP) :: efieldcorr
+   LOGICAL  :: potentiostat_contr_ispresent
+   REAL(DP) :: potentiostat_contr
 
    obj%tagname = TRIM(tagname)
    obj%etot = etot
@@ -1690,6 +1740,10 @@ SUBROUTINE qes_init_total_energy(obj, tagname, etot, eband_ispresent, eband, &
    IF(obj%efieldcorr_ispresent) THEN
       obj%efieldcorr = efieldcorr
    ENDIF
+   obj%potentiostat_contr_ispresent = potentiostat_contr_ispresent
+   IF(obj%potentiostat_contr_ispresent) THEN
+      obj%potentiostat_contr = potentiostat_contr
+   ENDIF
 
 END SUBROUTINE qes_init_total_energy
 
@@ -1720,6 +1774,9 @@ SUBROUTINE qes_reset_total_energy(obj)
    ENDIF
    IF(obj%efieldcorr_ispresent) THEN
       obj%efieldcorr_ispresent = .FALSE.
+   ENDIF
+   IF(obj%potentiostat_contr_ispresent) THEN
+      obj%potentiostat_contr_ispresent = .FALSE.
    ENDIF
 
 END SUBROUTINE qes_reset_total_energy
@@ -1887,11 +1944,11 @@ SUBROUTINE qes_write_spin_constraints(iun, obj)
          WRITE(iun, '(A)',advance='no')  TRIM(obj%spin_constraints)
       CALL iotk_write_end(iun, 'spin_constraints',indentation=.FALSE.)
       CALL iotk_write_begin(iun, 'lagrange_multiplier')
-         WRITE(iun, '(E20.7)') obj%lagrange_multiplier
+         WRITE(iun, '(E24.16)') obj%lagrange_multiplier
       CALL iotk_write_end(iun, 'lagrange_multiplier')
       IF(obj%target_magnetization_ispresent) THEN
          CALL iotk_write_begin(iun, 'target_magnetization')
-            WRITE(iun, '(3(E20.7))') obj%target_magnetization
+            WRITE(iun, '(3(E24.16))') obj%target_magnetization
          CALL iotk_write_end(iun, 'target_magnetization')
       ENDIF
       !
@@ -2027,13 +2084,13 @@ SUBROUTINE qes_write_atomic_constraint(iun, obj)
    CALL iotk_write_begin(iun, TRIM(obj%tagname), attr=TRIM(attr))
       !
       CALL iotk_write_begin(iun, 'constr_parms')
-         WRITE(iun, '(4(E20.7))') obj%constr_parms
+         WRITE(iun, '(4(E24.16))') obj%constr_parms
       CALL iotk_write_end(iun, 'constr_parms')
       CALL iotk_write_begin(iun, 'constr_type',new_line=.FALSE.)
          WRITE(iun, '(A)',advance='no')  TRIM(obj%constr_type)
       CALL iotk_write_end(iun, 'constr_type',indentation=.FALSE.)
       CALL iotk_write_begin(iun, 'constr_target')
-         WRITE(iun, '(E20.7)') obj%constr_target
+         WRITE(iun, '(E24.16)') obj%constr_target
       CALL iotk_write_end(iun, 'constr_target')
    CALL iotk_write_end(iun, TRIM(obj%tagname))
    !
@@ -2085,7 +2142,7 @@ SUBROUTINE qes_write_atomic_constraints(iun, obj)
          WRITE(iun, '(I12)') obj%num_of_constraints
       CALL iotk_write_end(iun, 'num_of_constraints')
       CALL iotk_write_begin(iun, 'tolerance')
-         WRITE(iun, '(E20.7)') obj%tolerance
+         WRITE(iun, '(E24.16)') obj%tolerance
       CALL iotk_write_end(iun, 'tolerance')
       DO i = 1, obj%ndim_atomic_constraint
          CALL qes_write_atomic_constraint(iun, obj%atomic_constraint(i))
@@ -2105,7 +2162,7 @@ SUBROUTINE qes_init_atomic_constraints(obj, tagname, num_of_constraints, toleran
    INTEGER  :: num_of_constraints
    REAL(DP) :: tolerance
    INTEGER  :: ndim_atomic_constraint
-   TYPE(atomic_constraint_type), DIMENSION(:) :: atomic_constraint
+   TYPE(atomic_constraint_type ), DIMENSION( ndim_atomic_constraint )  :: atomic_constraint
 
    obj%tagname = TRIM(tagname)
    obj%num_of_constraints = num_of_constraints
@@ -2206,25 +2263,25 @@ SUBROUTINE qes_write_electric_field(iun, obj)
       !
       IF(obj%potential_max_position_ispresent) THEN
          CALL iotk_write_begin(iun, 'potential_max_position')
-            WRITE(iun, '(E20.7)') obj%potential_max_position
+            WRITE(iun, '(E24.16)') obj%potential_max_position
          CALL iotk_write_end(iun, 'potential_max_position')
       ENDIF
       !
       IF(obj%potential_decrease_width_ispresent) THEN
          CALL iotk_write_begin(iun, 'potential_decrease_width')
-            WRITE(iun, '(E20.7)') obj%potential_decrease_width
+            WRITE(iun, '(E24.16)') obj%potential_decrease_width
          CALL iotk_write_end(iun, 'potential_decrease_width')
       ENDIF
       !
       IF(obj%electric_field_amplitude_ispresent) THEN
          CALL iotk_write_begin(iun, 'electric_field_amplitude')
-            WRITE(iun, '(E20.7)') obj%electric_field_amplitude
+            WRITE(iun, '(E24.16)') obj%electric_field_amplitude
          CALL iotk_write_end(iun, 'electric_field_amplitude')
       ENDIF
       !
       IF(obj%electric_field_vector_ispresent) THEN
          CALL iotk_write_begin(iun, 'electric_field_vector')
-            WRITE(iun, '(3(E20.7))') obj%electric_field_vector
+            WRITE(iun, '(3(E24.16))') obj%electric_field_vector
          CALL iotk_write_end(iun, 'electric_field_vector')
       ENDIF
       !
@@ -2389,7 +2446,7 @@ SUBROUTINE qes_init_symmetries(obj, tagname, nsym, nrot, space_group, ndim_symme
    INTEGER :: nrot
    INTEGER :: space_group
    INTEGER  :: ndim_symmetry
-   TYPE(symmetry_type), DIMENSION(:) :: symmetry
+   TYPE(symmetry_type ), DIMENSION( ndim_symmetry )  :: symmetry
 
    obj%tagname = TRIM(tagname)
    obj%nsym = nsym
@@ -2432,13 +2489,13 @@ SUBROUTINE qes_write_ekin_functional(iun, obj)
    CALL iotk_write_begin(iun, TRIM(obj%tagname), attr=TRIM(attr))
       !
       CALL iotk_write_begin(iun, 'ecfixed')
-         WRITE(iun, '(E20.7)') obj%ecfixed
+         WRITE(iun, '(E24.16)') obj%ecfixed
       CALL iotk_write_end(iun, 'ecfixed')
       CALL iotk_write_begin(iun, 'qcutz')
-         WRITE(iun, '(E20.7)') obj%qcutz
+         WRITE(iun, '(E24.16)') obj%qcutz
       CALL iotk_write_end(iun, 'qcutz')
       CALL iotk_write_begin(iun, 'q2sigma')
-         WRITE(iun, '(E20.7)') obj%q2sigma
+         WRITE(iun, '(E24.16)') obj%q2sigma
       CALL iotk_write_end(iun, 'q2sigma')
    CALL iotk_write_end(iun, TRIM(obj%tagname))
    !
@@ -2492,10 +2549,10 @@ SUBROUTINE qes_write_esm(iun, obj)
          WRITE(iun, '(I12)') obj%nfit
       CALL iotk_write_end(iun, 'nfit')
       CALL iotk_write_begin(iun, 'w')
-         WRITE(iun, '(E20.7)') obj%w
+         WRITE(iun, '(E24.16)') obj%w
       CALL iotk_write_end(iun, 'w')
       CALL iotk_write_begin(iun, 'efield')
-         WRITE(iun, '(E20.7)') obj%efield
+         WRITE(iun, '(E24.16)') obj%efield
       CALL iotk_write_end(iun, 'efield')
    CALL iotk_write_end(iun, TRIM(obj%tagname))
    !
@@ -2547,24 +2604,60 @@ SUBROUTINE qes_write_boundary_conditions(iun, obj)
       CALL iotk_write_begin(iun, 'assume_isolated',new_line=.FALSE.)
          WRITE(iun, '(A)',advance='no')  TRIM(obj%assume_isolated)
       CALL iotk_write_end(iun, 'assume_isolated',indentation=.FALSE.)
-      CALL qes_write_esm(iun, obj%esm)
+      IF(obj%esm_ispresent) THEN
+         CALL qes_write_esm(iun, obj%esm)
+         !
+      ENDIF
+      !
+      IF(obj%fcp_opt_ispresent) THEN
+         CALL iotk_write_begin(iun, 'fcp_opt',new_line=.FALSE.)
+            IF (obj%fcp_opt) THEN
+               WRITE(iun, '(A)',advance='no')  'true'
+            ELSE
+               WRITE(iun, '(A)',advance='no')  'false'
+            ENDIF
+         CALL iotk_write_end(iun, 'fcp_opt',indentation=.FALSE.)
+      ENDIF
+      !
+      IF(obj%fcp_mu_ispresent) THEN
+         CALL iotk_write_begin(iun, 'fcp_mu')
+            WRITE(iun, '(E24.16)') obj%fcp_mu
+         CALL iotk_write_end(iun, 'fcp_mu')
+      ENDIF
       !
    CALL iotk_write_end(iun, TRIM(obj%tagname))
    !
 END SUBROUTINE qes_write_boundary_conditions
 
-SUBROUTINE qes_init_boundary_conditions(obj, tagname, assume_isolated, esm)
+SUBROUTINE qes_init_boundary_conditions(obj, tagname, assume_isolated, esm_ispresent, esm, &
+                              fcp_opt_ispresent, fcp_opt, fcp_mu_ispresent, fcp_mu)
    IMPLICIT NONE
 
    TYPE(boundary_conditions_type) :: obj
    CHARACTER(len=*) :: tagname
    INTEGER  :: i
    CHARACTER(len=*) :: assume_isolated
+   LOGICAL  :: esm_ispresent
    TYPE(esm_type) :: esm
+   LOGICAL  :: fcp_opt_ispresent
+   LOGICAL  :: fcp_opt
+   LOGICAL  :: fcp_mu_ispresent
+   REAL(DP) :: fcp_mu
 
    obj%tagname = TRIM(tagname)
    obj%assume_isolated = assume_isolated
-   obj%esm = esm
+   obj%esm_ispresent = esm_ispresent
+   IF(obj%esm_ispresent) THEN
+      obj%esm = esm
+   ENDIF
+   obj%fcp_opt_ispresent = fcp_opt_ispresent
+   IF(obj%fcp_opt_ispresent) THEN
+      obj%fcp_opt = fcp_opt
+   ENDIF
+   obj%fcp_mu_ispresent = fcp_mu_ispresent
+   IF(obj%fcp_mu_ispresent) THEN
+      obj%fcp_mu = fcp_mu
+   ENDIF
 
 END SUBROUTINE qes_init_boundary_conditions
 
@@ -2575,7 +2668,16 @@ SUBROUTINE qes_reset_boundary_conditions(obj)
 
    obj%tagname = ""
 
-   CALL qes_reset_esm(obj%esm)
+   IF(obj%esm_ispresent) THEN
+      CALL qes_reset_esm(obj%esm)
+      obj%esm_ispresent = .FALSE.
+   ENDIF
+   IF(obj%fcp_opt_ispresent) THEN
+      obj%fcp_opt_ispresent = .FALSE.
+   ENDIF
+   IF(obj%fcp_mu_ispresent) THEN
+      obj%fcp_mu_ispresent = .FALSE.
+   ENDIF
 
 END SUBROUTINE qes_reset_boundary_conditions
 
@@ -2704,11 +2806,13 @@ SUBROUTINE qes_init_integerMatrix(obj, tagname, ndim1_int_mat, ndim2_int_mat, in
    INTEGER  :: i
    INTEGER  :: ndim1_int_mat
    INTEGER  :: ndim2_int_mat
-   INTEGER, DIMENSION(:,:) :: int_mat
+   INTEGER, DIMENSION(ndim1_int_mat,ndim2_int_mat) :: int_mat
 
    obj%tagname = TRIM(tagname)
    ALLOCATE(obj%int_mat(ndim1_int_mat,ndim2_int_mat))
    obj%int_mat(:,:) = int_mat(:,:)
+   obj%ndim1_int_mat = ndim1_int_mat
+   obj%ndim2_int_mat = ndim2_int_mat
 
 END SUBROUTINE qes_init_integerMatrix
 
@@ -2740,15 +2844,18 @@ SUBROUTINE qes_write_cell_control(iun, obj)
       CALL iotk_write_begin(iun, 'cell_dynamics',new_line=.FALSE.)
          WRITE(iun, '(A)',advance='no')  TRIM(obj%cell_dynamics)
       CALL iotk_write_end(iun, 'cell_dynamics',indentation=.FALSE.)
+      CALL iotk_write_begin(iun, 'pressure')
+         WRITE(iun, '(E24.16)') obj%pressure
+      CALL iotk_write_end(iun, 'pressure')
       IF(obj%wmass_ispresent) THEN
          CALL iotk_write_begin(iun, 'wmass')
-            WRITE(iun, '(E20.7)') obj%wmass
+            WRITE(iun, '(E24.16)') obj%wmass
          CALL iotk_write_end(iun, 'wmass')
       ENDIF
       !
       IF(obj%cell_factor_ispresent) THEN
          CALL iotk_write_begin(iun, 'cell_factor')
-            WRITE(iun, '(E20.7)') obj%cell_factor
+            WRITE(iun, '(E24.16)') obj%cell_factor
          CALL iotk_write_end(iun, 'cell_factor')
       ENDIF
       !
@@ -2791,17 +2898,18 @@ SUBROUTINE qes_write_cell_control(iun, obj)
    !
 END SUBROUTINE qes_write_cell_control
 
-SUBROUTINE qes_init_cell_control(obj, tagname, cell_dynamics, wmass_ispresent, wmass, &
-                              cell_factor_ispresent, cell_factor, fix_volume_ispresent, &
-                              fix_volume, fix_area_ispresent, fix_area, &
-                              isotropic_ispresent, isotropic, free_cell_ispresent, &
-                              free_cell)
+SUBROUTINE qes_init_cell_control(obj, tagname, cell_dynamics, pressure, wmass_ispresent, &
+                              wmass, cell_factor_ispresent, cell_factor, &
+                              fix_volume_ispresent, fix_volume, fix_area_ispresent, &
+                              fix_area, isotropic_ispresent, isotropic, &
+                              free_cell_ispresent, free_cell)
    IMPLICIT NONE
 
    TYPE(cell_control_type) :: obj
    CHARACTER(len=*) :: tagname
    INTEGER  :: i
    CHARACTER(len=*) :: cell_dynamics
+   REAL(DP) :: pressure
    LOGICAL  :: wmass_ispresent
    REAL(DP) :: wmass
    LOGICAL  :: cell_factor_ispresent
@@ -2817,6 +2925,7 @@ SUBROUTINE qes_init_cell_control(obj, tagname, cell_dynamics, wmass_ispresent, w
 
    obj%tagname = TRIM(tagname)
    obj%cell_dynamics = cell_dynamics
+   obj%pressure = pressure
    obj%wmass_ispresent = wmass_ispresent
    IF(obj%wmass_ispresent) THEN
       obj%wmass = wmass
@@ -2897,16 +3006,16 @@ SUBROUTINE qes_write_md(iun, obj)
          WRITE(iun, '(A)',advance='no')  TRIM(obj%ion_temperature)
       CALL iotk_write_end(iun, 'ion_temperature',indentation=.FALSE.)
       CALL iotk_write_begin(iun, 'timestep')
-         WRITE(iun, '(E20.7)') obj%timestep
+         WRITE(iun, '(E24.16)') obj%timestep
       CALL iotk_write_end(iun, 'timestep')
       CALL iotk_write_begin(iun, 'tempw')
-         WRITE(iun, '(E20.7)') obj%tempw
+         WRITE(iun, '(E24.16)') obj%tempw
       CALL iotk_write_end(iun, 'tempw')
       CALL iotk_write_begin(iun, 'tolp')
-         WRITE(iun, '(E20.7)') obj%tolp
+         WRITE(iun, '(E24.16)') obj%tolp
       CALL iotk_write_end(iun, 'tolp')
       CALL iotk_write_begin(iun, 'deltaT')
-         WRITE(iun, '(E20.7)') obj%deltaT
+         WRITE(iun, '(E24.16)') obj%deltaT
       CALL iotk_write_end(iun, 'deltaT')
       CALL iotk_write_begin(iun, 'nraise')
          WRITE(iun, '(I12)') obj%nraise
@@ -2971,19 +3080,19 @@ SUBROUTINE qes_write_bfgs(iun, obj)
          WRITE(iun, '(I12)') obj%ndim
       CALL iotk_write_end(iun, 'ndim')
       CALL iotk_write_begin(iun, 'trust_radius_min')
-         WRITE(iun, '(E20.7)') obj%trust_radius_min
+         WRITE(iun, '(E24.16)') obj%trust_radius_min
       CALL iotk_write_end(iun, 'trust_radius_min')
       CALL iotk_write_begin(iun, 'trust_radius_max')
-         WRITE(iun, '(E20.7)') obj%trust_radius_max
+         WRITE(iun, '(E24.16)') obj%trust_radius_max
       CALL iotk_write_end(iun, 'trust_radius_max')
       CALL iotk_write_begin(iun, 'trust_radius_init')
-         WRITE(iun, '(E20.7)') obj%trust_radius_init
+         WRITE(iun, '(E24.16)') obj%trust_radius_init
       CALL iotk_write_end(iun, 'trust_radius_init')
       CALL iotk_write_begin(iun, 'w1')
-         WRITE(iun, '(E20.7)') obj%w1
+         WRITE(iun, '(E24.16)') obj%w1
       CALL iotk_write_end(iun, 'w1')
       CALL iotk_write_begin(iun, 'w2')
-         WRITE(iun, '(E20.7)') obj%w2
+         WRITE(iun, '(E24.16)') obj%w2
       CALL iotk_write_end(iun, 'w2')
    CALL iotk_write_end(iun, TRIM(obj%tagname))
    !
@@ -3042,7 +3151,7 @@ SUBROUTINE qes_write_ion_control(iun, obj)
       CALL iotk_write_end(iun, 'ion_dynamics',indentation=.FALSE.)
       IF(obj%upscale_ispresent) THEN
          CALL iotk_write_begin(iun, 'upscale')
-            WRITE(iun, '(E20.7)') obj%upscale
+            WRITE(iun, '(E24.16)') obj%upscale
          CALL iotk_write_end(iun, 'upscale')
       ENDIF
       !
@@ -3152,150 +3261,6 @@ SUBROUTINE qes_reset_ion_control(obj)
    ENDIF
 
 END SUBROUTINE qes_reset_ion_control
-
-
-SUBROUTINE qes_write_band_structure(iun, obj)
-   IMPLICIT NONE
-
-   INTEGER  :: iun
-   TYPE(band_structure_type) :: obj
-   !
-   INTEGER  :: i
-
-   IF (.NOT. obj%lwrite) RETURN
-   attr = " "
-
-   CALL iotk_write_begin(iun, TRIM(obj%tagname), attr=TRIM(attr))
-      !
-      CALL iotk_write_begin(iun, 'lsda',new_line=.FALSE.)
-         IF (obj%lsda) THEN
-            WRITE(iun, '(A)',advance='no')  'true'
-         ELSE
-            WRITE(iun, '(A)',advance='no')  'false'
-         ENDIF
-      CALL iotk_write_end(iun, 'lsda',indentation=.FALSE.)
-      CALL iotk_write_begin(iun, 'noncolin',new_line=.FALSE.)
-         IF (obj%noncolin) THEN
-            WRITE(iun, '(A)',advance='no')  'true'
-         ELSE
-            WRITE(iun, '(A)',advance='no')  'false'
-         ENDIF
-      CALL iotk_write_end(iun, 'noncolin',indentation=.FALSE.)
-      CALL iotk_write_begin(iun, 'spinorbit',new_line=.FALSE.)
-         IF (obj%spinorbit) THEN
-            WRITE(iun, '(A)',advance='no')  'true'
-         ELSE
-            WRITE(iun, '(A)',advance='no')  'false'
-         ENDIF
-      CALL iotk_write_end(iun, 'spinorbit',indentation=.FALSE.)
-      CALL iotk_write_begin(iun, 'nbnd')
-         WRITE(iun, '(I12)') obj%nbnd
-      CALL iotk_write_end(iun, 'nbnd')
-      IF(obj%nbnd_up_ispresent) THEN
-         CALL iotk_write_begin(iun, 'nbnd_up')
-            WRITE(iun, '(I12)') obj%nbnd_up
-         CALL iotk_write_end(iun, 'nbnd_up')
-      ENDIF
-      !
-      IF(obj%nbnd_dw_ispresent) THEN
-         CALL iotk_write_begin(iun, 'nbnd_dw')
-            WRITE(iun, '(I12)') obj%nbnd_dw
-         CALL iotk_write_end(iun, 'nbnd_dw')
-      ENDIF
-      !
-      CALL iotk_write_begin(iun, 'nelec')
-         WRITE(iun, '(E20.7)') obj%nelec
-      CALL iotk_write_end(iun, 'nelec')
-      IF(obj%fermi_energy_ispresent) THEN
-         CALL iotk_write_begin(iun, 'fermi_energy')
-            WRITE(iun, '(E20.7)') obj%fermi_energy
-         CALL iotk_write_end(iun, 'fermi_energy')
-      ENDIF
-      !
-      CALL iotk_write_begin(iun, 'nks')
-         WRITE(iun, '(I12)') obj%nks
-      CALL iotk_write_end(iun, 'nks')
-      DO i = 1, obj%ndim_ks_energies
-         CALL qes_write_ks_energies(iun, obj%ks_energies(i))
-         !
-      END DO
-   CALL iotk_write_end(iun, TRIM(obj%tagname))
-   !
-END SUBROUTINE qes_write_band_structure
-
-SUBROUTINE qes_init_band_structure(obj, tagname, lsda, noncolin, spinorbit, nbnd, &
-                              nbnd_up_ispresent, nbnd_up, nbnd_dw_ispresent, nbnd_dw, &
-                              nelec, fermi_energy_ispresent, fermi_energy, nks, &
-                              ndim_ks_energies, ks_energies)
-   IMPLICIT NONE
-
-   TYPE(band_structure_type) :: obj
-   CHARACTER(len=*) :: tagname
-   INTEGER  :: i
-   LOGICAL  :: lsda
-   LOGICAL  :: noncolin
-   LOGICAL  :: spinorbit
-   INTEGER  :: nbnd
-   LOGICAL  :: nbnd_up_ispresent
-   INTEGER  :: nbnd_up
-   LOGICAL  :: nbnd_dw_ispresent
-   INTEGER  :: nbnd_dw
-   REAL(DP) :: nelec
-   LOGICAL  :: fermi_energy_ispresent
-   REAL(DP) :: fermi_energy
-   INTEGER  :: nks
-   INTEGER  :: ndim_ks_energies
-   TYPE(ks_energies_type), DIMENSION(:) :: ks_energies
-
-   obj%tagname = TRIM(tagname)
-   obj%lsda = lsda
-   obj%noncolin = noncolin
-   obj%spinorbit = spinorbit
-   obj%nbnd = nbnd
-   obj%nbnd_up_ispresent = nbnd_up_ispresent
-   IF(obj%nbnd_up_ispresent) THEN
-      obj%nbnd_up = nbnd_up
-   ENDIF
-   obj%nbnd_dw_ispresent = nbnd_dw_ispresent
-   IF(obj%nbnd_dw_ispresent) THEN
-      obj%nbnd_dw = nbnd_dw
-   ENDIF
-   obj%nelec = nelec
-   obj%fermi_energy_ispresent = fermi_energy_ispresent
-   IF(obj%fermi_energy_ispresent) THEN
-      obj%fermi_energy = fermi_energy
-   ENDIF
-   obj%nks = nks
-   ALLOCATE(obj%ks_energies(SIZE(ks_energies)))
-   DO i = 1, SIZE(ks_energies)
-      obj%ks_energies(i) = ks_energies(i)
-   ENDDO
-   obj%ndim_ks_energies = ndim_ks_energies
-
-END SUBROUTINE qes_init_band_structure
-
-SUBROUTINE qes_reset_band_structure(obj)
-   IMPLICIT NONE
-   TYPE(band_structure_type) :: obj
-   INTEGER  :: i
-
-   obj%tagname = ""
-
-   IF(obj%nbnd_up_ispresent) THEN
-      obj%nbnd_up_ispresent = .FALSE.
-   ENDIF
-   IF(obj%nbnd_dw_ispresent) THEN
-      obj%nbnd_dw_ispresent = .FALSE.
-   ENDIF
-   IF(obj%fermi_energy_ispresent) THEN
-      obj%fermi_energy_ispresent = .FALSE.
-   ENDIF
-   DO i = 1, SIZE(obj%ks_energies)
-      CALL qes_reset_ks_energies(obj%ks_energies(i))
-   ENDDO
-   IF (ALLOCATED(obj%ks_energies)) DEALLOCATE(obj%ks_energies)
-
-END SUBROUTINE qes_reset_band_structure
 
 
 SUBROUTINE qes_write_monkhorst_pack(iun, obj)
@@ -3418,7 +3383,7 @@ SUBROUTINE qes_init_k_points_IBZ(obj, tagname, monkhorst_pack_ispresent, monkhor
    INTEGER  :: nk
    LOGICAL  :: k_point_ispresent
    INTEGER  :: ndim_k_point
-   TYPE(k_point_type), DIMENSION(:) :: k_point
+   TYPE(k_point_type ), DIMENSION( ndim_k_point )  :: k_point
 
    obj%tagname = TRIM(tagname)
    obj%monkhorst_pack_ispresent = monkhorst_pack_ispresent
@@ -3463,6 +3428,59 @@ SUBROUTINE qes_reset_k_points_IBZ(obj)
    ENDIF
 
 END SUBROUTINE qes_reset_k_points_IBZ
+
+
+SUBROUTINE qes_write_occupations(iun, obj)
+   IMPLICIT NONE
+
+   INTEGER  :: iun
+   TYPE(occupations_type) :: obj
+   !
+   INTEGER  :: i
+
+   IF (.NOT. obj%lwrite) RETURN
+   attr = " "
+   IF(obj%spin_ispresent) THEN
+      CALL iotk_write_attr(attr, 'spin', obj%spin)
+   END IF
+
+   CALL iotk_write_begin(iun, TRIM(obj%tagname), attr=TRIM(attr),new_line=.FALSE.)
+      !
+      WRITE(iun, '(A)',advance='no')  TRIM(obj%occupations)
+   CALL iotk_write_end(iun, TRIM(obj%tagname),indentation=.FALSE.)
+   !
+END SUBROUTINE qes_write_occupations
+
+SUBROUTINE qes_init_occupations(obj, tagname, spin, spin_ispresent, occupations)
+   IMPLICIT NONE
+
+   TYPE(occupations_type) :: obj
+   CHARACTER(len=*) :: tagname
+   INTEGER  :: i
+   LOGICAL  :: spin_ispresent
+   INTEGER , OPTIONAL :: spin
+   CHARACTER(len=*) :: occupations
+
+   obj%tagname = TRIM(tagname)
+
+   obj%spin_ispresent = spin_ispresent
+   IF (obj%spin_ispresent) THEN
+      obj%spin = spin
+   ENDIF
+
+   obj%occupations = occupations
+
+END SUBROUTINE qes_init_occupations
+
+SUBROUTINE qes_reset_occupations(obj)
+   IMPLICIT NONE
+   TYPE(occupations_type) :: obj
+   INTEGER  :: i
+
+   obj%tagname = ""
+
+
+END SUBROUTINE qes_reset_occupations
 
 
 SUBROUTINE qes_write_mixingMode(iun, obj)
@@ -3563,10 +3581,10 @@ SUBROUTINE qes_write_electron_control(iun, obj)
          WRITE(iun, '(A)',advance='no')  TRIM(obj%mixing_mode)
       CALL iotk_write_end(iun, 'mixing_mode',indentation=.FALSE.)
       CALL iotk_write_begin(iun, 'mixing_beta')
-         WRITE(iun, '(E20.7)') obj%mixing_beta
+         WRITE(iun, '(E24.16)') obj%mixing_beta
       CALL iotk_write_end(iun, 'mixing_beta')
       CALL iotk_write_begin(iun, 'conv_thr')
-         WRITE(iun, '(E20.7)') obj%conv_thr
+         WRITE(iun, '(E24.16)') obj%conv_thr
       CALL iotk_write_end(iun, 'conv_thr')
       CALL iotk_write_begin(iun, 'mixing_ndim')
          WRITE(iun, '(I12)') obj%mixing_ndim
@@ -3581,8 +3599,22 @@ SUBROUTINE qes_write_electron_control(iun, obj)
             WRITE(iun, '(A)',advance='no')  'false'
          ENDIF
       CALL iotk_write_end(iun, 'real_space_q',indentation=.FALSE.)
+      CALL iotk_write_begin(iun, 'tq_smoothing',new_line=.FALSE.)
+         IF (obj%tq_smoothing) THEN
+            WRITE(iun, '(A)',advance='no')  'true'
+         ELSE
+            WRITE(iun, '(A)',advance='no')  'false'
+         ENDIF
+      CALL iotk_write_end(iun, 'tq_smoothing',indentation=.FALSE.)
+      CALL iotk_write_begin(iun, 'tbeta_smoothing',new_line=.FALSE.)
+         IF (obj%tbeta_smoothing) THEN
+            WRITE(iun, '(A)',advance='no')  'true'
+         ELSE
+            WRITE(iun, '(A)',advance='no')  'false'
+         ENDIF
+      CALL iotk_write_end(iun, 'tbeta_smoothing',indentation=.FALSE.)
       CALL iotk_write_begin(iun, 'diago_thr_init')
-         WRITE(iun, '(E20.7)') obj%diago_thr_init
+         WRITE(iun, '(E24.16)') obj%diago_thr_init
       CALL iotk_write_end(iun, 'diago_thr_init')
       CALL iotk_write_begin(iun, 'diago_full_acc',new_line=.FALSE.)
          IF (obj%diago_full_acc) THEN
@@ -3600,7 +3632,8 @@ END SUBROUTINE qes_write_electron_control
 
 SUBROUTINE qes_init_electron_control(obj, tagname, diagonalization, mixing_mode, &
                               mixing_beta, conv_thr, mixing_ndim, max_nstep, real_space_q, &
-                              diago_thr_init, diago_full_acc, diago_cg_maxiter)
+                              tq_smoothing, tbeta_smoothing, diago_thr_init, &
+                              diago_full_acc, diago_cg_maxiter)
    IMPLICIT NONE
 
    TYPE(electron_control_type) :: obj
@@ -3613,6 +3646,8 @@ SUBROUTINE qes_init_electron_control(obj, tagname, diagonalization, mixing_mode,
    INTEGER  :: mixing_ndim
    INTEGER  :: max_nstep
    LOGICAL  :: real_space_q
+   LOGICAL  :: tq_smoothing
+   LOGICAL  :: tbeta_smoothing
    REAL(DP) :: diago_thr_init
    LOGICAL  :: diago_full_acc
    INTEGER  :: diago_cg_maxiter
@@ -3625,6 +3660,8 @@ SUBROUTINE qes_init_electron_control(obj, tagname, diagonalization, mixing_mode,
    obj%mixing_ndim = mixing_ndim
    obj%max_nstep = max_nstep
    obj%real_space_q = real_space_q
+   obj%tq_smoothing = tq_smoothing
+   obj%tbeta_smoothing = tbeta_smoothing
    obj%diago_thr_init = diago_thr_init
    obj%diago_full_acc = diago_full_acc
    obj%diago_cg_maxiter = diago_cg_maxiter
@@ -3666,18 +3703,18 @@ SUBROUTINE qes_write_basis_set(iun, obj)
       ENDIF
       !
       CALL iotk_write_begin(iun, 'ecutwfc')
-         WRITE(iun, '(E20.7)') obj%ecutwfc
+         WRITE(iun, '(E24.16)') obj%ecutwfc
       CALL iotk_write_end(iun, 'ecutwfc')
       IF(obj%ecutrho_ispresent) THEN
          CALL iotk_write_begin(iun, 'ecutrho')
-            WRITE(iun, '(E20.7)') obj%ecutrho
+            WRITE(iun, '(E24.16)') obj%ecutrho
          CALL iotk_write_end(iun, 'ecutrho')
       ENDIF
       !
       CALL qes_write_basisSetItem(iun, obj%fft_grid)
       !
-      IF(obj%fft_smoooth_ispresent) THEN
-         CALL qes_write_basisSetItem(iun, obj%fft_smoooth)
+      IF(obj%fft_smooth_ispresent) THEN
+         CALL qes_write_basisSetItem(iun, obj%fft_smooth)
          !
       ENDIF
       !
@@ -3705,8 +3742,8 @@ SUBROUTINE qes_write_basis_set(iun, obj)
 END SUBROUTINE qes_write_basis_set
 
 SUBROUTINE qes_init_basis_set(obj, tagname, gamma_only_ispresent, gamma_only, ecutwfc, &
-                              ecutrho_ispresent, ecutrho, fft_grid, fft_smoooth_ispresent, &
-                              fft_smoooth, fft_box_ispresent, fft_box, ngm, ngms_ispresent, &
+                              ecutrho_ispresent, ecutrho, fft_grid, fft_smooth_ispresent, &
+                              fft_smooth, fft_box_ispresent, fft_box, ngm, ngms_ispresent, &
                               ngms, npwx, reciprocal_lattice)
    IMPLICIT NONE
 
@@ -3719,8 +3756,8 @@ SUBROUTINE qes_init_basis_set(obj, tagname, gamma_only_ispresent, gamma_only, ec
    LOGICAL  :: ecutrho_ispresent
    REAL(DP) :: ecutrho
    TYPE(basisSetItem_type) :: fft_grid
-   LOGICAL  :: fft_smoooth_ispresent
-   TYPE(basisSetItem_type) :: fft_smoooth
+   LOGICAL  :: fft_smooth_ispresent
+   TYPE(basisSetItem_type) :: fft_smooth
    LOGICAL  :: fft_box_ispresent
    TYPE(basisSetItem_type) :: fft_box
    INTEGER  :: ngm
@@ -3740,9 +3777,9 @@ SUBROUTINE qes_init_basis_set(obj, tagname, gamma_only_ispresent, gamma_only, ec
       obj%ecutrho = ecutrho
    ENDIF
    obj%fft_grid = fft_grid
-   obj%fft_smoooth_ispresent = fft_smoooth_ispresent
-   IF(obj%fft_smoooth_ispresent) THEN
-      obj%fft_smoooth = fft_smoooth
+   obj%fft_smooth_ispresent = fft_smooth_ispresent
+   IF(obj%fft_smooth_ispresent) THEN
+      obj%fft_smooth = fft_smooth
    ENDIF
    obj%fft_box_ispresent = fft_box_ispresent
    IF(obj%fft_box_ispresent) THEN
@@ -3772,9 +3809,9 @@ SUBROUTINE qes_reset_basis_set(obj)
       obj%ecutrho_ispresent = .FALSE.
    ENDIF
    CALL qes_reset_basisSetItem(obj%fft_grid)
-   IF(obj%fft_smoooth_ispresent) THEN
-      CALL qes_reset_basisSetItem(obj%fft_smoooth)
-      obj%fft_smoooth_ispresent = .FALSE.
+   IF(obj%fft_smooth_ispresent) THEN
+      CALL qes_reset_basisSetItem(obj%fft_smooth)
+      obj%fft_smooth_ispresent = .FALSE.
    ENDIF
    IF(obj%fft_box_ispresent) THEN
       CALL qes_reset_basisSetItem(obj%fft_box)
@@ -3812,11 +3849,11 @@ SUBROUTINE qes_write_basis(iun, obj)
       ENDIF
       !
       CALL iotk_write_begin(iun, 'ecutwfc')
-         WRITE(iun, '(E20.7)') obj%ecutwfc
+         WRITE(iun, '(E24.16)') obj%ecutwfc
       CALL iotk_write_end(iun, 'ecutwfc')
       IF(obj%ecutrho_ispresent) THEN
          CALL iotk_write_begin(iun, 'ecutrho')
-            WRITE(iun, '(E20.7)') obj%ecutrho
+            WRITE(iun, '(E24.16)') obj%ecutrho
          CALL iotk_write_end(iun, 'ecutrho')
       ENDIF
       !
@@ -3928,7 +3965,7 @@ SUBROUTINE qes_write_inputOccupations(iun, obj)
 
    CALL iotk_write_begin(iun, TRIM(obj%tagname), attr=TRIM(attr))
       !
-         WRITE(fmtstr,'(a)') '(5E20.7)'
+         WRITE(fmtstr,'(a)') '(5E24.16)'
          WRITE(iun, fmtstr) obj%vec
    CALL iotk_write_end(iun, TRIM(obj%tagname))
    !
@@ -3943,7 +3980,7 @@ SUBROUTINE qes_init_inputOccupations(obj, tagname, ispin, spin_factor, ndim_vec,
    INTEGER  :: ispin
    REAL(DP) :: spin_factor
    INTEGER  :: ndim_vec
-   REAL(DP), DIMENSION(:) :: vec
+   REAL(DP), DIMENSION(ndim_vec) :: vec
 
    obj%tagname = TRIM(tagname)
 
@@ -3954,6 +3991,7 @@ SUBROUTINE qes_init_inputOccupations(obj, tagname, ispin, spin_factor, ndim_vec,
 
    ALLOCATE(obj%vec(ndim_vec))
    obj%vec(:) = vec(:)
+   obj%ndim_vec = ndim_vec
 
 END SUBROUTINE qes_init_inputOccupations
 
@@ -3967,53 +4005,6 @@ SUBROUTINE qes_reset_inputOccupations(obj)
    IF (ALLOCATED(obj%vec))  DEALLOCATE(obj%vec)
 
 END SUBROUTINE qes_reset_inputOccupations
-
-
-SUBROUTINE qes_write_occupations(iun, obj)
-   IMPLICIT NONE
-
-   INTEGER  :: iun
-   TYPE(occupations_type) :: obj
-   !
-   INTEGER  :: i
-
-   IF (.NOT. obj%lwrite) RETURN
-   attr = " "
-   CALL iotk_write_attr(attr, 'spin', obj%spin)
-
-   CALL iotk_write_begin(iun, TRIM(obj%tagname), attr=TRIM(attr),new_line=.FALSE.)
-      !
-      WRITE(iun, '(A)',advance='no')  TRIM(obj%occupations)
-   CALL iotk_write_end(iun, TRIM(obj%tagname),indentation=.FALSE.)
-   !
-END SUBROUTINE qes_write_occupations
-
-SUBROUTINE qes_init_occupations(obj, tagname, spin, occupations)
-   IMPLICIT NONE
-
-   TYPE(occupations_type) :: obj
-   CHARACTER(len=*) :: tagname
-   INTEGER  :: i
-   INTEGER  :: spin
-   CHARACTER(len=*) :: occupations
-
-   obj%tagname = TRIM(tagname)
-
-   obj%spin = spin
-
-   obj%occupations = occupations
-
-END SUBROUTINE qes_init_occupations
-
-SUBROUTINE qes_reset_occupations(obj)
-   IMPLICIT NONE
-   TYPE(occupations_type) :: obj
-   INTEGER  :: i
-
-   obj%tagname = ""
-
-
-END SUBROUTINE qes_reset_occupations
 
 
 SUBROUTINE qes_write_smearing(iun, obj)
@@ -4063,6 +4054,240 @@ SUBROUTINE qes_reset_smearing(obj)
 END SUBROUTINE qes_reset_smearing
 
 
+SUBROUTINE qes_write_band_structure(iun, obj)
+   IMPLICIT NONE
+
+   INTEGER  :: iun
+   TYPE(band_structure_type) :: obj
+   !
+   INTEGER  :: i
+
+   IF (.NOT. obj%lwrite) RETURN
+   attr = " "
+
+   CALL iotk_write_begin(iun, TRIM(obj%tagname), attr=TRIM(attr))
+      !
+      CALL iotk_write_begin(iun, 'lsda',new_line=.FALSE.)
+         IF (obj%lsda) THEN
+            WRITE(iun, '(A)',advance='no')  'true'
+         ELSE
+            WRITE(iun, '(A)',advance='no')  'false'
+         ENDIF
+      CALL iotk_write_end(iun, 'lsda',indentation=.FALSE.)
+      CALL iotk_write_begin(iun, 'noncolin',new_line=.FALSE.)
+         IF (obj%noncolin) THEN
+            WRITE(iun, '(A)',advance='no')  'true'
+         ELSE
+            WRITE(iun, '(A)',advance='no')  'false'
+         ENDIF
+      CALL iotk_write_end(iun, 'noncolin',indentation=.FALSE.)
+      CALL iotk_write_begin(iun, 'spinorbit',new_line=.FALSE.)
+         IF (obj%spinorbit) THEN
+            WRITE(iun, '(A)',advance='no')  'true'
+         ELSE
+            WRITE(iun, '(A)',advance='no')  'false'
+         ENDIF
+      CALL iotk_write_end(iun, 'spinorbit',indentation=.FALSE.)
+      CALL iotk_write_begin(iun, 'nbnd')
+         WRITE(iun, '(I12)') obj%nbnd
+      CALL iotk_write_end(iun, 'nbnd')
+      IF(obj%nbnd_up_ispresent) THEN
+         CALL iotk_write_begin(iun, 'nbnd_up')
+            WRITE(iun, '(I12)') obj%nbnd_up
+         CALL iotk_write_end(iun, 'nbnd_up')
+      ENDIF
+      !
+      IF(obj%nbnd_dw_ispresent) THEN
+         CALL iotk_write_begin(iun, 'nbnd_dw')
+            WRITE(iun, '(I12)') obj%nbnd_dw
+         CALL iotk_write_end(iun, 'nbnd_dw')
+      ENDIF
+      !
+      CALL iotk_write_begin(iun, 'nelec')
+         WRITE(iun, '(E24.16)') obj%nelec
+      CALL iotk_write_end(iun, 'nelec')
+      IF(obj%num_of_atomic_wfc_ispresent) THEN
+         CALL iotk_write_begin(iun, 'num_of_atomic_wfc')
+            WRITE(iun, '(I12)') obj%num_of_atomic_wfc
+         CALL iotk_write_end(iun, 'num_of_atomic_wfc')
+      ENDIF
+      !
+      CALL iotk_write_begin(iun, 'wf_collected',new_line=.FALSE.)
+         IF (obj%wf_collected) THEN
+            WRITE(iun, '(A)',advance='no')  'true'
+         ELSE
+            WRITE(iun, '(A)',advance='no')  'false'
+         ENDIF
+      CALL iotk_write_end(iun, 'wf_collected',indentation=.FALSE.)
+      IF(obj%fermi_energy_ispresent) THEN
+         CALL iotk_write_begin(iun, 'fermi_energy')
+            WRITE(iun, '(E24.16)') obj%fermi_energy
+         CALL iotk_write_end(iun, 'fermi_energy')
+      ENDIF
+      !
+      IF(obj%highestOccupiedLevel_ispresent) THEN
+         CALL iotk_write_begin(iun, 'highestOccupiedLevel')
+            WRITE(iun, '(E24.16)') obj%highestOccupiedLevel
+         CALL iotk_write_end(iun, 'highestOccupiedLevel')
+      ENDIF
+      !
+      IF(obj%two_fermi_energies_ispresent) THEN
+         CALL iotk_write_begin(iun,'two_fermi_energies')
+            WRITE(fmtstr,'(a)') '(5E24.16)'
+            WRITE(iun, fmtstr) obj%two_fermi_energies
+         CALL iotk_write_end(iun,'two_fermi_energies')
+         !
+      ENDIF
+      !
+      CALL qes_write_k_points_IBZ(iun, obj%starting_k_points)
+      !
+      CALL iotk_write_begin(iun, 'nks')
+         WRITE(iun, '(I12)') obj%nks
+      CALL iotk_write_end(iun, 'nks')
+      CALL qes_write_occupations(iun, obj%occupations_kind)
+      !
+      IF(obj%smearing_ispresent) THEN
+         CALL qes_write_smearing(iun, obj%smearing)
+         !
+      ENDIF
+      !
+      DO i = 1, obj%ndim_ks_energies
+         CALL qes_write_ks_energies(iun, obj%ks_energies(i))
+         !
+      END DO
+   CALL iotk_write_end(iun, TRIM(obj%tagname))
+   !
+END SUBROUTINE qes_write_band_structure
+
+SUBROUTINE qes_init_band_structure(obj, tagname, lsda, noncolin, spinorbit, nbnd, &
+                              nbnd_up_ispresent, nbnd_up, nbnd_dw_ispresent, nbnd_dw, &
+                              nelec, num_of_atomic_wfc_ispresent, num_of_atomic_wfc, &
+                              wf_collected, fermi_energy_ispresent, fermi_energy, &
+                              highestOccupiedLevel_ispresent, highestOccupiedLevel, &
+                              two_fermi_energies_ispresent, &
+                              ndim_two_fermi_energies, two_fermi_energies, &
+                              starting_k_points, nks, occupations_kind, smearing_ispresent, &
+                              smearing, ndim_ks_energies, ks_energies)
+   IMPLICIT NONE
+
+   TYPE(band_structure_type) :: obj
+   CHARACTER(len=*) :: tagname
+   INTEGER  :: i
+   LOGICAL  :: lsda
+   LOGICAL  :: noncolin
+   LOGICAL  :: spinorbit
+   INTEGER  :: nbnd
+   LOGICAL  :: nbnd_up_ispresent
+   INTEGER  :: nbnd_up
+   LOGICAL  :: nbnd_dw_ispresent
+   INTEGER  :: nbnd_dw
+   REAL(DP) :: nelec
+   LOGICAL  :: num_of_atomic_wfc_ispresent
+   INTEGER  :: num_of_atomic_wfc
+   LOGICAL  :: wf_collected
+   LOGICAL  :: fermi_energy_ispresent
+   REAL(DP) :: fermi_energy
+   LOGICAL  :: highestOccupiedLevel_ispresent
+   REAL(DP) :: highestOccupiedLevel
+   LOGICAL  :: two_fermi_energies_ispresent
+   INTEGER  :: ndim_two_fermi_energies
+   REAL(DP), DIMENSION(ndim_two_fermi_energies) :: two_fermi_energies
+   TYPE(k_points_IBZ_type) :: starting_k_points
+   INTEGER  :: nks
+   TYPE(occupations_type) :: occupations_kind
+   LOGICAL  :: smearing_ispresent
+   TYPE(smearing_type) :: smearing
+   INTEGER  :: ndim_ks_energies
+   TYPE(ks_energies_type ), DIMENSION( ndim_ks_energies )  :: ks_energies
+
+   obj%tagname = TRIM(tagname)
+   obj%lsda = lsda
+   obj%noncolin = noncolin
+   obj%spinorbit = spinorbit
+   obj%nbnd = nbnd
+   obj%nbnd_up_ispresent = nbnd_up_ispresent
+   IF(obj%nbnd_up_ispresent) THEN
+      obj%nbnd_up = nbnd_up
+   ENDIF
+   obj%nbnd_dw_ispresent = nbnd_dw_ispresent
+   IF(obj%nbnd_dw_ispresent) THEN
+      obj%nbnd_dw = nbnd_dw
+   ENDIF
+   obj%nelec = nelec
+   obj%num_of_atomic_wfc_ispresent = num_of_atomic_wfc_ispresent
+   IF(obj%num_of_atomic_wfc_ispresent) THEN
+      obj%num_of_atomic_wfc = num_of_atomic_wfc
+   ENDIF
+   obj%wf_collected = wf_collected
+   obj%fermi_energy_ispresent = fermi_energy_ispresent
+   IF(obj%fermi_energy_ispresent) THEN
+      obj%fermi_energy = fermi_energy
+   ENDIF
+   obj%highestOccupiedLevel_ispresent = highestOccupiedLevel_ispresent
+   IF(obj%highestOccupiedLevel_ispresent) THEN
+      obj%highestOccupiedLevel = highestOccupiedLevel
+   ENDIF
+   obj%two_fermi_energies_ispresent = two_fermi_energies_ispresent
+   IF(obj%two_fermi_energies_ispresent) THEN
+   ALLOCATE(obj%two_fermi_energies(ndim_two_fermi_energies))
+   obj%two_fermi_energies(:) = two_fermi_energies(:)
+   obj%ndim_two_fermi_energies = ndim_two_fermi_energies
+   ENDIF
+   obj%starting_k_points = starting_k_points
+   obj%nks = nks
+   obj%occupations_kind = occupations_kind
+   obj%smearing_ispresent = smearing_ispresent
+   IF(obj%smearing_ispresent) THEN
+      obj%smearing = smearing
+   ENDIF
+   ALLOCATE(obj%ks_energies(SIZE(ks_energies)))
+   DO i = 1, SIZE(ks_energies)
+      obj%ks_energies(i) = ks_energies(i)
+   ENDDO
+   obj%ndim_ks_energies = ndim_ks_energies
+
+END SUBROUTINE qes_init_band_structure
+
+SUBROUTINE qes_reset_band_structure(obj)
+   IMPLICIT NONE
+   TYPE(band_structure_type) :: obj
+   INTEGER  :: i
+
+   obj%tagname = ""
+
+   IF(obj%nbnd_up_ispresent) THEN
+      obj%nbnd_up_ispresent = .FALSE.
+   ENDIF
+   IF(obj%nbnd_dw_ispresent) THEN
+      obj%nbnd_dw_ispresent = .FALSE.
+   ENDIF
+   IF(obj%num_of_atomic_wfc_ispresent) THEN
+      obj%num_of_atomic_wfc_ispresent = .FALSE.
+   ENDIF
+   IF(obj%fermi_energy_ispresent) THEN
+      obj%fermi_energy_ispresent = .FALSE.
+   ENDIF
+   IF(obj%highestOccupiedLevel_ispresent) THEN
+      obj%highestOccupiedLevel_ispresent = .FALSE.
+   ENDIF
+   IF(obj%two_fermi_energies_ispresent) THEN
+   IF (ALLOCATED(obj%two_fermi_energies))  DEALLOCATE(obj%two_fermi_energies)
+      obj%two_fermi_energies_ispresent = .FALSE.
+   ENDIF
+   CALL qes_reset_k_points_IBZ(obj%starting_k_points)
+   CALL qes_reset_occupations(obj%occupations_kind)
+   IF(obj%smearing_ispresent) THEN
+      CALL qes_reset_smearing(obj%smearing)
+      obj%smearing_ispresent = .FALSE.
+   ENDIF
+   DO i = 1, SIZE(obj%ks_energies)
+      CALL qes_reset_ks_energies(obj%ks_energies(i))
+   ENDDO
+   IF (ALLOCATED(obj%ks_energies)) DEALLOCATE(obj%ks_energies)
+
+END SUBROUTINE qes_reset_band_structure
+
+
 SUBROUTINE qes_write_bands(iun, obj)
    IMPLICIT NONE
 
@@ -4089,8 +4314,14 @@ SUBROUTINE qes_write_bands(iun, obj)
       !
       IF(obj%tot_charge_ispresent) THEN
          CALL iotk_write_begin(iun, 'tot_charge')
-            WRITE(iun, '(E20.7)') obj%tot_charge
+            WRITE(iun, '(E24.16)') obj%tot_charge
          CALL iotk_write_end(iun, 'tot_charge')
+      ENDIF
+      !
+      IF(obj%tot_magnetization_ispresent) THEN
+         CALL iotk_write_begin(iun, 'tot_magnetization')
+            WRITE(iun, '(E24.16)') obj%tot_magnetization
+         CALL iotk_write_end(iun, 'tot_magnetization')
       ENDIF
       !
       CALL qes_write_occupations(iun, obj%occupations)
@@ -4107,7 +4338,8 @@ SUBROUTINE qes_write_bands(iun, obj)
 END SUBROUTINE qes_write_bands
 
 SUBROUTINE qes_init_bands(obj, tagname, nbnd_ispresent, nbnd, smearing_ispresent, smearing, &
-                              tot_charge_ispresent, tot_charge, occupations, &
+                              tot_charge_ispresent, tot_charge, &
+                              tot_magnetization_ispresent, tot_magnetization, occupations, &
                               inputOccupations_ispresent, ndim_inputOccupations, &
                               inputOccupations)
    IMPLICIT NONE
@@ -4121,10 +4353,12 @@ SUBROUTINE qes_init_bands(obj, tagname, nbnd_ispresent, nbnd, smearing_ispresent
    TYPE(smearing_type) :: smearing
    LOGICAL  :: tot_charge_ispresent
    REAL(DP) :: tot_charge
+   LOGICAL  :: tot_magnetization_ispresent
+   REAL(DP) :: tot_magnetization
    TYPE(occupations_type) :: occupations
    LOGICAL  :: inputOccupations_ispresent
    INTEGER  :: ndim_inputOccupations
-   TYPE(inputOccupations_type), DIMENSION(:) :: inputOccupations
+   TYPE(inputOccupations_type ), DIMENSION( ndim_inputOccupations )  :: inputOccupations
 
    obj%tagname = TRIM(tagname)
    obj%nbnd_ispresent = nbnd_ispresent
@@ -4138,6 +4372,10 @@ SUBROUTINE qes_init_bands(obj, tagname, nbnd_ispresent, nbnd, smearing_ispresent
    obj%tot_charge_ispresent = tot_charge_ispresent
    IF(obj%tot_charge_ispresent) THEN
       obj%tot_charge = tot_charge
+   ENDIF
+   obj%tot_magnetization_ispresent = tot_magnetization_ispresent
+   IF(obj%tot_magnetization_ispresent) THEN
+      obj%tot_magnetization = tot_magnetization
    ENDIF
    obj%occupations = occupations
    obj%inputOccupations_ispresent = inputOccupations_ispresent
@@ -4167,6 +4405,9 @@ SUBROUTINE qes_reset_bands(obj)
    ENDIF
    IF(obj%tot_charge_ispresent) THEN
       obj%tot_charge_ispresent = .FALSE.
+   ENDIF
+   IF(obj%tot_magnetization_ispresent) THEN
+      obj%tot_magnetization_ispresent = .FALSE.
    ENDIF
    CALL qes_reset_occupations(obj%occupations)
    IF(obj%inputOccupations_ispresent) THEN
@@ -4246,68 +4487,56 @@ SUBROUTINE qes_reset_spin(obj)
 END SUBROUTINE qes_reset_spin
 
 
-SUBROUTINE qes_write_vdW(iun, obj)
+SUBROUTINE qes_write_HubbardCommon(iun, obj)
    IMPLICIT NONE
 
    INTEGER  :: iun
-   TYPE(vdW_type) :: obj
+   TYPE(HubbardCommon_type) :: obj
    !
    INTEGER  :: i
 
    IF (.NOT. obj%lwrite) RETURN
    attr = " "
+   CALL iotk_write_attr(attr, 'specie', TRIM(obj%specie))
+   CALL iotk_write_attr(attr, 'label', TRIM(obj%label))
 
    CALL iotk_write_begin(iun, TRIM(obj%tagname), attr=TRIM(attr))
       !
-      CALL iotk_write_begin(iun, 'vdw_corr',new_line=.FALSE.)
-         WRITE(iun, '(A)',advance='no')  TRIM(obj%vdw_corr)
-      CALL iotk_write_end(iun, 'vdw_corr',indentation=.FALSE.)
-      CALL iotk_write_begin(iun, 'london_s6')
-         WRITE(iun, '(E20.7)') obj%london_s6
-      CALL iotk_write_end(iun, 'london_s6')
-      CALL iotk_write_begin(iun, 'london_rcut')
-         WRITE(iun, '(E20.7)') obj%london_rcut
-      CALL iotk_write_end(iun, 'london_rcut')
-      CALL iotk_write_begin(iun, 'xdm_a1')
-         WRITE(iun, '(E20.7)') obj%xdm_a1
-      CALL iotk_write_end(iun, 'xdm_a1')
-      CALL iotk_write_begin(iun, 'xdm_a2')
-         WRITE(iun, '(E20.7)') obj%xdm_a2
-      CALL iotk_write_end(iun, 'xdm_a2')
+      WRITE(iun, '(E24.16)') obj%HubbardCommon
    CALL iotk_write_end(iun, TRIM(obj%tagname))
    !
-END SUBROUTINE qes_write_vdW
+END SUBROUTINE qes_write_HubbardCommon
 
-SUBROUTINE qes_init_vdW(obj, tagname, vdw_corr, london_s6, london_rcut, xdm_a1, xdm_a2)
+SUBROUTINE qes_init_HubbardCommon(obj, tagname, specie, label, HubbardCommon)
    IMPLICIT NONE
 
-   TYPE(vdW_type) :: obj
+   TYPE(HubbardCommon_type) :: obj
    CHARACTER(len=*) :: tagname
    INTEGER  :: i
-   CHARACTER(len=*) :: vdw_corr
-   REAL(DP) :: london_s6
-   REAL(DP) :: london_rcut
-   REAL(DP) :: xdm_a1
-   REAL(DP) :: xdm_a2
+   CHARACTER(len=*) :: specie
+   CHARACTER(len=*) :: label
+   REAL(DP) :: HubbardCommon
 
    obj%tagname = TRIM(tagname)
-   obj%vdw_corr = vdw_corr
-   obj%london_s6 = london_s6
-   obj%london_rcut = london_rcut
-   obj%xdm_a1 = xdm_a1
-   obj%xdm_a2 = xdm_a2
 
-END SUBROUTINE qes_init_vdW
+   obj%specie = TRIM(specie)
 
-SUBROUTINE qes_reset_vdW(obj)
+
+   obj%label = TRIM(label)
+
+   obj%HubbardCommon = HubbardCommon
+
+END SUBROUTINE qes_init_HubbardCommon
+
+SUBROUTINE qes_reset_HubbardCommon(obj)
    IMPLICIT NONE
-   TYPE(vdW_type) :: obj
+   TYPE(HubbardCommon_type) :: obj
    INTEGER  :: i
 
    obj%tagname = ""
 
 
-END SUBROUTINE qes_reset_vdW
+END SUBROUTINE qes_reset_HubbardCommon
 
 
 SUBROUTINE qes_write_HubbardProj(iun, obj)
@@ -4362,10 +4591,11 @@ SUBROUTINE qes_write_Hubbard_ns(iun, obj)
    CALL iotk_write_attr(attr, 'specie', TRIM(obj%specie))
    CALL iotk_write_attr(attr, 'label', TRIM(obj%label))
    CALL iotk_write_attr(attr, 'spin', obj%spin)
+   CALL iotk_write_attr(attr, 'index', obj%index)
 
    CALL iotk_write_begin(iun, TRIM(obj%tagname), attr=TRIM(attr))
       !
-      WRITE(fmtstr,'(a)') '(5E20.7)'
+      WRITE(fmtstr,'(a)') '(5E24.16)'
       DO i = 1, SIZE(obj%mat,2)
          WRITE(iun, fmtstr) obj%mat(:,i)
       ENDDO
@@ -4374,7 +4604,7 @@ SUBROUTINE qes_write_Hubbard_ns(iun, obj)
    !
 END SUBROUTINE qes_write_Hubbard_ns
 
-SUBROUTINE qes_init_Hubbard_ns(obj, tagname, specie, label, spin, &
+SUBROUTINE qes_init_Hubbard_ns(obj, tagname, specie, label, spin, index, &
                               ndim1_mat, ndim2_mat, mat)
    IMPLICIT NONE
 
@@ -4384,9 +4614,10 @@ SUBROUTINE qes_init_Hubbard_ns(obj, tagname, specie, label, spin, &
    CHARACTER(len=*) :: specie
    CHARACTER(len=*) :: label
    INTEGER  :: spin
+   INTEGER  :: index
    INTEGER  :: ndim1_mat
    INTEGER  :: ndim2_mat
-   REAL(DP), DIMENSION(:,:) :: mat
+   REAL(DP), DIMENSION(ndim1_mat,ndim2_mat) :: mat
 
    obj%tagname = TRIM(tagname)
 
@@ -4398,8 +4629,13 @@ SUBROUTINE qes_init_Hubbard_ns(obj, tagname, specie, label, spin, &
 
    obj%spin = spin
 
+
+   obj%index = index
+
    ALLOCATE(obj%mat(ndim1_mat,ndim2_mat))
    obj%mat(:,:) = mat(:,:)
+   obj%ndim1_mat = ndim1_mat
+   obj%ndim2_mat = ndim2_mat
 
 END SUBROUTINE qes_init_Hubbard_ns
 
@@ -4431,7 +4667,7 @@ SUBROUTINE qes_write_starting_ns(iun, obj)
 
    CALL iotk_write_begin(iun, TRIM(obj%tagname), attr=TRIM(attr))
       !
-         WRITE(fmtstr,'(a)') '(5E20.7)'
+         WRITE(fmtstr,'(a)') '(5E24.16)'
          WRITE(iun, fmtstr) obj%vec
    CALL iotk_write_end(iun, TRIM(obj%tagname))
    !
@@ -4447,7 +4683,7 @@ SUBROUTINE qes_init_starting_ns(obj, tagname, specie, label, spin, ndim_vec, vec
    CHARACTER(len=*) :: label
    INTEGER  :: spin
    INTEGER  :: ndim_vec
-   REAL(DP), DIMENSION(:) :: vec
+   REAL(DP), DIMENSION(ndim_vec) :: vec
 
    obj%tagname = TRIM(tagname)
 
@@ -4461,6 +4697,7 @@ SUBROUTINE qes_init_starting_ns(obj, tagname, specie, label, spin, ndim_vec, vec
 
    ALLOCATE(obj%vec(ndim_vec))
    obj%vec(:) = vec(:)
+   obj%ndim_vec = ndim_vec
 
 END SUBROUTINE qes_init_starting_ns
 
@@ -4491,7 +4728,7 @@ SUBROUTINE qes_write_HubbardJ(iun, obj)
 
    CALL iotk_write_begin(iun, TRIM(obj%tagname), attr=TRIM(attr))
       !
-      WRITE(iun, '(3(E20.7))') obj%HubbardJ
+      WRITE(iun, '(3(E24.16))') obj%HubbardJ
    CALL iotk_write_end(iun, TRIM(obj%tagname))
    !
 END SUBROUTINE qes_write_HubbardJ
@@ -4528,56 +4765,187 @@ SUBROUTINE qes_reset_HubbardJ(obj)
 END SUBROUTINE qes_reset_HubbardJ
 
 
-SUBROUTINE qes_write_HubbardCommon(iun, obj)
+SUBROUTINE qes_write_vdW(iun, obj)
    IMPLICIT NONE
 
    INTEGER  :: iun
-   TYPE(HubbardCommon_type) :: obj
+   TYPE(vdW_type) :: obj
    !
    INTEGER  :: i
 
    IF (.NOT. obj%lwrite) RETURN
    attr = " "
-   CALL iotk_write_attr(attr, 'specie', TRIM(obj%specie))
-   CALL iotk_write_attr(attr, 'label', TRIM(obj%label))
 
    CALL iotk_write_begin(iun, TRIM(obj%tagname), attr=TRIM(attr))
       !
-      WRITE(iun, '(E20.7)') obj%HubbardCommon
+      CALL iotk_write_begin(iun, 'vdw_corr',new_line=.FALSE.)
+         WRITE(iun, '(A)',advance='no')  TRIM(obj%vdw_corr)
+      CALL iotk_write_end(iun, 'vdw_corr',indentation=.FALSE.)
+      IF(obj%non_local_term_ispresent) THEN
+         CALL iotk_write_begin(iun, 'non_local_term',new_line=.FALSE.)
+            WRITE(iun, '(A)',advance='no')  TRIM(obj%non_local_term)
+         CALL iotk_write_end(iun, 'non_local_term',indentation=.FALSE.)
+      ENDIF
+      !
+      IF(obj%london_s6_ispresent) THEN
+         CALL iotk_write_begin(iun, 'london_s6')
+            WRITE(iun, '(E24.16)') obj%london_s6
+         CALL iotk_write_end(iun, 'london_s6')
+      ENDIF
+      !
+      IF(obj%ts_vdw_econv_thr_ispresent) THEN
+         CALL iotk_write_begin(iun, 'ts_vdw_econv_thr')
+            WRITE(iun, '(E24.16)') obj%ts_vdw_econv_thr
+         CALL iotk_write_end(iun, 'ts_vdw_econv_thr')
+      ENDIF
+      !
+      IF(obj%ts_vdw_isolated_ispresent) THEN
+         CALL iotk_write_begin(iun, 'ts_vdw_isolated',new_line=.FALSE.)
+            IF (obj%ts_vdw_isolated) THEN
+               WRITE(iun, '(A)',advance='no')  'true'
+            ELSE
+               WRITE(iun, '(A)',advance='no')  'false'
+            ENDIF
+         CALL iotk_write_end(iun, 'ts_vdw_isolated',indentation=.FALSE.)
+      ENDIF
+      !
+      IF(obj%london_rcut_ispresent) THEN
+         CALL iotk_write_begin(iun, 'london_rcut')
+            WRITE(iun, '(E24.16)') obj%london_rcut
+         CALL iotk_write_end(iun, 'london_rcut')
+      ENDIF
+      !
+      IF(obj%xdm_a1_ispresent) THEN
+         CALL iotk_write_begin(iun, 'xdm_a1')
+            WRITE(iun, '(E24.16)') obj%xdm_a1
+         CALL iotk_write_end(iun, 'xdm_a1')
+      ENDIF
+      !
+      IF(obj%xdm_a2_ispresent) THEN
+         CALL iotk_write_begin(iun, 'xdm_a2')
+            WRITE(iun, '(E24.16)') obj%xdm_a2
+         CALL iotk_write_end(iun, 'xdm_a2')
+      ENDIF
+      !
+      IF(obj%london_c6_ispresent) THEN
+         DO i = 1, obj%ndim_london_c6
+            CALL qes_write_HubbardCommon(iun, obj%london_c6(i))
+            !
+         END DO
+      ENDIF
+      !
    CALL iotk_write_end(iun, TRIM(obj%tagname))
    !
-END SUBROUTINE qes_write_HubbardCommon
+END SUBROUTINE qes_write_vdW
 
-SUBROUTINE qes_init_HubbardCommon(obj, tagname, specie, label, HubbardCommon)
+SUBROUTINE qes_init_vdW(obj, tagname, vdw_corr, non_local_term_ispresent, non_local_term, &
+                              london_s6_ispresent, london_s6, ts_vdw_econv_thr_ispresent, &
+                              ts_vdw_econv_thr, ts_vdw_isolated_ispresent, ts_vdw_isolated, &
+                              london_rcut_ispresent, london_rcut, xdm_a1_ispresent, xdm_a1, &
+                              xdm_a2_ispresent, xdm_a2, london_c6_ispresent, &
+                              ndim_london_c6, london_c6)
    IMPLICIT NONE
 
-   TYPE(HubbardCommon_type) :: obj
+   TYPE(vdW_type) :: obj
    CHARACTER(len=*) :: tagname
    INTEGER  :: i
-   CHARACTER(len=*) :: specie
-   CHARACTER(len=*) :: label
-   REAL(DP) :: HubbardCommon
+   CHARACTER(len=*) :: vdw_corr
+   LOGICAL  :: non_local_term_ispresent
+   CHARACTER(len=*) :: non_local_term
+   LOGICAL  :: london_s6_ispresent
+   REAL(DP) :: london_s6
+   LOGICAL  :: ts_vdw_econv_thr_ispresent
+   REAL(DP) :: ts_vdw_econv_thr
+   LOGICAL  :: ts_vdw_isolated_ispresent
+   LOGICAL  :: ts_vdw_isolated
+   LOGICAL  :: london_rcut_ispresent
+   REAL(DP) :: london_rcut
+   LOGICAL  :: xdm_a1_ispresent
+   REAL(DP) :: xdm_a1
+   LOGICAL  :: xdm_a2_ispresent
+   REAL(DP) :: xdm_a2
+   LOGICAL  :: london_c6_ispresent
+   INTEGER  :: ndim_london_c6
+   TYPE(HubbardCommon_type ), DIMENSION( ndim_london_c6 )  :: london_c6
 
    obj%tagname = TRIM(tagname)
+   obj%vdw_corr = vdw_corr
+   obj%non_local_term_ispresent = non_local_term_ispresent
+   IF(obj%non_local_term_ispresent) THEN
+      obj%non_local_term = non_local_term
+   ENDIF
+   obj%london_s6_ispresent = london_s6_ispresent
+   IF(obj%london_s6_ispresent) THEN
+      obj%london_s6 = london_s6
+   ENDIF
+   obj%ts_vdw_econv_thr_ispresent = ts_vdw_econv_thr_ispresent
+   IF(obj%ts_vdw_econv_thr_ispresent) THEN
+      obj%ts_vdw_econv_thr = ts_vdw_econv_thr
+   ENDIF
+   obj%ts_vdw_isolated_ispresent = ts_vdw_isolated_ispresent
+   IF(obj%ts_vdw_isolated_ispresent) THEN
+      obj%ts_vdw_isolated = ts_vdw_isolated
+   ENDIF
+   obj%london_rcut_ispresent = london_rcut_ispresent
+   IF(obj%london_rcut_ispresent) THEN
+      obj%london_rcut = london_rcut
+   ENDIF
+   obj%xdm_a1_ispresent = xdm_a1_ispresent
+   IF(obj%xdm_a1_ispresent) THEN
+      obj%xdm_a1 = xdm_a1
+   ENDIF
+   obj%xdm_a2_ispresent = xdm_a2_ispresent
+   IF(obj%xdm_a2_ispresent) THEN
+      obj%xdm_a2 = xdm_a2
+   ENDIF
+   obj%london_c6_ispresent = london_c6_ispresent
+   IF(obj%london_c6_ispresent) THEN
+      ALLOCATE(obj%london_c6(SIZE(london_c6)))
+      DO i = 1, SIZE(london_c6)
+         obj%london_c6(i) = london_c6(i)
+      ENDDO
+   obj%ndim_london_c6 = ndim_london_c6
+   ENDIF
 
-   obj%specie = TRIM(specie)
+END SUBROUTINE qes_init_vdW
 
-
-   obj%label = TRIM(label)
-
-   obj%HubbardCommon = HubbardCommon
-
-END SUBROUTINE qes_init_HubbardCommon
-
-SUBROUTINE qes_reset_HubbardCommon(obj)
+SUBROUTINE qes_reset_vdW(obj)
    IMPLICIT NONE
-   TYPE(HubbardCommon_type) :: obj
+   TYPE(vdW_type) :: obj
    INTEGER  :: i
 
    obj%tagname = ""
 
+   IF(obj%non_local_term_ispresent) THEN
+      obj%non_local_term_ispresent = .FALSE.
+   ENDIF
+   IF(obj%london_s6_ispresent) THEN
+      obj%london_s6_ispresent = .FALSE.
+   ENDIF
+   IF(obj%ts_vdw_econv_thr_ispresent) THEN
+      obj%ts_vdw_econv_thr_ispresent = .FALSE.
+   ENDIF
+   IF(obj%ts_vdw_isolated_ispresent) THEN
+      obj%ts_vdw_isolated_ispresent = .FALSE.
+   ENDIF
+   IF(obj%london_rcut_ispresent) THEN
+      obj%london_rcut_ispresent = .FALSE.
+   ENDIF
+   IF(obj%xdm_a1_ispresent) THEN
+      obj%xdm_a1_ispresent = .FALSE.
+   ENDIF
+   IF(obj%xdm_a2_ispresent) THEN
+      obj%xdm_a2_ispresent = .FALSE.
+   ENDIF
+   IF(obj%london_c6_ispresent) THEN
+      DO i = 1, SIZE(obj%london_c6)
+         CALL qes_reset_HubbardCommon(obj%london_c6(i))
+      ENDDO
+      IF (ALLOCATED(obj%london_c6)) DEALLOCATE(obj%london_c6)
+      obj%london_c6_ispresent = .FALSE.
+   ENDIF
 
-END SUBROUTINE qes_reset_HubbardCommon
+END SUBROUTINE qes_reset_vdW
 
 
 SUBROUTINE qes_write_dftU(iun, obj)
@@ -4676,25 +5044,25 @@ SUBROUTINE qes_init_dftU(obj, tagname, lda_plus_u_kind_ispresent, lda_plus_u_kin
    INTEGER :: lda_plus_u_kind
    LOGICAL  :: Hubbard_U_ispresent
    INTEGER  :: ndim_Hubbard_U
-   TYPE(HubbardCommon_type), DIMENSION(:) :: Hubbard_U
+   TYPE(HubbardCommon_type ), DIMENSION( ndim_Hubbard_U )  :: Hubbard_U
    LOGICAL  :: Hubbard_J0_ispresent
    INTEGER  :: ndim_Hubbard_J0
-   TYPE(HubbardCommon_type), DIMENSION(:) :: Hubbard_J0
+   TYPE(HubbardCommon_type ), DIMENSION( ndim_Hubbard_J0 )  :: Hubbard_J0
    LOGICAL  :: Hubbard_alpha_ispresent
    INTEGER  :: ndim_Hubbard_alpha
-   TYPE(HubbardCommon_type), DIMENSION(:) :: Hubbard_alpha
+   TYPE(HubbardCommon_type ), DIMENSION( ndim_Hubbard_alpha )  :: Hubbard_alpha
    LOGICAL  :: Hubbard_beta_ispresent
    INTEGER  :: ndim_Hubbard_beta
-   TYPE(HubbardCommon_type), DIMENSION(:) :: Hubbard_beta
+   TYPE(HubbardCommon_type ), DIMENSION( ndim_Hubbard_beta )  :: Hubbard_beta
    LOGICAL  :: Hubbard_J_ispresent
    INTEGER  :: ndim_Hubbard_J
-   TYPE(HubbardJ_type), DIMENSION(:) :: Hubbard_J
+   TYPE(HubbardJ_type ), DIMENSION( ndim_Hubbard_J )  :: Hubbard_J
    LOGICAL  :: starting_ns_ispresent
    INTEGER  :: ndim_starting_ns
-   TYPE(starting_ns_type), DIMENSION(:) :: starting_ns
+   TYPE(starting_ns_type ), DIMENSION( ndim_starting_ns )  :: starting_ns
    LOGICAL  :: Hubbard_ns_ispresent
    INTEGER  :: ndim_Hubbard_ns
-   TYPE(Hubbard_ns_type), DIMENSION(:) :: Hubbard_ns
+   TYPE(Hubbard_ns_type ), DIMENSION( ndim_Hubbard_ns )  :: Hubbard_ns
    LOGICAL  :: U_projection_type_ispresent
    CHARACTER(len=*) :: U_projection_type
 
@@ -4905,13 +5273,13 @@ SUBROUTINE qes_write_hybrid(iun, obj)
       CALL qes_write_qpoint_grid(iun, obj%qpoint_grid)
       !
       CALL iotk_write_begin(iun, 'ecutfock')
-         WRITE(iun, '(E20.7)') obj%ecutfock
+         WRITE(iun, '(E24.16)') obj%ecutfock
       CALL iotk_write_end(iun, 'ecutfock')
       CALL iotk_write_begin(iun, 'exx_fraction')
-         WRITE(iun, '(E20.7)') obj%exx_fraction
+         WRITE(iun, '(E24.16)') obj%exx_fraction
       CALL iotk_write_end(iun, 'exx_fraction')
       CALL iotk_write_begin(iun, 'screening_parameter')
-         WRITE(iun, '(E20.7)') obj%screening_parameter
+         WRITE(iun, '(E24.16)') obj%screening_parameter
       CALL iotk_write_end(iun, 'screening_parameter')
       CALL iotk_write_begin(iun, 'exxdiv_treatment',new_line=.FALSE.)
          WRITE(iun, '(A)',advance='no')  TRIM(obj%exxdiv_treatment)
@@ -4924,7 +5292,7 @@ SUBROUTINE qes_write_hybrid(iun, obj)
          ENDIF
       CALL iotk_write_end(iun, 'x_gamma_extrapolation',indentation=.FALSE.)
       CALL iotk_write_begin(iun, 'ecutvcut')
-         WRITE(iun, '(E20.7)') obj%ecutvcut
+         WRITE(iun, '(E24.16)') obj%ecutvcut
       CALL iotk_write_end(iun, 'ecutvcut')
    CALL iotk_write_end(iun, TRIM(obj%tagname))
    !
@@ -5151,13 +5519,13 @@ SUBROUTINE qes_write_cell(iun, obj)
    CALL iotk_write_begin(iun, TRIM(obj%tagname), attr=TRIM(attr))
       !
       CALL iotk_write_begin(iun, 'a1')
-         WRITE(iun, '(3(E20.7))') obj%a1
+         WRITE(iun, '(3(E24.16))') obj%a1
       CALL iotk_write_end(iun, 'a1')
       CALL iotk_write_begin(iun, 'a2')
-         WRITE(iun, '(3(E20.7))') obj%a2
+         WRITE(iun, '(3(E24.16))') obj%a2
       CALL iotk_write_end(iun, 'a2')
       CALL iotk_write_begin(iun, 'a3')
-         WRITE(iun, '(3(E20.7))') obj%a3
+         WRITE(iun, '(3(E24.16))') obj%a3
       CALL iotk_write_end(iun, 'a3')
    CALL iotk_write_end(iun, TRIM(obj%tagname))
    !
@@ -5227,7 +5595,7 @@ SUBROUTINE qes_init_wyckoff_positions(obj, tagname, space_group, more_options, m
    LOGICAL  :: more_options_ispresent
    CHARACTER(len=*), OPTIONAL :: more_options
    INTEGER  :: ndim_atom
-   TYPE(atom_type), DIMENSION(:) :: atom
+   TYPE(atom_type ), DIMENSION( ndim_atom )  :: atom
 
    obj%tagname = TRIM(tagname)
 
@@ -5290,7 +5658,7 @@ SUBROUTINE qes_init_atomic_positions(obj, tagname, ndim_atom, atom)
    CHARACTER(len=*) :: tagname
    INTEGER  :: i
    INTEGER  :: ndim_atom
-   TYPE(atom_type), DIMENSION(:) :: atom
+   TYPE(atom_type ), DIMENSION( ndim_atom )  :: atom
 
    obj%tagname = TRIM(tagname)
    ALLOCATE(obj%atom(SIZE(atom)))
@@ -5330,6 +5698,9 @@ SUBROUTINE qes_write_atomic_structure(iun, obj)
    IF(obj%alat_ispresent) THEN
       CALL iotk_write_attr(attr, 'alat', obj%alat)
    END IF
+   IF(obj%bravais_index_ispresent) THEN
+      CALL iotk_write_attr(attr, 'bravais_index', obj%bravais_index)
+   END IF
 
    CALL iotk_write_begin(iun, TRIM(obj%tagname), attr=TRIM(attr))
       !
@@ -5350,6 +5721,7 @@ SUBROUTINE qes_write_atomic_structure(iun, obj)
 END SUBROUTINE qes_write_atomic_structure
 
 SUBROUTINE qes_init_atomic_structure(obj, tagname, nat, alat, alat_ispresent, &
+                              bravais_index, bravais_index_ispresent, &
                               atomic_positions_ispresent, atomic_positions, &
                               wyckoff_positions_ispresent, wyckoff_positions, cell)
    IMPLICIT NONE
@@ -5360,6 +5732,8 @@ SUBROUTINE qes_init_atomic_structure(obj, tagname, nat, alat, alat_ispresent, &
    INTEGER  :: nat
    LOGICAL  :: alat_ispresent
    REAL(DP), OPTIONAL :: alat
+   LOGICAL  :: bravais_index_ispresent
+   INTEGER , OPTIONAL :: bravais_index
    LOGICAL  :: atomic_positions_ispresent
    TYPE(atomic_positions_type) :: atomic_positions
    LOGICAL  :: wyckoff_positions_ispresent
@@ -5374,6 +5748,12 @@ SUBROUTINE qes_init_atomic_structure(obj, tagname, nat, alat, alat_ispresent, &
    obj%alat_ispresent = alat_ispresent
    IF (obj%alat_ispresent) THEN
       obj%alat = alat
+   ENDIF
+
+
+   obj%bravais_index_ispresent = bravais_index_ispresent
+   IF (obj%bravais_index_ispresent) THEN
+      obj%bravais_index = bravais_index
    ENDIF
 
    obj%atomic_positions_ispresent = atomic_positions_ispresent
@@ -5435,12 +5815,25 @@ SUBROUTINE qes_write_step(iun, obj)
          !
       ENDIF
       !
+      IF(obj%FCP_force_ispresent) THEN
+         CALL iotk_write_begin(iun, 'FCP_force')
+            WRITE(iun, '(E24.16)') obj%FCP_force
+         CALL iotk_write_end(iun, 'FCP_force')
+      ENDIF
+      !
+      IF(obj%FCP_tot_charge_ispresent) THEN
+         CALL iotk_write_begin(iun, 'FCP_tot_charge')
+            WRITE(iun, '(E24.16)') obj%FCP_tot_charge
+         CALL iotk_write_end(iun, 'FCP_tot_charge')
+      ENDIF
+      !
    CALL iotk_write_end(iun, TRIM(obj%tagname))
    !
 END SUBROUTINE qes_write_step
 
 SUBROUTINE qes_init_step(obj, tagname, n_step, scf_conv, atomic_structure, total_energy, &
-                              forces, stress_ispresent, stress)
+                              forces, stress_ispresent, stress, FCP_force_ispresent, &
+                              FCP_force, FCP_tot_charge_ispresent, FCP_tot_charge)
    IMPLICIT NONE
 
    TYPE(step_type) :: obj
@@ -5453,6 +5846,10 @@ SUBROUTINE qes_init_step(obj, tagname, n_step, scf_conv, atomic_structure, total
    TYPE(matrix_type) :: forces
    LOGICAL  :: stress_ispresent
    TYPE(matrix_type) :: stress
+   LOGICAL  :: FCP_force_ispresent
+   REAL(DP) :: FCP_force
+   LOGICAL  :: FCP_tot_charge_ispresent
+   REAL(DP) :: FCP_tot_charge
 
    obj%tagname = TRIM(tagname)
 
@@ -5465,6 +5862,14 @@ SUBROUTINE qes_init_step(obj, tagname, n_step, scf_conv, atomic_structure, total
    obj%stress_ispresent = stress_ispresent
    IF(obj%stress_ispresent) THEN
       obj%stress = stress
+   ENDIF
+   obj%FCP_force_ispresent = FCP_force_ispresent
+   IF(obj%FCP_force_ispresent) THEN
+      obj%FCP_force = FCP_force
+   ENDIF
+   obj%FCP_tot_charge_ispresent = FCP_tot_charge_ispresent
+   IF(obj%FCP_tot_charge_ispresent) THEN
+      obj%FCP_tot_charge = FCP_tot_charge
    ENDIF
 
 END SUBROUTINE qes_init_step
@@ -5483,6 +5888,12 @@ SUBROUTINE qes_reset_step(obj)
    IF(obj%stress_ispresent) THEN
       CALL qes_reset_matrix(obj%stress)
       obj%stress_ispresent = .FALSE.
+   ENDIF
+   IF(obj%FCP_force_ispresent) THEN
+      obj%FCP_force_ispresent = .FALSE.
+   ENDIF
+   IF(obj%FCP_tot_charge_ispresent) THEN
+      obj%FCP_tot_charge_ispresent = .FALSE.
    ENDIF
 
 END SUBROUTINE qes_reset_step
@@ -5518,7 +5929,7 @@ SUBROUTINE qes_init_atomic_species(obj, tagname, ntyp, ndim_species, species)
    INTEGER  :: i
    INTEGER  :: ntyp
    INTEGER  :: ndim_species
-   TYPE(species_type), DIMENSION(:) :: species
+   TYPE(species_type ), DIMENSION( ndim_species )  :: species
 
    obj%tagname = TRIM(tagname)
 
@@ -5595,6 +6006,18 @@ SUBROUTINE qes_write_output(iun, obj)
          !
       ENDIF
       !
+      IF(obj%FCP_force_ispresent) THEN
+         CALL iotk_write_begin(iun, 'FCP_force')
+            WRITE(iun, '(E24.16)') obj%FCP_force
+         CALL iotk_write_end(iun, 'FCP_force')
+      ENDIF
+      !
+      IF(obj%FCP_tot_charge_ispresent) THEN
+         CALL iotk_write_begin(iun, 'FCP_tot_charge')
+            WRITE(iun, '(E24.16)') obj%FCP_tot_charge
+         CALL iotk_write_end(iun, 'FCP_tot_charge')
+      ENDIF
+      !
    CALL iotk_write_end(iun, TRIM(obj%tagname))
    !
 END SUBROUTINE qes_write_output
@@ -5603,7 +6026,9 @@ SUBROUTINE qes_init_output(obj, tagname, convergence_info, algorithmic_info, &
                               atomic_species, atomic_structure, symmetries, basis_set, dft, &
                               magnetization, total_energy, band_structure, &
                               forces_ispresent, forces, stress_ispresent, stress, &
-                              electric_field_ispresent, electric_field)
+                              electric_field_ispresent, electric_field, &
+                              FCP_force_ispresent, FCP_force, FCP_tot_charge_ispresent, &
+                              FCP_tot_charge)
    IMPLICIT NONE
 
    TYPE(output_type) :: obj
@@ -5625,6 +6050,10 @@ SUBROUTINE qes_init_output(obj, tagname, convergence_info, algorithmic_info, &
    TYPE(matrix_type) :: stress
    LOGICAL  :: electric_field_ispresent
    TYPE(outputElectricField_type) :: electric_field
+   LOGICAL  :: FCP_force_ispresent
+   REAL(DP) :: FCP_force
+   LOGICAL  :: FCP_tot_charge_ispresent
+   REAL(DP) :: FCP_tot_charge
 
    obj%tagname = TRIM(tagname)
    obj%convergence_info = convergence_info
@@ -5648,6 +6077,14 @@ SUBROUTINE qes_init_output(obj, tagname, convergence_info, algorithmic_info, &
    obj%electric_field_ispresent = electric_field_ispresent
    IF(obj%electric_field_ispresent) THEN
       obj%electric_field = electric_field
+   ENDIF
+   obj%FCP_force_ispresent = FCP_force_ispresent
+   IF(obj%FCP_force_ispresent) THEN
+      obj%FCP_force = FCP_force
+   ENDIF
+   obj%FCP_tot_charge_ispresent = FCP_tot_charge_ispresent
+   IF(obj%FCP_tot_charge_ispresent) THEN
+      obj%FCP_tot_charge = FCP_tot_charge
    ENDIF
 
 END SUBROUTINE qes_init_output
@@ -5680,6 +6117,12 @@ SUBROUTINE qes_reset_output(obj)
    IF(obj%electric_field_ispresent) THEN
       CALL qes_reset_outputElectricField(obj%electric_field)
       obj%electric_field_ispresent = .FALSE.
+   ENDIF
+   IF(obj%FCP_force_ispresent) THEN
+      obj%FCP_force_ispresent = .FALSE.
+   ENDIF
+   IF(obj%FCP_tot_charge_ispresent) THEN
+      obj%FCP_tot_charge_ispresent = .FALSE.
    ENDIF
 
 END SUBROUTINE qes_reset_output
@@ -5860,14 +6303,20 @@ SUBROUTINE qes_write_control_variables(iun, obj)
       CALL iotk_write_begin(iun, 'max_seconds')
          WRITE(iun, '(I12)') obj%max_seconds
       CALL iotk_write_end(iun, 'max_seconds')
+      IF(obj%nstep_ispresent) THEN
+         CALL iotk_write_begin(iun, 'nstep')
+            WRITE(iun, '(I12)') obj%nstep
+         CALL iotk_write_end(iun, 'nstep')
+      ENDIF
+      !
       CALL iotk_write_begin(iun, 'etot_conv_thr')
-         WRITE(iun, '(E20.7)') obj%etot_conv_thr
+         WRITE(iun, '(E24.16)') obj%etot_conv_thr
       CALL iotk_write_end(iun, 'etot_conv_thr')
       CALL iotk_write_begin(iun, 'forc_conv_thr')
-         WRITE(iun, '(E20.7)') obj%forc_conv_thr
+         WRITE(iun, '(E24.16)') obj%forc_conv_thr
       CALL iotk_write_end(iun, 'forc_conv_thr')
       CALL iotk_write_begin(iun, 'press_conv_thr')
-         WRITE(iun, '(E20.7)') obj%press_conv_thr
+         WRITE(iun, '(E24.16)') obj%press_conv_thr
       CALL iotk_write_end(iun, 'press_conv_thr')
       CALL iotk_write_begin(iun, 'verbosity',new_line=.FALSE.)
          WRITE(iun, '(A)',advance='no')  TRIM(obj%verbosity)
@@ -5881,8 +6330,8 @@ END SUBROUTINE qes_write_control_variables
 
 SUBROUTINE qes_init_control_variables(obj, tagname, title, calculation, restart_mode, &
                               prefix, pseudo_dir, outdir, stress, forces, wf_collect, &
-                              disk_io, max_seconds, etot_conv_thr, forc_conv_thr, &
-                              press_conv_thr, verbosity, print_every)
+                              disk_io, max_seconds, nstep_ispresent, nstep, etot_conv_thr, &
+                              forc_conv_thr, press_conv_thr, verbosity, print_every)
    IMPLICIT NONE
 
    TYPE(control_variables_type) :: obj
@@ -5899,6 +6348,8 @@ SUBROUTINE qes_init_control_variables(obj, tagname, title, calculation, restart_
    LOGICAL  :: wf_collect
    CHARACTER(len=*) :: disk_io
    INTEGER  :: max_seconds
+   LOGICAL  :: nstep_ispresent
+   INTEGER  :: nstep
    REAL(DP) :: etot_conv_thr
    REAL(DP) :: forc_conv_thr
    REAL(DP) :: press_conv_thr
@@ -5917,6 +6368,10 @@ SUBROUTINE qes_init_control_variables(obj, tagname, title, calculation, restart_
    obj%wf_collect = wf_collect
    obj%disk_io = disk_io
    obj%max_seconds = max_seconds
+   obj%nstep_ispresent = nstep_ispresent
+   IF(obj%nstep_ispresent) THEN
+      obj%nstep = nstep
+   ENDIF
    obj%etot_conv_thr = etot_conv_thr
    obj%forc_conv_thr = forc_conv_thr
    obj%press_conv_thr = press_conv_thr
@@ -5932,6 +6387,9 @@ SUBROUTINE qes_reset_control_variables(obj)
 
    obj%tagname = ""
 
+   IF(obj%nstep_ispresent) THEN
+      obj%nstep_ispresent = .FALSE.
+   ENDIF
 
 END SUBROUTINE qes_reset_control_variables
 

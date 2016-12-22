@@ -12,20 +12,20 @@
   !----------------------------------------------------------------------
   SUBROUTINE dvqpsi_us3 (ik, uact, addnlcc, xxk, xq0)
   !----------------------------------------------------------------------
-  !
-  ! This routine calculates dV_bare/dtau * psi for one perturbation
-  ! with a given q. The displacements are described by a vector u.
-  ! The result is stored in dvpsi. The routine is called for each k point
-  ! and for each pattern u. It computes simultaneously all the bands.
-  !
-  ! RM - Nov/Dec 2014 
-  ! Imported the noncolinear case implemented by xlzhang
-  !
+  !!
+  !! This routine calculates dV_bare/dtau * psi for one perturbation
+  !! with a given q. The displacements are described by a vector u.
+  !! The result is stored in dvpsi. The routine is called for each k point
+  !! and for each pattern u. It computes simultaneously all the bands.
+  !!
+  !! RM - Nov/Dec 2014 
+  !! Imported the noncolinear case implemented by xlzhang
+  !!
   USE kinds,                 ONLY : DP
   USE ions_base,             ONLY : nat, ityp
   USE cell_base,             ONLY : tpiba
-  USE fft_base,              ONLY: dfftp, dffts
-  USE fft_interfaces,        ONLY: fwfft, invfft
+  USE fft_base,              ONLY : dfftp, dffts
+  USE fft_interfaces,        ONLY : fwfft, invfft
   USE gvect,                 ONLY : eigts1, eigts2, eigts3, mill, g, nl, &
                                     ngm
   USE gvecs,                 ONLY : ngms, doublegrid, nls
@@ -39,23 +39,26 @@
   USE eqv,                   ONLY : dvpsi, dmuxc, vlocq
   USE qpoint,                ONLY : eigqts, npwq !, ikks
   USE klist,                 ONLY : ngk
-  USE elph2,                 ONLY : igkq, igk
+  USE elph2,                 ONLY : igkq, igk, lower_band, upper_band
 
   implicit none
   !
-  !   The dummy variables
+  LOGICAL, INTENT (in) :: addnlcc
+  !! True if NLCC is present
   !
-  integer :: ik, npw
-  ! input: the k point
-  real(kind=DP) :: xq0(3), xxk(3)
-  complex(DP) :: uact (3 * nat)
-  ! input: the pattern of displacements
-  logical :: addnlcc
+  INTEGER, INTENT (in) :: ik
+  !! Counter on k-point
+  ! 
+  REAL(kind=DP), INTENT (in) :: xq0(3)
+  !! Current coarse q-point coordinate
+  REAL(kind=DP), INTENT (in) :: xxk(3)
+  !! k-point coordinate
+  ! 
+  COMPLEX(kind=DP), INTENT (in) :: uact (3 * nat)
+  !! the pattern of displacements
   !
-  !   And the local variables
-  !
-
-  integer :: na, mu, ig, nt, ibnd, ir, is, ip
+  ! Local variables
+  integer :: na, mu, ig, nt, ibnd, ir, is, ip, npw
   ! counter on atoms
   ! counter on modes
   ! the point k
@@ -76,11 +79,8 @@
   CALL start_clock ('dvqpsi_us')
   !IF (nlcc_any) THEN
   ! SP - changed according to QE5/PH/dvqpsi_us
-  !htg = dffts%have_task_groups
   npw  = ngk(ik)
 
-
-  dffts%have_task_groups=.FALSE.
   IF (nlcc_any.AND.addnlcc) THEN
      ALLOCATE (aux( dfftp%nnr))
      IF (doublegrid) then
@@ -97,13 +97,6 @@
   !    reciprocal space while the product with the wavefunction is done in
   !    real space
   !
-! RM - I don't think we need this
-!  IF (lgamma) THEN
-!     ikk = ik
-!  ELSE
-!     ikk = 2 * ik - 1
-!  ENDIF
- ! ikk = ikks(ik)
   dvpsi(:,:) = (0.d0, 0.d0)
   aux1(:) = (0.d0, 0.d0)
   DO na = 1, nat
@@ -178,7 +171,7 @@
   ! Now we compute dV_loc/dtau in real space
   !
   CALL invfft ('Smooth', aux1, dffts)
-  DO ibnd = 1, nbnd
+  DO ibnd = lower_band, upper_band
      DO ip = 1, npol
         aux2(:) = (0.d0, 0.d0)
         IF ( ip == 1 ) THEN

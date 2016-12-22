@@ -2,13 +2,11 @@
 # Makefile for atomic code
 #
 
-include ../../make.sys
+include ../../make.inc
 
 # location of needed modules and included files (if any)
 MODFLAGS= $(MOD_FLAG)../../iotk/src $(MOD_FLAG)../../Modules $(MOD_FLAG)../../FFTXlib $(MOD_FLAG)../../LAXlib $(MOD_FLAG).
 IFLAGS=
-
-LIBOBJS = ../../iotk/src/libiotk.a ../../clib/clib.a 
 
 LD1OBJS = \
 add_exchange.o \

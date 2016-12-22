@@ -17,7 +17,8 @@ subroutine cch_psi_all (n, h, ah, e, ik, m)
   USE kinds, only : DP
   USE becmod, ONLY : becp, calbec
   USE uspp, ONLY: nkb, vkb
-  USE wvfct, ONLY : npwx, nbnd
+  USE wvfct, ONLY : npwx, nbnd, current_k
+  USE klist, ONLY : igk_k
   USE noncollin_module, ONLY : noncolin, npol
 
   USE eqv,  ONLY : evq
@@ -63,7 +64,10 @@ subroutine cch_psi_all (n, h, ah, e, ik, m)
   !
   !   compute the product of the hamiltonian with the h vector
   !
-  call h_psiq (npwx, n, m, h, hpsi, spsi)
+  ikq = ikqs(ik)
+  current_k = ikq  ! used in h_psi
+  CALL h_psi (npwx, n, m, h, hpsi)
+  CALL s_psi (npwx, n, m, h, spsi)
 
   call start_clock ('last')
   !
@@ -84,7 +88,6 @@ subroutine cch_psi_all (n, h, ah, e, ik, m)
   !
   !   Here we compute the projector in the valence band
   !
-  ikq = ikqs(ik)
   ps (:,:) = (0.d0, 0.d0)
 
   IF (noncolin) THEN

@@ -13,7 +13,6 @@ SUBROUTINE stop_lr( full_run  )
   !
   USE kinds,                ONLY : DP
   USE mp_global,            ONLY : mp_global_end
-  USE parallel_include
   USE lr_variables,         ONLY : n_ipol, LR_polarization, beta_store,          &
                                  & gamma_store, zeta_store, norm0, code1,code2,  &
                                  & lr_verbosity, itermax, bgz_suffix,            &
@@ -27,7 +26,7 @@ SUBROUTINE stop_lr( full_run  )
   USE cell_base,            ONLY : celldm, at, bg, alat, omega
   USE klist,                ONLY : nelec
   USE buffers,              ONLY : close_buffer
-#ifdef __ENVIRON
+#if defined(__ENVIRON)
   USE plugin_flags,         ONLY : use_environ
   USE solvent_tddfpt,       ONLY : solvent_clean_tddfpt
 #endif  
@@ -47,10 +46,7 @@ SUBROUTINE stop_lr( full_run  )
   ! Write beta, gamma, and z coefficents to output directory for
   ! easier post processing. These can also be read from the output log file.
   !
-  IF (full_run) THEN
-#ifdef __MPI
-  IF (ionode) THEN
-#endif
+  IF (full_run .AND. ionode) THEN
   !
   DO ip = 1,n_ipol
      !
@@ -133,17 +129,13 @@ SUBROUTINE stop_lr( full_run  )
      !
   ENDDO
   !
-#ifdef __MPI
-  ENDIF
-#endif
-  !
   ENDIF
   !
   ! Deallocate lr variables
   !
   CALL lr_dealloc()
   !
-#ifdef __ENVIRON
+#if defined(__ENVIRON)
   !
   ! Deallocate Environ related arrays
   !
@@ -158,14 +150,6 @@ SUBROUTINE stop_lr( full_run  )
   ENDIF
   !
   CALL mp_global_end( )
-  !
-#if defined (__T3E)
-  !
-  ! ... set streambuffers off
-  !
-  CALL set_d_stream( 0 )
-  !
-#endif
   !
   ! EELS: Close the file where it read the wavefunctions at k and k+q.
   !

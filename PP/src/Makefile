@@ -1,6 +1,6 @@
 # Makefile for postprocessing (PP)
 
-include ../../make.sys
+include ../../make.inc
 
 # location of needed modules and included files (if any)
 MODFLAGS= $(MOD_FLAG)../../iotk/src $(MOD_FLAG)../../Modules \
@@ -44,7 +44,6 @@ sym_band.o \
 work_function.o \
 write_p_avg.o \
 write_proj.o \
-xk_et_collect.o \
 write_io_header.o \
 write_hamiltonians.o 
 
@@ -54,8 +53,6 @@ QEOBJS = ../../Modules/libqemod.a ../../FFTXlib/libqefft.a ../../LAXlib/libqela.
 MODULES = $(PWOBJS) $(QEOBJS)
 
 TLDEPS= bindir mods libs pw
-
-LIBOBJS = ../../clib/clib.a ../../iotk/src/libiotk.a
 
 all : tldeps average.x bands.x dos.x epsilon.x initial_state.x fs.x \
       plan_avg.x plotband.x plotproj.x plotrho.x pmw.x pp.x projwfc.x \
@@ -144,9 +141,9 @@ pw2wannier90.x : pw2wannier90.o libpp.a $(MODULES) $(LIBOBJS)
 		pw2wannier90.o libpp.a $(MODULES) $(LIBOBJS) $(LIBS)
 	- ( cd ../../bin ; ln -fs ../PP/src/$@ . )
 
-wfck2r.x : wfck2r.o libpp.a $(PHOBJS) $(MODULES) $(LIBOBJS) 
+wfck2r.x : wfck2r.o libpp.a $(MODULES) $(LIBOBJS) 
 	$(LD) $(LDFLAGS) -o $@ \
-		wfck2r.o libpp.a $(PHOBJS) $(MODULES) $(LIBOBJS)  $(LIBS)
+		wfck2r.o libpp.a $(MODULES) $(LIBOBJS)  $(LIBS)
 	- ( cd ../../bin ; ln -fs ../PP/src/$@ . )
 
 initial_state.x : initial_state.o libpp.a $(MODULES) $(LIBOBJS)

@@ -1,10 +1,10 @@
 # Makefile for PW
 
-include ../../make.sys
+include ../../make.inc
 
 # location of needed modules and included files (if any)
 MODFLAGS= $(MOD_FLAG)../../iotk/src $(MOD_FLAG)../../Modules $(MOD_FLAG)../../FFTXlib $(MOD_FLAG)../../LAXlib
-IFLAGS=
+IFLAGS=-I$(VTUNE_AMPLIFIER_XE_2016_DIR)/include
 
 PWOBJS = \
 pwscf.o 
@@ -13,10 +13,13 @@ MANYPWOBJS = \
 manypw.o 
 
 PWLIBS = \
+api_itt_sde.o \
+module_itt_sde.o \
 a2fmod.o \
 add_bfield.o \
 add_efield.o \
 add_vuspsi.o \
+add_monofield.o \
 add_paw_to_deeq.o \
 add_vhub_to_deeq.o \
 addusdens.o \
@@ -67,6 +70,7 @@ divide.o \
 divide_et_impera.o \
 dqvan2.o \
 drhoc.o \
+run_driver.o \
 dvloc_of_g.o \
 dynamics_module.o \
 efermig.o \
@@ -109,6 +113,8 @@ hinit1.o \
 init_ns.o \
 init_q_aeps.o \
 init_run.o \
+init_us_0.o \
+init_us_b0.o \
 init_us_1.o \
 init_us_2.o \
 init_at_1.o \
@@ -163,6 +169,7 @@ print_clock_pw.o \
 print_ks_energies.o \
 punch.o \
 pw_restart.o \
+pw_restart_new.o \
 add_qexsd_step.o \
 pw_init_qexsd_input.o \
 pwcom.o \
@@ -175,6 +182,7 @@ rdiagh.o \
 rdiaghg.o \
 read_conf_from_file.o \
 read_file.o \
+read_file_new.o \
 regterg.o \
 remove_atomic_rho.o \
 report_mag.o \
@@ -196,7 +204,6 @@ set_kup_and_kdw.o \
 set_rhoc.o \
 set_vrs.o \
 setlocal.o \
-setqf.o \
 setup.o \
 spinor.o \
 sph_ind.o \
@@ -220,6 +227,7 @@ symme.o \
 symm_base.o \
 symmetrize_at.o \
 tabd.o \
+tetra.o \
 transform_becsum_so.o \
 transform_becsum_nc.o \
 transform_qq_so.o \
@@ -235,7 +243,6 @@ vhpsi.o \
 vloc_of_g.o \
 vloc_psi.o \
 xdm_dispersion.o \
-xk_wk_collect.o \
 wfcinit.o \
 write_ns.o \
 wsweight.o \
@@ -247,15 +254,19 @@ wannier_check.o \
 wannier_clean.o \
 wannier_occ.o \
 wannier_enrg.o \
-wyckoff.o       
+wyckoff.o
 
 QEMODS=../../Modules/libqemod.a ../../FFTXlib/libqefft.a ../../LAXlib/libqela.a
 
 TLDEPS=bindir mods libs liblapack libblas
 
-LIBOBJS	= ../../clib/clib.a ../../iotk/src/libiotk.a
-
 all : tldeps pw.x manypw.x generate_vdW_kernel_table.x generate_rVV10_kernel_table.x
+
+api_itt_sde.o : api_itt_sde.c 
+	$(CC) $(CFLAGS) -I${VTUNE_AMPLIFIER_XE_2016_DIR}/include -c $< -o $@
+
+module_itt_sde.o : api_itt_sde.o
+	$(F77) $(FFLAGS) -cpp -I${VTUNE_AMPLIFIER_XE_2016_DIR}/include -c module_itt_sde.f90 -o $@
 
 pw.x : $(PWOBJS) libpw.a $(LIBOBJS) $(QEMODS)
 	$(LD) $(LDFLAGS) -o $@ \

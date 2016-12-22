@@ -9,10 +9,9 @@
 
 MODULE dspev_module
 
+    USE la_param
 
     IMPLICIT NONE
-
-#include "la_param.f90"
 
     SAVE
 
@@ -96,12 +95,6 @@ CONTAINS
 !
 
       IMPLICIT NONE
-
-#if defined (__MPI)
-   !
-   include 'mpif.h'
-   !
-#endif
 
       LOGICAL, INTENT(IN) :: tv
       INTEGER, intent(in) :: N, NRL, LDA, LDV
@@ -427,12 +420,6 @@ CONTAINS
 
       IMPLICIT NONE
 
-#if defined (__MPI)
-   !
-   include 'mpif.h'
-   !
-#endif
-
       LOGICAL, INTENT(IN)  :: tv
       INTEGER, INTENT(IN)  :: n, nrl, ldz, mpime, comm
       REAL(DP) :: d(n), e(n)
@@ -664,11 +651,12 @@ CONTAINS
 #if defined __SCALAPACK
 
   SUBROUTINE pdsyevd_drv( tv, n, nb, s, lds, w, ortho_cntx, ortho_comm )
-#if defined(__ELPA)
-     USE elpa1
+     !
+#if defined(__ELPA) || defined(__ELPA_2016) || defined(__ELPA_2015)
+     use elpa1
 #endif
      IMPLICIT NONE
-
+     !
      LOGICAL, INTENT(IN)  :: tv  
        ! if tv is true compute eigenvalues and eigenvectors (not used)
      INTEGER, INTENT(IN)  :: nb, n, ortho_cntx, ortho_comm 
@@ -689,8 +677,11 @@ CONTAINS
      INTEGER     :: LWORK, LIWORK, info
      CHARACTER   :: jobv
      INTEGER     :: i, ierr
-#if defined(__ELPA)
+#if defined(__ELPA) || defined(__ELPA_2016) || defined(__ELPA_2015)     
      INTEGER     :: nprow,npcol,my_prow, my_pcol,mpi_comm_rows, mpi_comm_cols
+#if defined(__ELPA_2016)
+     LOGICAL     :: success
+#endif
 #endif 
 
      IF( SIZE( s, 1 ) /= lds ) &
@@ -712,11 +703,20 @@ CONTAINS
      itmp = 0
      rtmp = 0.0_DP
 
-#if defined(__ELPA)
+#if defined(__ELPA) || defined(__ELPA_2016) || defined(__ELPA_2015)
      CALL BLACS_Gridinfo(ortho_cntx,nprow, npcol, my_prow,my_pcol)
+
+#if defined(__ELPA_2016)
+     ierr = get_elpa_row_col_comms(ortho_comm, my_prow, my_pcol,mpi_comm_rows, mpi_comm_cols)
+     success = solve_evp_real_1stage(n,  n,   s, lds,    w,  vv, lds,SIZE(s,2),nb  ,mpi_comm_rows, mpi_comm_cols)
+#elif defined(__ELPA_2015)
+     ierr = get_elpa_row_col_comms(ortho_comm, my_prow, my_pcol,mpi_comm_rows, mpi_comm_cols)
+     ierr = solve_evp_real(n,  n,   s, lds,    w,  vv, lds,SIZE(s,2),nb  ,mpi_comm_rows, mpi_comm_cols)
+#elif defined(__ELPA)
      CALL get_elpa_row_col_comms(ortho_comm, my_prow, my_pcol,mpi_comm_rows, mpi_comm_cols)
      CALL solve_evp_real(n,  n,   s, lds,    w,  vv, lds     ,nb  ,mpi_comm_rows, mpi_comm_cols)
-     
+#endif
+
      IF( tv )  s = vv
      IF( ALLOCATED( vv ) ) DEALLOCATE( vv )
 
@@ -784,7 +784,7 @@ SUBROUTINE diagonalize_parallel( n, rhos, rhod, s, desc )
          !
          s = rhos
          !
-#ifdef __SCALAPACK
+#if defined(__SCALAPACK)
          CALL pdsyevd_drv( .true. , n, desc%nrcx, s, SIZE(s,1), rhod, desc%cntx, desc%comm )
 #else
          CALL qe_pdsyevd( .true., n, desc, s, SIZE(s,1), rhod )

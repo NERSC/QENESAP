@@ -73,6 +73,9 @@ SUBROUTINE init_clocks( go )
   no = .not. go
   nclock = 0
   !
+
+!TK: added master directive so that only thread 0 does something
+!$omp master
   DO n = 1, maxclock
      !
      called(n)      = 0
@@ -84,6 +87,8 @@ SUBROUTINE init_clocks( go )
      !
   ENDDO
   !
+!$omp end master
+
   RETURN
   !
 END SUBROUTINE init_clocks
@@ -109,10 +114,15 @@ SUBROUTINE start_clock( label )
   INTEGER          :: n
   REAL(DP), EXTERNAL :: scnds, cclock
   !
+
+!TK: added master directive so that only thread 0 does something
+!$omp master
 #if defined (__TRACE)
   WRITE( stdout, '("mpime = ",I2,", TRACE (depth=",I2,") Start: ",A12)') mpime, trace_depth, label
   trace_depth = trace_depth + 1
 #endif
+!$omp end master
+
   !
   IF ( no .and. ( nclock == 1 ) ) RETURN
   !
@@ -127,6 +137,7 @@ SUBROUTINE start_clock( label )
         ! ... found previously defined clock: check if not already started,
         ! ... store in t0cpu the starting time
         !
+!$omp master
         IF ( t0cpu(n) /= notrunning ) THEN
 !            WRITE( stdout, '("start_clock: clock # ",I2," for ",A12, &
 !                           & " already started")' ) n, label_
@@ -135,6 +146,8 @@ SUBROUTINE start_clock( label )
                    t0wall(n) = cclock()
         ENDIF
         !
+!$omp end master
+
         RETURN
         !
      ENDIF
@@ -143,6 +156,8 @@ SUBROUTINE start_clock( label )
   !
   ! ... clock not found : add new clock for given label
   !
+
+!$omp master
   IF ( nclock == maxclock ) THEN
      !
      WRITE( stdout, '("start_clock(",A,"): Too many clocks! call ignored")' ) label
@@ -156,6 +171,8 @@ SUBROUTINE start_clock( label )
      !
   ENDIF
   !
+!$omp end master
+
   RETURN
   !
 END SUBROUTINE start_clock
@@ -181,10 +198,15 @@ SUBROUTINE stop_clock( label )
   INTEGER          :: n
   REAL(DP), EXTERNAL :: scnds, cclock
   !
+
+!TK: added master directive so that only thread 0 does something
+!$omp master  
 #if defined (__TRACE)
   trace_depth = trace_depth - 1
   WRITE( *, '("mpime = ",I2,", TRACE (depth=",I2,") End: ",A12)') mpime, trace_depth, label
 #endif
+!$omp end master
+
   !
   IF ( no ) RETURN
   !
@@ -199,6 +221,7 @@ SUBROUTINE stop_clock( label )
         ! ... found previously defined clock : check if properly initialised,
         ! ... add elapsed time, increase the counter of calls
         !
+!$omp master 
         IF ( t0cpu(n) == notrunning ) THEN
            !
            WRITE( stdout, '("stop_clock: clock # ",I2," for ",A12, &
@@ -214,16 +237,22 @@ SUBROUTINE stop_clock( label )
            !
         ENDIF
         !
+!$omp end master 
+
         RETURN
         !
      ENDIF
      !
   ENDDO
+
+!$omp master
   !
   ! ... clock not found
   !
   WRITE( stdout, '("stop_clock: no clock for ",A12," found !")' ) label
   !
+!$omp end master
+
   RETURN
   !
 END SUBROUTINE stop_clock
@@ -242,6 +271,9 @@ SUBROUTINE print_clock( label )
   CHARACTER(len=12) :: label_
   INTEGER          :: n
   !
+  
+!TK: added master directive so that only thread 0 does something
+!$omp master 
   IF ( label == ' ' ) THEN
      !
      WRITE( stdout, * )
@@ -272,6 +304,8 @@ SUBROUTINE print_clock( label )
      !
   ENDIF
   !
+!$omp end master
+ 
   RETURN
   !
 END SUBROUTINE print_clock
@@ -299,6 +333,9 @@ SUBROUTINE print_this_clock( n )
   REAL(DP), EXTERNAL :: scnds, cclock
   !
   !
+  
+!TK: added master directive so that only thread 0 does something
+!$omp master
   IF ( t0cpu(n) == notrunning ) THEN
      !
      ! ... clock stopped, print the stored value for the cpu time
@@ -416,6 +453,8 @@ SUBROUTINE print_this_clock( n )
      !
   ENDIF
   !
+!$omp end master
+  
   RETURN
   !
 END SUBROUTINE print_this_clock

@@ -55,6 +55,13 @@ MODULE mp_exx
   ! flag for whether the exx part of the calculation is in progress
   !
   INTEGER :: exx_mode = 0
+  !
+  ! maximum number of bands for psi
+  !
+  INTEGER :: max_ibands
+  !
+  INTEGER :: jblock
+  !
 CONTAINS
   !
   !----------------------------------------------------------------------------
@@ -73,7 +80,8 @@ CONTAINS
     !
     INTEGER :: parent_nproc = 1, parent_mype = 0
     !
-    IF(nband_.le.1) THEN
+    !IF(nband_.le.1) THEN
+    IF(.FALSE.) THEN
        !
        ! revert to the old embedding method
        !
@@ -152,7 +160,10 @@ CONTAINS
     INTEGER :: ibnd, npairs, ncontributing
     INTEGER :: n_underloaded ! number of band groups that are under max load
     INTEGER :: pair_bands(nbnd,nbnd)
+
+    jblock = 7
     
+    max_ibands = CEILING(float(nbnd)/float(negrp))+2
     IF (ALLOCATED(all_start)) THEN
        DEALLOCATE( all_start, all_end )
        DEALLOCATE( iexx_istart, iexx_iend )
@@ -177,11 +188,18 @@ CONTAINS
           iexx_end = (myrank+1)*k + rest
        END IF
     ELSE
-       iexx_start = 1
-       iexx_end = nbnd
+       IF(my_egrp_id+1.le.m) THEN
+          iexx_start = my_egrp_id+1
+          iexx_end = my_egrp_id+1
+       ELSE
+          iexx_start = 0
+          iexx_end = 0
+       END IF
     END IF
 
     !determine iexx_start and iexx_end for all of the other bands
+    all_start = 0
+    all_end = 0
     DO i=1, negrp
        IF ( k >= 1 ) THEN
           IF ( rest > i-1 ) THEN
@@ -192,8 +210,13 @@ CONTAINS
              all_end(i) = i*k + rest
           END IF
        ELSE
-          iexx_start = 1
-          iexx_end = nbnd
+          IF(i.le.m) THEN
+             all_start(i) = i
+             all_end(i) = i
+          ELSE
+             all_start(i) = 0
+             all_end(i) = 0
+          END IF
        END IF
     END DO
 

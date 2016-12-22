@@ -24,8 +24,7 @@ SUBROUTINE phq_readin()
   USE ions_base,     ONLY : amass, atm
   USE input_parameters, ONLY : max_seconds, nk1, nk2, nk3, k1, k2, k3
   USE start_k,       ONLY : reset_grid
-  USE klist,         ONLY : xk, nks, nkstot, lgauss, two_fermi_energies, lgauss
-  USE ktetra,        ONLY : ltetra
+  USE klist,         ONLY : xk, nks, nkstot, lgauss, two_fermi_energies, ltetra
   USE control_flags, ONLY : gamma_only, tqr, restart, lkpoint_dir, io_level, &
                             ts_vdw
   USE funct,         ONLY : dft_is_nonlocc, dft_is_hybrid
@@ -668,10 +667,6 @@ SUBROUTINE phq_readin()
      CALL errore('phq_readin',&
      'pw.x run with a different number of pools. Use wf_collect=.true.',1)
   !
-  !   Task groups not used in phonon. Activated only in some places
-  !
-  IF (ntask_groups > 1) dffts%have_task_groups=.FALSE.
-
   IF (nproc_bgrp_file /= nproc_bgrp .AND. .NOT. twfcollect) &
      CALL errore('phq_readin','pw.x run with different band parallelization',1)
   
@@ -684,6 +679,9 @@ SUBROUTINE phq_readin()
   IF(elph.and.nimage>1) call errore('phq_readin',&
        'el-ph with images not implemented',1)
   
+  IF( fildvscf /= ' ' .and. nimage > 1 ) call errore('phq_readin',&
+       'saving dvscf to file images not implemented',1)
+
   IF (elph.OR.fildvscf /= ' ') lqdir=.TRUE.
 
   IF(dvscf_star%open.and.nimage>1) CALL errore('phq_readin',&

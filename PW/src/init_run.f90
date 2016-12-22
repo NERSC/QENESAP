@@ -18,20 +18,25 @@ SUBROUTINE init_run()
   USE dynamics_module,    ONLY : allocate_dyn_vars
   USE paw_variables,      ONLY : okpaw
   USE paw_init,           ONLY : paw_init_onecenter, allocate_paw_internals
-#ifdef __MPI
+#if defined(__MPI)
   USE paw_init,           ONLY : paw_post_init
 #endif
   USE bp,                 ONLY : allocate_bp_efield, bp_global_map
-  USE fft_base,           ONLY : dffts
+  USE fft_base,           ONLY : dffts, dtgs
   USE funct,              ONLY : dft_is_hybrid
   USE recvec_subs,        ONLY : ggen
   USE wannier_new,        ONLY : use_wannier    
   USE dfunct,             ONLY : newd
   USE esm,                ONLY : do_comp_esm, esm_init
-  USE mp_bands,           ONLY : intra_bgrp_comm, inter_bgrp_comm, nbgrp, root_bgrp
+  USE mp_bands,           ONLY : intra_bgrp_comm, inter_bgrp_comm, nbgrp, root_bgrp_id
   USE mp,                 ONLY : mp_bcast
   USE tsvdw_module,       ONLY : tsvdw_initialize
   USE wavefunctions_module, ONLY : evc
+#if defined(__HDF5)
+  USE hdf5_qe, ONLY : initialize_hdf5
+  USE wavefunctions_module,ONLY : evc
+#endif
+
   !
   IMPLICIT NONE
   !
@@ -42,14 +47,23 @@ SUBROUTINE init_run()
   !
   CALL pre_init()
   !
-  ! ... allocate memory for G- and R-space fft arrays
+  ! ... determine the data structure for fft arrays
   !
-  CALL allocate_fft()
+  CALL data_structure( gamma_only )
   !
   !<<<
   !IF ( dft_is_hybrid() .AND. dffts%have_task_groups ) &
   !   CALL errore ('init_run', '-ntg option incompatible with EXX',1)
   !>>>
+  !
+  ! ... print a summary and a memory estimate before starting allocating
+  !
+  CALL summary()
+  CALL memory_report()
+  !
+  ! ... allocate memory for G- and R-space fft arrays
+  !
+  CALL allocate_fft()
   !
   ! ... generate reciprocal-lattice vectors and fft indices
   !
@@ -66,8 +80,6 @@ SUBROUTINE init_run()
   !
   CALL sym_rho_init (gamma_only )
   !
-  CALL summary()
-  !
   ! ... allocate memory for all other arrays (potentials, wavefunctions etc)
   !
   CALL allocate_nlpot()
@@ -81,8 +93,6 @@ SUBROUTINE init_run()
   CALL bp_global_map()
   !
   call plugin_initbase()
-  !
-  CALL memory_report()
   !
   ALLOCATE( et( nbnd, nkstot ) , wg( nbnd, nkstot ), btype( nbnd, nkstot ) )
   !
@@ -103,12 +113,19 @@ SUBROUTINE init_run()
   CALL potinit()
   !
   CALL newd()
+#if defined(__HDF5)
+  ! calls h5open_f mandatory in any application using hdf5
+  CALL initialize_hdf5()
+#endif 
   !
+#if defined __HDF5
+  CALL initialize_hdf5()
+#endif
   CALL wfcinit()
   !
   IF(use_wannier) CALL wannier_init()
   !
-#ifdef __MPI
+#if defined(__MPI)
   ! Cleanup PAW arrays that are only used for init
   IF (okpaw) CALL paw_post_init() ! only parallel!
 #endif
@@ -116,7 +133,7 @@ SUBROUTINE init_run()
   IF ( lmd ) CALL allocate_dyn_vars()
   !
   IF( nbgrp > 1 ) THEN
-     CALL mp_bcast( evc, root_bgrp, inter_bgrp_comm )
+     CALL mp_bcast( evc, root_bgrp_id, inter_bgrp_comm )
   ENDIF
   !
   CALL stop_clock( 'init_run' )

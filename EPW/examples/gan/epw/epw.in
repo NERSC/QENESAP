@@ -10,6 +10,7 @@
   epbwrite    = .true.
   epbread     = .false.
 
+  etf_mem     = .false.
   lpolar      = .true.
 
   epwwrite    = .true.
@@ -24,12 +25,6 @@
   !dis_froz_max= 11
   proj(1)     = 'N:sp3'
   proj(2)     = 'Ga:d'
-
-  elinterp    = .true.
-  phinterp    = .true.
-
-  tshuffle2   = .true.
-  tphases     = .false.
 
   elecselfen  = .false.
   phonselfen  = .false.

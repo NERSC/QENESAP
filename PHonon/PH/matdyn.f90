@@ -188,7 +188,6 @@ PROGRAM matdyn
   INTEGER, ALLOCATABLE :: nqb(:)
   INTEGER :: n, i, j, it, nq, nqx, na, nb, ndos, iout, nqtot, iout_dyn, iout_eig
   LOGICAL, EXTERNAL :: has_xml
-  CHARACTER(LEN=15), ALLOCATABLE :: name_rap_mode(:)
   INTEGER, ALLOCATABLE :: num_rap_mode(:,:)
   LOGICAL, ALLOCATABLE :: high_sym(:)
   LOGICAL :: q_in_band_form
@@ -533,8 +532,8 @@ PROGRAM matdyn
 
         IF(na_ifc) THEN
 
-           qq=sqrt(q(1,n)**2+q(2,n)**2+q(3,n)**3)
-           if(qq == 0.0) qq=1.0
+           qq=sqrt(q(1,n)**2+q(2,n)**2+q(3,n)**2)
+           if(abs(qq) < 1d-8) qq=1.0
            qhat(1)=q(1,n)/qq
            qhat(2)=q(2,n)/qq
            qhat(3)=q(3,n)/qq
@@ -604,14 +603,11 @@ PROGRAM matdyn
         ! of the mode if there is an electric field.
         !
         IF (xmlifc.AND..NOT.lo_to_split) THEN
-             ALLOCATE(name_rap_mode(3*nat))
              WRITE(stdout,'(10x,"xq=",3F8.4)') q(:,n)
              CALL find_representations_mode_q(nat,ntyp,q(:,n), &
-                       w2(:,n),z,tau,ityp,amass,name_rap_mode, &
-                       num_rap_mode(:,n), nspin_mag)
+                       w2(:,n),z,tau,ityp,amass, num_rap_mode(:,n), nspin_mag)
             IF (code_group==code_group_old.OR.high_sym(n-1)) high_sym(n)=.FALSE.
             code_group_old=code_group
-            DEALLOCATE(name_rap_mode)
         ENDIF
 
         IF (eigen_similarity) THEN
@@ -911,7 +907,7 @@ SUBROUTINE frc_blk(dyn,q,tau,nat,nr1,nr2,nr3,frc,at,bg,rws,nrws,f_of_q,fd)
   USE io_global,  ONLY : stdout
   !
   IMPLICIT NONE
-  INTEGER nr1, nr2, nr3, nat, n1, n2, n3, &
+  INTEGER nr1, nr2, nr3, nat, n1, n2, n3, nr1_, nr2_, nr3_, &
           ipol, jpol, na, nb, m1, m2, m3, nint, i,j, nrws, nax
   COMPLEX(DP) dyn(3,3,nat,nat), f_of_q(3,3,nat,nat)
   REAL(DP) frc(nr1,nr2,nr3,3,3,nat,nat), tau(3,nat), q(3), arg, &
@@ -923,16 +919,19 @@ SUBROUTINE frc_blk(dyn,q,tau,nat,nr1,nr2,nr3,frc,at,bg,rws,nrws,f_of_q,fd)
   LOGICAL,SAVE :: first=.true.
   LOGICAL :: fd
   !
+  nr1_=2*nr1
+  nr2_=2*nr2
+  nr3_=2*nr3
   FIRST_TIME : IF (first) THEN
     first=.false.
-    ALLOCATE( wscache(-2*nr3:2*nr3, -2*nr2:2*nr2, -2*nr1:2*nr1, nat,nat) )
+    ALLOCATE( wscache(-nr3_:nr3_, -nr2_:nr2_, -nr1_:nr1_, nat,nat) )
     DO na=1, nat
        DO nb=1, nat
           total_weight=0.0d0
           !
-          DO n1=-2*nr1,2*nr1
-             DO n2=-2*nr2,2*nr2
-                DO n3=-2*nr3,2*nr3
+          DO n1=-nr1_,nr1_
+             DO n2=-nr2_,nr2_
+                DO n3=-nr3_,nr3_
                    DO i=1, 3
                       r(i) = n1*at(i,1)+n2*at(i,2)+n3*at(i,3)
                       r_ws(i) = r(i) + tau(i,na)-tau(i,nb)
@@ -953,9 +952,9 @@ SUBROUTINE frc_blk(dyn,q,tau,nat,nr1,nr2,nr3,frc,at,bg,rws,nrws,f_of_q,fd)
   DO na=1, nat
      DO nb=1, nat
         total_weight=0.0d0
-        DO n1=-2*nr1,2*nr1
-           DO n2=-2*nr2,2*nr2
-              DO n3=-2*nr3,2*nr3
+        DO n1=-nr1_,nr1_
+           DO n2=-nr2_,nr2_
+              DO n3=-nr3_,nr3_
                  !
                  ! SUM OVER R VECTORS IN THE SUPERCELL - VERY VERY SAFE RANGE!
                  !
@@ -1004,29 +1003,6 @@ SUBROUTINE frc_blk(dyn,q,tau,nat,nr1,nr2,nr3,frc,at,bg,rws,nrws,f_of_q,fd)
      END DO
   END DO
   !
-!  alat=10.2
-!  nax=0
-!  DO n1=1,nr1
-!     DO n2=1,nr2
-!        DO n3=1,nr3
-!           do na=1,nat
-!              nax=nax+1
-!              do i=1,3
-!                 tttx(i,nax)=ttt(i,na,n1,n2,n3)*alat*0.529177
-!              end do
-!           end do
-!        end do
-!     end do
-!  end do
-!
-!  do nb=1,nat
-!     write(6,'(3(f15.9,1x))') tau(1,nb),tau(2,nb),tau(3,nb)
-!  enddo
-!  print*, '========='
-!  do nb=1,nat*nr1*nr2*nr3
-!     write(6,'(3(f15.9,1x))') tttx(1,nb),tttx(2,nb),tttx(3,nb)
-!  enddo
-! 
   RETURN
 END SUBROUTINE frc_blk
 !
@@ -1208,7 +1184,6 @@ SUBROUTINE set_asr (asr, nr1, nr2, nr3, frc, zeu, nat, ibrav, tau)
       return
       !
    end if
-
   if(asr.eq.'crystal') n=3
   if(asr.eq.'one-dim') then
      ! the direction of periodicity is the rotation axis
@@ -2028,7 +2003,7 @@ SUBROUTINE gen_qpoints (ibrav, at_, bg_, nat, tau, ityp, nk1, nk2, nk3, &
        CALL errore ('gen_qpoints','inconsistent ntetra',1)
   !
   CALL tetrahedra (nsym, s, time_reversal, t_rev, at, bg, nqx, 0, 0, 0, &
-       nk1, nk2, nk3, nq, q, wk, ntetra, tetra)
+       nk1, nk2, nk3, nq, q, ntetra, tetra)
   !
   RETURN
 END SUBROUTINE gen_qpoints
@@ -2498,13 +2473,12 @@ end subroutine readfg
 !
 !
 SUBROUTINE find_representations_mode_q ( nat, ntyp, xq, w2, u, tau, ityp, &
-                  amass, name_rap_mode, num_rap_mode, nspin_mag )
+                  amass, num_rap_mode, nspin_mag )
 
   USE kinds,      ONLY : DP
   USE cell_base,  ONLY : at, bg
-  USE symm_base,  ONLY : find_sym, s, sr, ftau, irt, nsym, &
-                         nrot, t_rev, time_reversal, sname, copy_sym, &
-                         s_axis_to_cart
+  USE symm_base,  ONLY : s, sr, ftau, irt, nsym, nrot, t_rev, time_reversal,&
+                         sname, copy_sym, s_axis_to_cart
 
   IMPLICIT NONE
   INTEGER, INTENT(IN) :: nat, ntyp, nspin_mag
@@ -2512,7 +2486,6 @@ SUBROUTINE find_representations_mode_q ( nat, ntyp, xq, w2, u, tau, ityp, &
   REAL(DP), INTENT(IN) :: w2(3*nat)
   INTEGER, INTENT(IN) :: ityp(nat)
   COMPLEX(DP), INTENT(IN) :: u(3*nat,3*nat)
-  CHARACTER(15), INTENT(OUT) :: name_rap_mode(3*nat)
   INTEGER, INTENT(OUT) :: num_rap_mode(3*nat)
   REAL(DP) :: gi (3, 48), gimq (3), sr_is(3,3,48), rtau(3,48,nat)
   INTEGER :: irotmq, nsymq, nsym_is, isym, i, ierr
@@ -2549,7 +2522,7 @@ SUBROUTINE find_representations_mode_q ( nat, ntyp, xq, w2, u, tau, ityp, &
      CALL prepare_sym_analysis(nsymq,sr,t_rev,magnetic_sym)
      sym (1:nsym) = .TRUE.
      CALL sgam_ph_new (at, bg, nsym, s, irt, tau, rtau, nat)
-     CALL find_mode_sym_new (u, w2, tau, nat, nsymq, sr, irt, xq,    &
+     CALL find_mode_sym_new (u, w2, tau, nat, nsymq, s, sr, irt, xq,    &
              rtau, amass, ntyp, ityp, 1, .FALSE., .FALSE., num_rap_mode, ierr)
 
   ENDIF

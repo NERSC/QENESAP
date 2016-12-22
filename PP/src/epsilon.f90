@@ -153,8 +153,7 @@ PROGRAM epsilon
   USE io_files,    ONLY : tmp_dir, prefix
   USE constants,   ONLY : RYTOEV
   USE ener,        ONLY : ef
-  USE klist,       ONLY : lgauss
-  USE ktetra,      ONLY : ltetra
+  USE klist,       ONLY : lgauss, ltetra
   USE wvfct,       ONLY : nbnd
   USE lsda_mod,    ONLY : nspin
   USE mp_global,   ONLY : mp_startup
@@ -187,7 +186,7 @@ PROGRAM epsilon
 !
   ! initialise environment
   !
-#ifdef __MPI
+#if defined(__MPI)
   CALL mp_startup ( )
 #endif
   CALL environment_start ( 'epsilon' )
