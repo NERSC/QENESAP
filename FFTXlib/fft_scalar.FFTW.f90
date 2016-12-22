@@ -36,7 +36,7 @@
 !=----------------------------------------------------------------------=!
 !
 
-   SUBROUTINE cft_1z(c, nsl, nz, ldz, isign, cout, is_exx)
+   SUBROUTINE cft_1z(c, nsl, nz, ldz, isign, cout)
 
 !     driver routine for nsl 1d complex fft's of length nz
 !     ldz >= nz is the distance between sequences to be transformed
@@ -49,19 +49,13 @@
 
      INTEGER, INTENT(IN) :: isign
      INTEGER, INTENT(IN) :: nsl, nz, ldz
-     LOGICAL, OPTIONAL, INTENT(IN) :: is_exx
-     LOGICAL :: is_exx_
 
      COMPLEX (DP) :: c(:), cout(:)
 
      REAL (DP)  :: tscale
      INTEGER    :: i, err, idir, ip, void
-     INTEGER :: zdims( 3, ndims ) = -1
-     INTEGER :: icurrent = 1
-     INTEGER, SAVE :: zdims_local( 3, ndims ) = -1
-     INTEGER, SAVE :: icurrent_local = 1
-     INTEGER, SAVE :: zdims_exx( 3, ndims ) = -1
-     INTEGER, SAVE :: icurrent_exx = 1
+     INTEGER, SAVE :: zdims( 3, ndims ) = -1
+     INTEGER, SAVE :: icurrent = 1
      LOGICAL :: found
 
      INTEGER :: tid
@@ -77,29 +71,8 @@
      !   for 32bit executables, C_POINTER is integer(4)
      !   for 64bit executables, C_POINTER is integer(8)
 
-     C_POINTER :: fw_planz( ndims ) = 0
-     C_POINTER :: bw_planz( ndims ) = 0
-     C_POINTER, SAVE :: fw_planz_local( ndims ) = 0
-     C_POINTER, SAVE :: bw_planz_local( ndims ) = 0
-     C_POINTER, SAVE :: fw_planz_exx( ndims ) = 0
-     C_POINTER, SAVE :: bw_planz_exx( ndims ) = 0
-
-     IF(PRESENT(is_exx))THEN
-        is_exx_ = is_exx
-     ELSE
-        is_exx_ = .FALSE.
-     END IF
-     IF(is_exx_)THEN
-        zdims = zdims_exx
-        icurrent = icurrent_exx
-        fw_planz = fw_planz_exx
-        bw_planz = bw_planz_exx
-     ELSE
-        zdims = zdims_local
-        icurrent = icurrent_local
-        fw_planz = fw_planz_local
-        bw_planz = bw_planz_local
-     END IF
+     C_POINTER, SAVE :: fw_planz( ndims ) = 0
+     C_POINTER, SAVE :: bw_planz( ndims ) = 0
 
      IF( nsl < 0 ) THEN
        CALL fftx_error__(" fft_scalar: cft_1z ", " nsl out of range ", nsl)
@@ -177,18 +150,6 @@
      CALL stop_clock( 'cft_1z' )
 #endif
 
-     IF(is_exx_)THEN
-        zdims_exx = zdims
-        icurrent_exx = icurrent
-        fw_planz_exx = fw_planz
-        bw_planz_exx = bw_planz
-     ELSE
-        zdims_local = zdims
-        icurrent_local = icurrent
-        fw_planz_local = fw_planz
-        bw_planz_local = bw_planz
-     END IF
-
      RETURN
 
    CONTAINS
@@ -228,7 +189,7 @@
 !
 !
 
-   SUBROUTINE cft_2xy(r, nzl, nx, ny, ldx, ldy, isign, pl2ix, is_exx)
+   SUBROUTINE cft_2xy(r, nzl, nx, ny, ldx, ldy, isign, pl2ix)
 
 !     driver routine for nzl 2d complex fft's of lengths nx and ny
 !     input : r(ldx*ldy)  complex, transform is in-place
@@ -244,17 +205,11 @@
 
      INTEGER, INTENT(IN) :: isign, ldx, ldy, nx, ny, nzl
      INTEGER, OPTIONAL, INTENT(IN) :: pl2ix(:)
-     LOGICAL, OPTIONAL, INTENT(IN) :: is_exx
-     LOGICAL :: is_exx_
      COMPLEX (DP) :: r( : )
      INTEGER :: i, k, j, err, idir, ip, kk, void
      REAL(DP) :: tscale
-     INTEGER :: icurrent = 1
-     INTEGER :: dims( 4, ndims) = -1
-     INTEGER, SAVE :: icurrent_local = 1
-     INTEGER, SAVE :: dims_local( 4, ndims) = -1
-     INTEGER, SAVE :: icurrent_exx = 1
-     INTEGER, SAVE :: dims_exx( 4, ndims) = -1
+     INTEGER, SAVE :: icurrent = 1
+     INTEGER, SAVE :: dims( 4, ndims) = -1
      LOGICAL :: dofft( nfftx ), found
      INTEGER, PARAMETER  :: stdout = 6
 
@@ -268,47 +223,12 @@
 
 
 #if defined(__FFTW_ALL_XY_PLANES)
-     C_POINTER :: fw_plan_2d( ndims ) = 0
-     C_POINTER :: bw_plan_2d( ndims ) = 0
-     C_POINTER, SAVE :: fw_plan_2d_local( ndims ) = 0
-     C_POINTER, SAVE :: bw_plan_2d_local( ndims ) = 0
-     C_POINTER, SAVE :: fw_plan_2d_exx( ndims ) = 0
-     C_POINTER, SAVE :: bw_plan_2d_exx( ndims ) = 0
+     C_POINTER, SAVE :: fw_plan_2d( ndims ) = 0
+     C_POINTER, SAVE :: bw_plan_2d( ndims ) = 0
 #else
-     C_POINTER :: fw_plan( 2, ndims ) = 0
-     C_POINTER :: bw_plan( 2, ndims ) = 0
-     C_POINTER, SAVE :: fw_plan_local( 2, ndims ) = 0
-     C_POINTER, SAVE :: bw_plan_local( 2, ndims ) = 0
-     C_POINTER, SAVE :: fw_plan_exx( 2, ndims ) = 0
-     C_POINTER, SAVE :: bw_plan_exx( 2, ndims ) = 0
+     C_POINTER, SAVE :: fw_plan( 2, ndims ) = 0
+     C_POINTER, SAVE :: bw_plan( 2, ndims ) = 0
 #endif
-
-     IF(PRESENT(is_exx))THEN
-        is_exx_ = is_exx
-     ELSE
-        is_exx_ = .FALSE.
-     END IF
-     IF(is_exx_)THEN
-        dims = dims_exx
-        icurrent = icurrent_exx
-#if defined(__FFTW_ALL_XY_PLANES)
-        fw_plan_2d = fw_plan_2d_exx
-        bw_plan_2d = bw_plan_2d_exx
-#else
-        fw_plan = fw_plan_exx
-        bw_plan = bw_plan_exx
-#endif
-     ELSE
-        dims = dims_local
-        icurrent = icurrent_local
-#if defined(__FFTW_ALL_XY_PLANES)
-        fw_plan_2d = fw_plan_2d_local
-        bw_plan_2d = bw_plan_2d_local
-#else
-        fw_plan = fw_plan_local
-        bw_plan = bw_plan_local
-#endif
-     END IF
 
 
      dofft( 1 : nx ) = .TRUE.
@@ -478,28 +398,6 @@
      CALL stop_clock( 'cft_2xy' )
 #endif
 
-     IF(is_exx_)THEN
-        dims_exx = dims
-        icurrent_exx = icurrent
-#if defined(__FFTW_ALL_XY_PLANES)
-        fw_plan_2d_exx = fw_plan_2d
-        bw_plan_2d_exx = bw_plan_2d
-#else
-        fw_plan_exx = fw_plan
-        bw_plan_exx = bw_plan
-#endif
-     ELSE
-        dims_local = dims
-        icurrent_local = icurrent
-#if defined(__FFTW_ALL_XY_PLANES)
-        fw_plan_2d_local = fw_plan_2d
-        bw_plan_2d_local = bw_plan_2d
-#else
-        fw_plan_local = fw_plan
-        bw_plan_local = bw_plan
-#endif
-     END IF
-
      RETURN
 
    CONTAINS
@@ -552,7 +450,7 @@
 !=----------------------------------------------------------------------=!
 !
 
-   SUBROUTINE cfft3d( f, nx, ny, nz, ldx, ldy, ldz, howmany, isign, is_exx )
+   SUBROUTINE cfft3d( f, nx, ny, nz, ldx, ldy, ldz, howmany, isign )
 
   !     driver routine for 3d complex fft of lengths nx, ny, nz
   !     input  :  f(ldx*ldy*ldz)  complex, transform is in-place
@@ -568,41 +466,14 @@
      IMPLICIT NONE
 
      INTEGER, INTENT(IN) :: nx, ny, nz, ldx, ldy, ldz, howmany, isign
-     LOGICAL, OPTIONAL, INTENT(IN) :: is_exx
-     LOGICAL :: is_exx_
      COMPLEX (DP) :: f(:)
      INTEGER :: i, k, j, err, idir, ip
      REAL(DP) :: tscale
      INTEGER, SAVE :: icurrent = 1
      INTEGER, SAVE :: dims(3,ndims) = -1
-     INTEGER, SAVE :: icurrent_local = 1
-     INTEGER, SAVE :: dims_local(3,ndims) = -1
-     INTEGER, SAVE :: icurrent_exx = 1
-     INTEGER, SAVE :: dims_exx(3,ndims) = -1
 
      C_POINTER, save :: fw_plan(ndims) = 0
      C_POINTER, save :: bw_plan(ndims) = 0
-     C_POINTER, save :: fw_plan_local(ndims) = 0
-     C_POINTER, save :: bw_plan_local(ndims) = 0
-     C_POINTER, save :: fw_plan_exx(ndims) = 0
-     C_POINTER, save :: bw_plan_exx(ndims) = 0
-
-     IF(PRESENT(is_exx))THEN
-        is_exx_ = is_exx
-     ELSE
-        is_exx_ = .FALSE.
-     END IF
-     IF(is_exx_)THEN
-        dims = dims_exx
-        icurrent = icurrent_exx
-        fw_plan = fw_plan_exx
-        bw_plan = bw_plan_exx
-     ELSE
-        dims = dims_local
-        icurrent = icurrent_local
-        fw_plan = fw_plan_local
-        bw_plan = bw_plan_local
-     END IF
 
      IF ( nx < 1 ) &
          call fftx_error__('cfft3d',' nx is less than 1 ', 1)
@@ -640,18 +511,6 @@
 
        call FFTW_INPLACE_DRV_3D( bw_plan(ip), 1, f(1), 1, 1 )
 
-     END IF
-
-     IF(is_exx_)THEN
-        dims_exx = dims
-        icurrent_exx = icurrent
-        fw_plan_exx = fw_plan
-        bw_plan_exx = bw_plan
-     ELSE
-        dims_local = dims
-        icurrent_local = icurrent
-        fw_plan_local = fw_plan
-        bw_plan_local = bw_plan
      END IF
 
      RETURN
@@ -699,7 +558,7 @@
 !
 
 SUBROUTINE cfft3ds (f, nx, ny, nz, ldx, ldy, ldz, howmany, isign, &
-     do_fft_z, do_fft_y, is_exx)
+     do_fft_z, do_fft_y)
   !
   !     driver routine for 3d complex "reduced" fft - see cfft3d
   !     The 3D fft are computed only on lines and planes which have
@@ -721,42 +580,15 @@ SUBROUTINE cfft3ds (f, nx, ny, nz, ldx, ldy, ldz, howmany, isign, &
 
   complex(DP) :: f ( ldx * ldy * ldz * howmany )
   integer :: do_fft_z(:), do_fft_y(:)
-  LOGICAL, OPTIONAL, INTENT(IN) :: is_exx
-  LOGICAL :: is_exx_
   !
   integer :: m, incx1, incx2
   INTEGER :: i, k, j, err, idir, ip,  ii, jj, h, ldh
   REAL(DP) :: tscale
-  INTEGER :: icurrent = 1
-  INTEGER :: dims(3,ndims) = -1
-  INTEGER, SAVE :: icurrent_local = 1
-  INTEGER, SAVE :: dims_local(3,ndims) = -1
-  INTEGER, SAVE :: icurrent_exx = 1
-  INTEGER, SAVE :: dims_exx(3,ndims) = -1
+  INTEGER, SAVE :: icurrent = 1
+  INTEGER, SAVE :: dims(3,ndims) = -1
 
-  C_POINTER :: fw_plan ( 3, ndims ) = 0
-  C_POINTER :: bw_plan ( 3, ndims ) = 0
-  C_POINTER, SAVE :: fw_plan_local( 3, ndims ) = 0
-  C_POINTER, SAVE :: bw_plan_local( 3, ndims ) = 0
-  C_POINTER, SAVE :: fw_plan_exx( 3, ndims ) = 0
-  C_POINTER, SAVE :: bw_plan_exx( 3, ndims ) = 0
-
-  IF(PRESENT(is_exx))THEN
-     is_exx_ = is_exx
-  ELSE
-     is_exx_ = .FALSE.
-  END IF
-  IF(is_exx_)THEN
-     dims = dims_exx
-     icurrent = icurrent_exx
-     fw_plan = fw_plan_exx
-     bw_plan = bw_plan_exx
-  ELSE
-     dims = dims_local
-     icurrent = icurrent_local
-     fw_plan = fw_plan_local
-     bw_plan = bw_plan_local
-  END IF
+  C_POINTER, SAVE :: fw_plan ( 3, ndims ) = 0
+  C_POINTER, SAVE :: bw_plan ( 3, ndims ) = 0
 
   tscale = 1.0_DP
   ldh = ldx * ldy * ldz
@@ -860,19 +692,6 @@ SUBROUTINE cfft3ds (f, nx, ny, nz, ldx, ldy, ldz, howmany, isign, &
         END DO
 
      END IF
-
-     IF(is_exx_)THEN
-        dims_exx = dims
-        icurrent_exx = icurrent
-        fw_plan_exx = fw_plan
-        bw_plan_exx = bw_plan
-     ELSE
-        dims_local = dims
-        icurrent_local = icurrent
-        fw_plan_local = fw_plan
-        bw_plan_local = bw_plan
-     END IF
-
      RETURN
 
    CONTAINS
