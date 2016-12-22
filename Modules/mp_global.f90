@@ -86,7 +86,7 @@ CONTAINS
     IF ( PRESENT(diag_in_band_group) ) do_diag_in_band = diag_in_band_group
     !
     IF( negrp.gt.1 ) THEN
-       ! if using exact groups from mp_exx, revert to the old diag method
+       ! if using exx groups from mp_exx, revert to the old diag method
        num_groups = npool_*nimage_
        group_id = my_pool_id + my_image_id * npool_
        my_comm = intra_bgrp_comm

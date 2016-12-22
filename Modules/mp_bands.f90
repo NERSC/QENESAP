@@ -63,7 +63,7 @@ CONTAINS
     !
     nbgrp = nband_
     
-    !stop the band group parallelization, so that exact groups are used instead
+    !stop the band group parallelization, so that module mp_exx is used instead
     nbgrp = 1
 
     !
