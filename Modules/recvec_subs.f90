@@ -32,7 +32,7 @@ CONTAINS
 !=----------------------------------------------------------------------=
 !
    !-----------------------------------------------------------------------
-   SUBROUTINE ggen ( gamma_only, at, bg, comm, no_global_sort, is_exx )
+   SUBROUTINE ggen ( gamma_only, at, bg, comm, no_global_sort )
    !----------------------------------------------------------------------
    !
    !     This routine generates all the reciprocal lattice vectors
@@ -54,9 +54,6 @@ CONTAINS
    !
    !     here a few local variables
    !
-   ! pcarrier@cray.com CHANGED added is_exx
-   LOGICAL, OPTIONAL, INTENT(IN) :: is_exx
-
    REAL(DP) ::  t (3), tt
    INTEGER :: ngm_save, ngms_save, n1, n2, n3, n1s, n2s, n3s, ngm_offset, ngm_max, ngms_max
    !
@@ -73,15 +70,7 @@ CONTAINS
    INTEGER :: mype, npe
    LOGICAL :: global_sort
    INTEGER, ALLOCATABLE :: ngmpe(:)
-   LOGICAL :: is_exx_
    !
-   ! pcarrier@cray.com CHANGED added is_exx_ syntax
-   if (present(is_exx)) then
-      is_exx_ = is_exx
-   else
-      is_exx_ = .false.
-   end if
-
    IF( PRESENT( no_global_sort ) .AND. .NOT. PRESENT( comm ) ) THEN
       CALL errore ('ggen', ' wrong subroutine arguments, communicator is missing ', 1)
    END IF
@@ -285,33 +274,15 @@ CONTAINS
       IF (n1>dfftp%nr1 .or. n2>dfftp%nr2 .or. n3>dfftp%nr3) &
          CALL errore('ggen','Mesh too small?',ng)
 
-! pcarrier@cray.com CHANGED syntax below for is_exx
-!  #if defined (__MPI) && !defined (__USE_3D_FFT)
-!     nl (ng) = n3 + ( dfftp%isind (n1 + (n2 - 1) * dfftp%nr1x) - 1) * dfftp%nr3x
-!     IF (ng <= ngms) &
-!        nls (ng) = n3s + ( dffts%isind (n1s+(n2s-1)*dffts%nr1x) - 1 ) * dffts%nr3x
-!  #else
-!        nl (ng) = n1 + (n2 - 1) * dfftp%nr1x + (n3 - 1) * dfftp%nr1x * dfftp%nr2x
-!        IF (ng <= ngms) &
-!           nls (ng) = n1s + (n2s - 1) * dffts%nr1x + (n3s - 1) * dffts%nr1x * dffts%nr2x
-!  #endif
-
 #if defined (__MPI) && !defined (__USE_3D_FFT)
       nl (ng) = n3 + ( dfftp%isind (n1 + (n2 - 1) * dfftp%nr1x) - 1) * dfftp%nr3x
       IF (ng <= ngms) &
          nls (ng) = n3s + ( dffts%isind (n1s+(n2s-1)*dffts%nr1x) - 1 ) * dffts%nr3x
 #else
-      if (is_exx_) then
-         nl (ng) = n1 + (n2 - 1) * dfftp%nr1x + (n3 - 1) * dfftp%nr1x * dfftp%nr2x
-         IF (ng <= ngms) &
-            nls (ng) = n1s + (n2s - 1) * dffts%nr1x + (n3s - 1) * dffts%nr1x * dffts%nr2x
-      else  ! this is local exchange
-         nl (ng) = n3 + ( dfftp%isind (n1 + (n2 - 1) * dfftp%nr1x) - 1) * dfftp%nr3x
-         IF (ng <= ngms) &
-            nls (ng) = n3s + ( dffts%isind (n1s+(n2s-1)*dffts%nr1x) - 1 ) * dffts%nr3x
-      end if
+      nl (ng) = n1 + (n2 - 1) * dfftp%nr1x + (n3 - 1) * dfftp%nr1x * dfftp%nr2x
+      IF (ng <= ngms) &
+         nls (ng) = n1s + (n2s - 1) * dffts%nr1x + (n3s - 1) * dffts%nr1x * dffts%nr2x
 #endif
-
    ENDDO
    !
    DEALLOCATE( mill_g )
@@ -362,16 +333,15 @@ CONTAINS
          CALL errore('index_minusg','Mesh too small?',ng)
       ENDIF
 
-!PIERRE CHANGED
-!  #if defined (__MPI) && !defined (__USE_3D_FFT)
+#if defined (__MPI) && !defined (__USE_3D_FFT)
       nlm(ng) = n3 + (dfftp%isind (n1 + (n2 - 1) * dfftp%nr1x) - 1) * dfftp%nr3x
       IF (ng<=ngms) &
          nlsm(ng) = n3s + (dffts%isind (n1s+(n2s-1) * dffts%nr1x) - 1) * dffts%nr3x
-!  #else
-!        nlm(ng) = n1 + (n2 - 1) * dfftp%nr1x + (n3 - 1) * dfftp%nr1x * dfftp%nr2x
-!        IF (ng<=ngms) &
-!           nlsm(ng) = n1s + (n2s - 1) * dffts%nr1x + (n3s-1) * dffts%nr1x * dffts%nr2x
-!  #endif
+#else
+      nlm(ng) = n1 + (n2 - 1) * dfftp%nr1x + (n3 - 1) * dfftp%nr1x * dfftp%nr2x
+      IF (ng<=ngms) &
+         nlsm(ng) = n1s + (n2s - 1) * dffts%nr1x + (n3s-1) * dffts%nr1x * dffts%nr2x
+#endif
    ENDDO
 
    END SUBROUTINE index_minusg
