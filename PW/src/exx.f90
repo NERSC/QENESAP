@@ -369,7 +369,7 @@ MODULE exx
 
     IF(any((/nq1,nq2,nq3/)<=0)) CALL errore('exx_grid_init',"wrong EXX q grid", 1)
     !
-    IF(exx_grid_initialized) CALL errore('exx_grid_init', "grid already initialized",1)
+    IF(exx_grid_initialized) WRITE(stdout,*)'WARNING: EXX grid is being re-initialized'
     exx_grid_initialized = .true.
     !
     ! definitions and checks
