@@ -306,7 +306,7 @@ MODULE exx
     ! mp_start_orthopools contains a check to avoid double initialisation
     CALL mp_start_orthopools ( intra_image_comm )
     !
-    ALLOCATE(working_pool(nkqs))
+    IF(.not.allocated(working_pool))ALLOCATE(working_pool(nkqs))
     !
     DO ikq = 1, nkqs
       DO current_ik = 1, nkstot
