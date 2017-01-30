@@ -1973,6 +1973,8 @@ MODULE exx
 !$omp end parallel do
           ELSE
 
+			!just for testing
+			!nblock=nrxxs
 			nblock=2048
 			nrt = nrxxs / nblock
 			if (mod(nrxxs, nblock) .ne. 0) nrt = nrt + 1
@@ -2036,6 +2038,8 @@ MODULE exx
           CALL start_clock ('vexx_vc')
           !
 !call start_collection()
+		  !just for testing
+		  !nblock=nrxxs
           nblock=2048
           nrt = nrxxs / nblock
           if (mod(nrxxs, nblock) .ne. 0) nrt = nrt + 1
@@ -2121,6 +2125,8 @@ MODULE exx
 
 
 !call start_collection()
+            !just testing
+			!nblock = nrxxs
 			nblock=2048
 			nrt = nrxxs / nblock
 			if (mod(nrxxs, nblock) .ne. 0) nrt = nrt + 1
@@ -3045,6 +3051,8 @@ MODULE exx
                 ELSE
 					
                    !calculate rho in real space
+				   !testing
+				   !nblock=nrxxs
                    nblock=2048
                    nrt = nrxxs / nblock
                    if (mod(nrxxs, nblock) .ne. 0) nrt = nrt + 1
