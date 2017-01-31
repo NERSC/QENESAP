@@ -9,13 +9,20 @@
 
 #include "../../include/fft_defs.h"
 
+!#if defined(__DFTI)
+!#include "mkl_dfti.f90"
+!#endif
+
 MODULE esm_cft
   !--------------------------------------------------------------------------
   !
   ! ... this module contains the variables and SUBROUTINEs needed for the 
-  ! ... 1-Dimentinal FFT called from ESM routines
+  ! ... 1-Dimensional FFT called from ESM routines
   !
   USE kinds, ONLY : DP
+#if defined(__DFTI)
+	USE MKL_DFTI
+#endif
   !
   IMPLICIT NONE
   !
@@ -68,7 +75,9 @@ MODULE esm_cft
   INTEGER, PARAMETER :: ltabl = 2 * nfftx + 64
   REAL (DP) :: tablez (ltabl)
   INTEGER :: isys = 1
-
+  
+#elif defined(__DFTI)
+	TYPE(DFTI_DESCRIPTOR), POINTER :: desc
 #endif
 
 #if defined __FFTW3
@@ -87,8 +96,11 @@ SUBROUTINE esm_cft_1z_init(nsl, nz, ldz)
   INTEGER, INTENT(IN) :: nsl, nz, ldz
   REAL (DP)  :: tscale
   INTEGER    :: idir, nth
-#if defined __FFTW3 || defined __LINUX_ESSL
+#if defined __FFTW3 || defined __LINUX_ESSL || defined __DFTI
   COMPLEX(DP), ALLOCATABLE :: c(:), cout(:)
+#endif
+#if defined __DFTI
+	INTEGER :: dfti_status = 0
 #endif
 #if defined __OPENMP
   INTEGER, EXTERNAL   :: OMP_GET_MAX_THREADS
@@ -109,7 +121,7 @@ SUBROUTINE esm_cft_1z_init(nsl, nz, ldz)
   nth = OMP_GET_MAX_THREADS()
 #endif
 
-#if defined __FFTW3 || defined __LINUX_ESSL
+#if defined __FFTW3 || defined __LINUX_ESSL || defined __DFTI
   ALLOCATE ( c( ldz*nsl ) )
   ALLOCATE ( cout( ldz*nsl ) )
 #endif
@@ -151,10 +163,51 @@ SUBROUTINE esm_cft_1z_init(nsl, nz, ldz)
   ALLOCATE( work( lwork, 0:nth-1 ) )
   CALL ZZFFTM (0, nz, 1, 1.0_DP, DUMMY, ldz, DUMMY, ldz, &
     tablez, work(1,1), isys)
+	
+#elif defined(__DFTI)
+	if( ASSOCIATED( desc ) ) THEN
+		dfti_status = DftiFreeDescriptor( desc )
+		IF( dfti_status /= 0) THEN
+			WRITE(*,*) "stopped in DftiFreeDescriptor", dfti_status
+			STOP
+		ENDIF
+	END IF
 
+	dfti_status = DftiCreateDescriptor(desc, DFTI_DOUBLE, DFTI_COMPLEX, 1,nz)
+	IF(dfti_status /= 0)  &
+		CALL fftx_error__(' esm_cft_1z ',' stopped in DftiCreateDescriptor ', dfti_status )
+
+	dfti_status = DftiSetValue(desc, DFTI_NUMBER_OF_TRANSFORMS, nsl)
+	IF(dfti_status /= 0) &
+		CALL fftx_error__(' esm_cft_1z ',' stopped in DFTI_NUMBER_OF_TRANSFORMS ', dfti_status )
+
+	dfti_status = DftiSetValue(desc, DFTI_INPUT_DISTANCE, ldz )
+	IF(dfti_status /= 0) &
+		CALL fftx_error__(' esm_cft_1z ',' stopped in DFTI_INPUT_DISTANCE ', dfti_status )
+
+	dfti_status = DftiSetValue(desc, DFTI_PLACEMENT, DFTI_NOT_INPLACE)
+	IF(dfti_status /= 0) &
+		CALL fftx_error__(' esm_cft_1z ',' stopped in DFTI_PLACEMENT ', dfti_status )
+
+	dfti_status = DftiSetValue(desc, DFTI_OUTPUT_DISTANCE, ldz )
+	IF(dfti_status /= 0) &
+		CALL fftx_error__(' esm_cft_1z ',' stopped in DFTI_OUTPUT_DISTANCE ', dfti_status )
+	
+	tscale = 1.0_DP/nz
+	dfti_status = DftiSetValue(desc, DFTI_FORWARD_SCALE, tscale);
+	IF(dfti_status /= 0) &
+		CALL fftx_error__(' esm_cft_1z ',' stopped in DFTI_FORWARD_SCALE ', dfti_status )
+
+	dfti_status = DftiSetValue(desc, DFTI_BACKWARD_SCALE, DBLE(1) );
+	IF(dfti_status /= 0) &
+		CALL fftx_error__(' esm_cft_1z ',' stopped in DFTI_BACKWARD_SCALE ', dfti_status )
+
+	dfti_status = DftiCommitDescriptor(desc)
+	IF(dfti_status /= 0) &
+		CALL fftx_error__(' esm_cft_1z ',' stopped in DftiCommitDescriptor ', dfti_status )
 #else
 
-#if defined __FFTW3 || defined __LINUX_ESSL
+#if defined __FFTW3 || defined __LINUX_ESSL || defined __DFTI
   IF( ALLOCATED( c ) ) DEALLOCATE( c )
   IF( ALLOCATED( cout ) ) DEALLOCATE( cout )
 #endif
@@ -189,7 +242,7 @@ SUBROUTINE esm_cft_1z(c, nsl, nz, ldz, isign, cout)
   COMPLEX (DP) :: c(:), cout(:)
   
   REAL (DP)  :: tscale
-  INTEGER    :: i, idir, ith
+  INTEGER    :: i, idir, ith, dfti_status
 
 #if defined __OPENMP
   INTEGER, EXTERNAL :: OMP_GET_THREAD_NUM
@@ -265,6 +318,16 @@ SUBROUTINE esm_cft_1z(c, nsl, nz, ldz, isign, cout)
       tscale, bw_tablez, ltabl, work(1,ith), lwork)
   END IF
   
+#elif defined(__DFTI)
+	IF (isign < 0) THEN
+		dfti_status = DftiComputeForward(desc, c, cout )
+	IF(dfti_status /= 0) &
+		CALL fftx_error__('esm_cft_1z ',' stopped in DftiComputeForward ', dfti_status )
+	ELSE IF (isign > 0) THEN
+		dfti_status = DftiComputeBackward(desc, c, cout )
+	IF(dfti_status /= 0) &
+		CALL fftx_error__('esm_cft_1z ',' stopped in DftiComputeBackward ', dfti_status )
+	END IF
 #else
   
   CALL errore(' esm_cft_1z ',' no scalar fft driver specified ', 1)
