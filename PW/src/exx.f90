@@ -216,7 +216,7 @@ MODULE exx
     !
     exx_fft%gcutmt = exx_fft%dual_t*exx_fft%ecutt / tpiba2
     CALL data_structure_custom(exx_fft, smap_exx, gamma_only)
-    CALL ggent(exx_fft, is_exx=.true.)
+    CALL ggent(exx_fft)
     exx_fft%initialized = .true.
     !
     IF(tqr)THEN
@@ -2585,8 +2585,7 @@ MODULE exx
                 ENDIF
                 !
                 IF( l_fft_doubleband.or.l_fft_singleband) THEN
-                   CALL invfft ('CustomWave', temppsic, exx_fft%dfftt, &
-                        is_exx=.TRUE.)
+                   CALL invfft ('CustomWave', temppsic, exx_fft%dfftt)
 !$omp parallel do default(shared), private(ir)
                    DO ir = 1, nrxxs
                       temppsic_dble(ir)  = dble ( temppsic(ir) )
