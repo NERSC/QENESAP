@@ -19,12 +19,9 @@
 !
 MODULE fft_parallel
 !
+   USE fft_param
    IMPLICIT NONE
    SAVE
-
-   INTEGER, PARAMETER :: DP = selected_real_kind(14,200)
-
-   PRIVATE :: DP
 !
 CONTAINS
 !
@@ -71,9 +68,6 @@ SUBROUTINE tg_cft3s( f, dfft, isgn, dtgs)
 
   !
   IMPLICIT NONE
-#if defined(__MPI)
-  INCLUDE 'mpif.h'
-#endif
   !
   COMPLEX(DP), INTENT(inout)    :: f( : )  ! array containing data to be transformed
   TYPE (fft_type_descriptor), INTENT(in) :: dfft
@@ -283,9 +277,6 @@ SUBROUTINE fw_tg_cft3_z( f_in, dfft, f_out, dtgs )
   USE task_groups,  ONLY : task_groups_descriptor
   !
   IMPLICIT NONE
-#if defined(__MPI)
-  INCLUDE 'mpif.h'
-#endif
   !
   COMPLEX(DP), INTENT(inout)    :: f_in( : )  ! INPUT array containing data to be transformed
   COMPLEX(DP), INTENT(inout)   :: f_out (:)  ! OUTPUT
@@ -305,9 +296,6 @@ SUBROUTINE bw_tg_cft3_z( f_out, dfft, f_in, dtgs )
   USE task_groups,  ONLY : task_groups_descriptor
   !
   IMPLICIT NONE
-#if defined(__MPI)
-  INCLUDE 'mpif.h'
-#endif
   !
   COMPLEX(DP), INTENT(inout)    :: f_out( : ) ! OUTPUT
   COMPLEX(DP), INTENT(inout)   :: f_in (:) ! INPUT array containing data to be transformed
@@ -400,9 +388,6 @@ END SUBROUTINE bw_tg_cft3_xy
      USE task_groups,  ONLY : task_groups_descriptor
 
      IMPLICIT NONE
-#if defined(__MPI)
-  INCLUDE 'mpif.h'
-#endif
 
      COMPLEX(DP), INTENT(in)    :: f( : )  ! array containing all bands, and gvecs distributed across processors
      COMPLEX(DP), INTENT(out)    :: yf( : )  ! array containing bands collected into task groups
@@ -446,9 +431,6 @@ END SUBROUTINE bw_tg_cft3_xy
      USE task_groups,  ONLY : task_groups_descriptor
 
      IMPLICIT NONE
-#if defined(__MPI)
-  INCLUDE 'mpif.h'
-#endif
 
      COMPLEX(DP), INTENT(in)    :: f( : )  ! array containing all bands, and gvecs distributed across processors
      COMPLEX(DP), INTENT(out)    :: yf( : )  ! array containing bands collected into task groups
@@ -498,9 +480,6 @@ END SUBROUTINE bw_tg_cft3_xy
      USE task_groups,  ONLY : task_groups_descriptor
 
      IMPLICIT NONE
-#if defined(__MPI)
-  INCLUDE 'mpif.h'
-#endif
 
      COMPLEX(DP), INTENT(out)    :: f( : )  ! array containing all bands, and gvecs distributed across processors
      COMPLEX(DP), INTENT(in)    :: yf( : )  ! array containing bands collected into task groups
@@ -533,6 +512,44 @@ END SUBROUTINE bw_tg_cft3_xy
      RETURN
   END SUBROUTINE unpack_group_sticks
 
+#if defined (__DOUBLE_BUFFER)
+  SUBROUTINE unpack_group_sticks_i( yf, f, dtgs, req )
+
+     USE task_groups,  ONLY : task_groups_descriptor
+
+     IMPLICIT NONE
+
+     COMPLEX(DP), INTENT(out)    :: f( : )  ! array containing all bands, and gvecs distributed across processors
+     COMPLEX(DP), INTENT(in)    :: yf( : )  ! array containing bands collected into task groups
+     TYPE (task_groups_descriptor), INTENT(in) :: dtgs
+     !
+     !  Bring pencils back to their original distribution
+     !
+     INTEGER                     :: ierr, req
+     !
+     IF( dtgs%tg_usdsp(dtgs%nogrp) + dtgs%tg_snd(dtgs%nogrp) > size( f ) ) THEN
+        CALL fftx_error__( 'unpack_group_sticks', ' inconsistent size ', 3 )
+     ENDIF
+     IF( dtgs%tg_rdsp(dtgs%nogrp) + dtgs%tg_rcv(dtgs%nogrp) > size( yf ) ) THEN
+        CALL fftx_error__( 'unpack_group_sticks', ' inconsistent size ', 4 )
+     ENDIF
+
+     CALL start_clock( 'ALLTOALL' )
+
+#if defined(__MPI)
+     CALL MPI_IAlltoallv( yf(1), &
+          dtgs%tg_rcv, dtgs%tg_rdsp, MPI_DOUBLE_COMPLEX, f(1), &
+          dtgs%tg_snd, dtgs%tg_usdsp, MPI_DOUBLE_COMPLEX, dtgs%ogrp_comm, req, IERR)
+     IF( ierr /= 0 ) THEN
+        CALL fftx_error__( 'unpack_group_sticks', ' alltoall error 2 ', abs(ierr) )
+     ENDIF
+#endif
+
+     CALL stop_clock( 'ALLTOALL' )
+
+     RETURN
+  END SUBROUTINE unpack_group_sticks_i
+#endif
 
 SUBROUTINE tg_gather( dffts, dtgs, v, tg_v )
    !
@@ -543,9 +560,6 @@ SUBROUTINE tg_gather( dffts, dtgs, v, tg_v )
    ! NOGRP:      Number of processors per orbital task group
 
    IMPLICIT NONE
-#if defined(__MPI)
-  INCLUDE 'mpif.h'
-#endif
 
    TYPE(fft_type_descriptor), INTENT(in) :: dffts
    TYPE(task_groups_descriptor), INTENT(in) :: dtgs
@@ -607,9 +621,6 @@ SUBROUTINE tg_cgather( dffts, dtgs, v, tg_v )
    ! NOGRP:      Number of processors per orbital task group
 
    IMPLICIT NONE
-#if defined(__MPI)
-   INCLUDE 'mpif.h'
-#endif
 
    TYPE(fft_type_descriptor), INTENT(in) :: dffts
    TYPE(task_groups_descriptor), INTENT(in) :: dtgs
@@ -676,9 +687,6 @@ COMPLEX (DP) FUNCTION get_f_of_R (i,j,k,f,dfft)
 !
   USE fft_types,  ONLY : fft_type_descriptor
   IMPLICIT NONE
-#if defined(__MPI)
-  INCLUDE 'mpif.h'
-#endif
   TYPE (fft_type_descriptor), INTENT(IN) :: dfft
   INTEGER, INTENT (IN) :: i,j,k
   COMPLEX(DP), INTENT (IN) :: f(:)
@@ -708,9 +716,6 @@ SUBROUTINE put_f_of_R (f_in,i,j,k,f,dfft)
 !
   USE fft_types,  ONLY : fft_type_descriptor
   IMPLICIT NONE
-#if defined(__MPI)
-  INCLUDE 'mpif.h'
-#endif
   TYPE (fft_type_descriptor), INTENT(IN) :: dfft
   INTEGER, INTENT (IN) :: i,j,k
   COMPLEX(DP), INTENT (IN) :: f_in
@@ -739,9 +744,6 @@ COMPLEX (DP) FUNCTION get_f_of_G (i,j,k,f,dfft)
 !
   USE fft_types,  ONLY : fft_type_descriptor
   IMPLICIT NONE
-#if defined(__MPI)
-  INCLUDE 'mpif.h'
-#endif
   INTEGER, INTENT (IN) :: i,j,k
   COMPLEX(DP), INTENT (IN) :: f(:)
   TYPE (fft_type_descriptor), INTENT(IN) :: dfft
@@ -769,9 +771,6 @@ SUBROUTINE put_f_of_G (f_in,i,j,k,f,dfft)
 !
   USE fft_types,  ONLY : fft_type_descriptor
   IMPLICIT NONE
-#if defined(__MPI)
-  INCLUDE 'mpif.h'
-#endif
   COMPLEX(DP), INTENT (IN) :: f_in
   INTEGER, INTENT (IN) :: i,j,k
   COMPLEX(DP), INTENT (INOUT) :: f(:)

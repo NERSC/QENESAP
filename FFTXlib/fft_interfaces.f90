@@ -23,8 +23,8 @@ MODULE fft_interfaces
      SUBROUTINE invfft_x( grid_type, f, dfft, dtgs, howmany)
        USE fft_types,  ONLY: fft_type_descriptor
        USE task_groups,   ONLY: task_groups_descriptor
+       USE fft_param,  ONLY :DP
        IMPLICIT NONE
-       INTEGER, PARAMETER :: DP = selected_real_kind(14,200)
        CHARACTER(LEN=*),  INTENT(IN) :: grid_type
        TYPE(fft_type_descriptor), INTENT(IN) :: dfft
        TYPE(task_groups_descriptor), OPTIONAL, INTENT(IN) :: dtgs
@@ -34,8 +34,8 @@ MODULE fft_interfaces
      !
      SUBROUTINE invfft_b( f, dfft, ia)
        USE fft_smallbox_type,  ONLY: fft_box_descriptor
+       USE fft_param,  ONLY :DP
        IMPLICIT NONE
-       INTEGER, PARAMETER :: DP = selected_real_kind(14,200)
        INTEGER, INTENT(IN) :: ia
        TYPE(fft_box_descriptor), INTENT(IN) :: dfft
        COMPLEX(DP) :: f(:)
@@ -46,8 +46,8 @@ MODULE fft_interfaces
      SUBROUTINE fwfft_x( grid_type, f, dfft, dtgs, howmany)
        USE fft_types,  ONLY: fft_type_descriptor
        USE task_groups,   ONLY: task_groups_descriptor
+       USE fft_param,  ONLY :DP
        IMPLICIT NONE
-       INTEGER, PARAMETER :: DP = selected_real_kind(14,200)
        CHARACTER(LEN=*), INTENT(IN) :: grid_type
        TYPE(fft_type_descriptor), INTENT(IN) :: dfft
        TYPE(task_groups_descriptor), OPTIONAL, INTENT(IN) :: dtgs

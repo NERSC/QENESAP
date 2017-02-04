@@ -14,7 +14,6 @@ PROGRAM X_Spectra
   USE cell_base,       ONLY : bg, at, celldm
   USE parameters,      ONLY : ntypx,lmaxx,lqmax
   USE ions_base,       ONLY : nat, ntyp => nsp, ityp, tau
-  USE ktetra,          ONLY : ltetra, ntetra, tetra
   USE start_k,         ONLY : nk1, nk2, nk3, k1, k2, k3
   USE wvfct,           ONLY : npwx ,nbnd, et, wg ! et(nbnd,nkstot)
   USE radial_grids,    ONLY : ndmx
@@ -437,7 +436,6 @@ SUBROUTINE stop_xspectra
   USE control_flags, ONLY: twfcollect
   USE io_files, ONLY: iunwfc
   USE mp_global, ONLY: mp_global_end
-  USE parallel_include
   !
 #if defined(__MPI)
 
