@@ -851,10 +851,10 @@ MODULE exx
 
     IF ( gamma_only ) THEN
         ibnd_buff_start = ibnd_start_new/2
-        IF(mod(ibnd_start,2)==1) ibnd_buff_start = ibnd_buff_start +1
+        IF(mod(iexx_start,2)==1) ibnd_buff_start = ibnd_buff_start +1
         !
         ibnd_buff_end = ibnd_end_new/2
-        IF(mod(ibnd_end,2)==1) ibnd_buff_end = ibnd_buff_end +1
+        IF(mod(iexx_end,2)==1) ibnd_buff_end = ibnd_buff_end +1
     ELSE
         ibnd_buff_start = ibnd_start_new
         ibnd_buff_end   = ibnd_end_new
