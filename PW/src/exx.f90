@@ -769,7 +769,7 @@ MODULE exx
     INTEGER :: npw, current_ik
     INTEGER, EXTERNAL :: global_kpoint_index
     INTEGER :: ibnd_start_new, ibnd_end_new
-    INTEGER :: ibnd_exx
+    INTEGER :: ibnd_exx, evc_offset
     !
     CALL start_clock ('exxinit')
     !
@@ -903,6 +903,7 @@ MODULE exx
              ibnd_loop_start=iexx_start
           ENDIF
 
+          evc_offset = 0
           DO ibnd = ibnd_loop_start, iexx_end, 2
              ibnd_exx = ibnd
              h_ibnd = h_ibnd + 1
@@ -912,21 +913,22 @@ MODULE exx
              IF ( ibnd < iexx_end ) THEN
                 IF ( ibnd == ibnd_loop_start .and. MOD(iexx_start,2) == 0 ) THEN
                    DO ig=1,exx_fft%npwt
-                      psic_exx(exx_fft%nlt(ig))  = ( 0._dp, 1._dp )*evc_exx(ig,ibnd-ibnd_loop_start+2)
-                      psic_exx(exx_fft%nltm(ig)) = ( 0._dp, 1._dp )*conjg(evc_exx(ig,ibnd-ibnd_loop_start+2))
+                      psic_exx(exx_fft%nlt(ig))  = ( 0._dp, 1._dp )*evc_exx(ig,1)
+                      psic_exx(exx_fft%nltm(ig)) = ( 0._dp, 1._dp )*conjg(evc_exx(ig,1))
                    ENDDO
+                   evc_offset = -1
                 ELSE
                    DO ig=1,exx_fft%npwt
-                      psic_exx(exx_fft%nlt(ig))  = evc_exx(ig,ibnd-ibnd_loop_start+1)  &
-                           + ( 0._dp, 1._dp ) * evc_exx(ig,ibnd-ibnd_loop_start+2)
-                      psic_exx(exx_fft%nltm(ig)) = conjg( evc_exx(ig,ibnd-ibnd_loop_start+1) ) &
-                           + ( 0._dp, 1._dp ) * conjg( evc_exx(ig,ibnd-ibnd_loop_start+2) )
+                      psic_exx(exx_fft%nlt(ig))  = evc_exx(ig,ibnd-ibnd_loop_start+evc_offset+1)  &
+                           + ( 0._dp, 1._dp ) * evc_exx(ig,ibnd-ibnd_loop_start+evc_offset+2)
+                      psic_exx(exx_fft%nltm(ig)) = conjg( evc_exx(ig,ibnd-ibnd_loop_start+evc_offset+1) ) &
+                           + ( 0._dp, 1._dp ) * conjg( evc_exx(ig,ibnd-ibnd_loop_start+evc_offset+2) )
                    ENDDO
                 END IF
              ELSE
                 DO ig=1,exx_fft%npwt
-                   psic_exx(exx_fft%nlt (ig)) = evc_exx(ig,ibnd-ibnd_loop_start+1)
-                   psic_exx(exx_fft%nltm(ig)) = conjg( evc_exx(ig,ibnd-ibnd_loop_start+1) )
+                   psic_exx(exx_fft%nlt (ig)) = evc_exx(ig,ibnd-ibnd_loop_start+evc_offset+1)
+                   psic_exx(exx_fft%nltm(ig)) = conjg( evc_exx(ig,ibnd-ibnd_loop_start+evc_offset+1) )
                 ENDDO
              ENDIF
 
