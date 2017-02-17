@@ -5205,7 +5205,7 @@ END SUBROUTINE compute_becpsi
 
     DO jbnd=jstart, jend, 2
        DO ir=1, lda*npol
-          exxtemp(ir,1+(jbnd-jstart+1)/2) = CMPLX( work(ir,jbnd-jstart+1), work(ir,jbnd-jstart+2) )
+          exxtemp(ir,1+(jbnd-jstart+1)/2) = DCMPLX( work(ir,jbnd-jstart+1), work(ir,jbnd-jstart+2) )
        END DO
     END DO
 
