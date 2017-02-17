@@ -41,11 +41,11 @@ CONTAINS
 !
 ! NUMERICAL RECIPES, THE ART OF SCIENTIFIC COMPUTING.
 ! W.H. PRESS, B.P. FLANNERY, S.A. TEUKOLSKY, AND W.T. VETTERLING,
-! CAMBRIDGE UNIVERSITY PRESS, CAMBRIDGE.  
+! CAMBRIDGE UNIVERSITY PRESS, CAMBRIDGE.
 !
 ! PARALLEL NUMERICAL ALGORITHMS,
 ! T.L. FREEMAN AND C.PHILLIPS,
-! PRENTICE HALL INTERNATIONAL (1992). 
+! PRENTICE HALL INTERNATIONAL (1992).
 !
 !
 !
@@ -56,7 +56,7 @@ CONTAINS
 !     A(NRL,N) Local part of the global matrix A(N,N) to be reduced,
 !              only the upper triangle is needed.
 !              The rows of the matrix are distributed among processors
-!              with blocking factor 1. 
+!              with blocking factor 1.
 !              Example for NPROC = 4 :
 !              ROW | PE
 !              1   | 0
@@ -90,7 +90,7 @@ CONTAINS
 !              this vector is equal on all processors.
 !
 !     E(N)     Subdiagonal elements of the tridiagonal matrix
-!              this vector is equal on all processors. 
+!              this vector is equal on all processors.
 !
 !
 
@@ -117,8 +117,8 @@ CONTAINS
       integer :: kl, jl, ks, lloc
       integer, ALLOCATABLE :: is(:)
       integer, ALLOCATABLE :: ri(:)
-     
-      
+
+
       !     .......... FOR I=N STEP -1 UNTIL 1 DO -- ..........
 
       IF( N == 0 ) THEN
@@ -135,7 +135,7 @@ CONTAINS
         END IF
       END DO
 
-      DO I = N, 2, -1 
+      DO I = N, 2, -1
 
          L     = I - 1         ! first element
          H     = 0.0_DP
@@ -155,10 +155,10 @@ CONTAINS
            IF ( SCALEF .EQ. 0.0_DP )  THEN
              !
              IF (RI(L).EQ.ME) THEN
-               E(I) = A(is(L),I) 
+               E(I) = A(is(L),I)
              END IF
              !
-           ELSE 
+           ELSE
 
              !  ......  CALCULATION OF SIGMA AND H
 
@@ -166,7 +166,7 @@ CONTAINS
              SIGMA = 0.0_DP
              DO k = 1,is(L)
                A(k,I) = A(k,I) * ONE_OVER_SCALE
-               SIGMA  = SIGMA + A(k,I)**2 
+               SIGMA  = SIGMA + A(k,I)**2
              END DO
 
              IF( ri(l) .eq. me ) THEN
@@ -177,15 +177,15 @@ CONTAINS
 
              !  CONSTRUCTION OF VECTOR U
 
-             vtmp( 1:l ) = 0.0_DP 
+             vtmp( 1:l ) = 0.0_DP
 
              k = ME + 1
-             DO kl = 1,is(l)          
+             DO kl = 1,is(l)
                vtmp(k)   = A(kl,I)
                k         = k + NPROC
              END DO
 
-             DO kl = 1,is(l)          
+             DO kl = 1,is(l)
                UL(kl)    = A(kl,I)
              END DO
 
@@ -207,11 +207,11 @@ CONTAINS
              ONE_OVER_H = 1.0_DP/H
              E(I)       = SCALEF*G
 
-             U(L)       = F - G 
+             U(L)       = F - G
 
              IF( RI(L) ==  ME ) THEN
                UL(is(l))  = F - G
-               A(is(l),I) = F - G 
+               A(is(l),I) = F - G
              END IF
 
              !  CONSTRUCTION OF VECTOR P
@@ -232,7 +232,7 @@ CONTAINS
 
                vtmp(J) = vtmp(J) * ONE_OVER_H
 
-             END DO 
+             END DO
 
              KAPPA = 0.5_DP * ONE_OVER_H * ddot( l, vtmp, 1, u, 1 )
 
@@ -251,7 +251,7 @@ CONTAINS
 
            END IF
 
-         ELSE 
+         ELSE
 
            IF(RI(L).EQ.ME) THEN
              G = A(is(l),I)
@@ -268,7 +268,7 @@ CONTAINS
          D(I) = H
 
       END DO
-      
+
       E(1) = 0.0_DP
       D(1) = 0.0_DP
 
@@ -293,7 +293,7 @@ CONTAINS
             ELSE
                P(1:l) = 0.0d0
             END IF
-           
+
 
 #if defined __MPI
             CALL MPI_ALLREDUCE( p, vtmp, L, MPI_DOUBLE_PRECISION, MPI_SUM, comm, ierr )
@@ -308,7 +308,7 @@ CONTAINS
 
           END IF
 
-        END DO 
+        END DO
 
       END IF
 
@@ -316,7 +316,7 @@ CONTAINS
       DO I = 1,N
         U(I) = 0.0_DP
         IF(RI(I).eq.ME) then
-          U(I) = A(IS(I),I) 
+          U(I) = A(IS(I),I)
         END IF
       END DO
 
@@ -338,8 +338,8 @@ CONTAINS
 
 !
 ! Modified QL algorithm for CRAY T3E PARALLEL MACHINE
-! calculate the eigenvectors and eigenvalues of a matrix reduced to 
-! tridiagonal form by PTREDV. 
+! calculate the eigenvectors and eigenvalues of a matrix reduced to
+! tridiagonal form by PTREDV.
 !
 ! AUTHOR : Carlo Cavazzoni - SISSA 1997
 !          comments and suggestions to : carlo.cavazzoni@cineca.it
@@ -348,11 +348,11 @@ CONTAINS
 !
 ! NUMERICAL RECIPES, THE ART OF SCIENTIFIC COMPUTING.
 ! W.H. PRESS, B.P. FLANNERY, S.A. TEUKOLSKY, AND W.T. VETTERLING,
-! CAMBRIDGE UNIVERSITY PRESS, CAMBRIDGE.  
+! CAMBRIDGE UNIVERSITY PRESS, CAMBRIDGE.
 !
 ! PARALLEL NUMERICAL ALGORITHMS,
 ! T.L. FREEMAN AND C.PHILLIPS,
-! PRENTICE HALL INTERNATIONAL (1992). 
+! PRENTICE HALL INTERNATIONAL (1992).
 !
 ! NOTE : the algorithm that finds the eigenvalues is not parallelized
 !        ( it scales as O(N^2) ), I preferred to parallelize only the
@@ -362,7 +362,7 @@ CONTAINS
 !        that in this routine scales linearly with the number of processors,
 !        in fact there is no communication at all.
 !
-!  
+!
 !     INPUTS :
 !
 !     TV       if it is true compute eigrnvectors "z"
@@ -377,7 +377,7 @@ CONTAINS
 !
 !     NRL      NUMBER OF ROWS OF Z BELONGING TO THE LOCAL PROCESSOR.
 !
-!     LDZ      LEADING DIMENSION OF MATRIX Z. 
+!     LDZ      LEADING DIMENSION OF MATRIX Z.
 !
 !     Z(LDZ,N) Orthogonal transformation that tridiagonalizes the original
 !              matrix A.
@@ -410,8 +410,8 @@ CONTAINS
 !                 V(5)     | 0
 !                 V(6)     | 1
 !                 ....       ..
-! 
-!     D(N)     Eigenvalues of the original matrix, 
+!
+!     D(N)     Eigenvalues of the original matrix,
 !              this vector is equal on all processors.
 !
 !
@@ -452,7 +452,7 @@ CONTAINS
           end if
           iter=iter+1
           !
-          ! iteration is performed on one processor and results broadcast 
+          ! iteration is performed on one processor and results broadcast
           ! to all others to prevent potential problems if all processors
           ! do not behave in exactly the same way (even with the same data!)
           !
@@ -535,8 +535,8 @@ CONTAINS
       SUBROUTINE peigsrtv(tv,d,v,ldv,n,nrl)
 
 !
-!     This routine sorts eigenvalues and eigenvectors 
-!     generated by PTREDV and PTQLIV.  
+!     This routine sorts eigenvalues and eigenvectors
+!     generated by PTREDV and PTQLIV.
 !
 !     AUTHOR : Carlo Cavazzoni - SISSA 1997
 !              comments and suggestions to : carlo.cavazzoni@cineca.it
@@ -623,7 +623,7 @@ CONTAINS
 
      RETURN
    END SUBROUTINE pdspev_drv
- 
+
 !==----------------------------------------------==!
 
       SUBROUTINE dspev_drv( JOBZ, UPLO, N, AP, W, Z, LDZ )
@@ -643,7 +643,7 @@ CONTAINS
         END IF
 
         DEALLOCATE( work )
- 
+
         RETURN
       END SUBROUTINE dspev_drv
 
@@ -652,19 +652,19 @@ CONTAINS
 
   SUBROUTINE pdsyevd_drv( tv, n, nb, s, lds, w, ortho_cntx, ortho_comm )
      !
-#if defined(__ELPA) || defined(__ELPA_2016) || defined(__ELPA_2015)
+#if defined(__ELPA) || defined(__ELPA_2016) || defined(__ELPA_2015) || defined(__ELPA_2016_KNL)
      use elpa1
 #endif
      IMPLICIT NONE
      !
-     LOGICAL, INTENT(IN)  :: tv  
+     LOGICAL, INTENT(IN)  :: tv
        ! if tv is true compute eigenvalues and eigenvectors (not used)
-     INTEGER, INTENT(IN)  :: nb, n, ortho_cntx, ortho_comm 
+     INTEGER, INTENT(IN)  :: nb, n, ortho_cntx, ortho_comm
        ! nb = block size, n = matrix size, ortho_cntx = BLACS context,
        ! ortho_comm = MPI communicator
      INTEGER, INTENT(IN)  :: lds
        ! lds = leading dim of s
-     REAL(DP) :: s(:,:), w(:)    
+     REAL(DP) :: s(:,:), w(:)
        ! input:  s = matrix to be diagonalized
        ! output: s = eigenvectors, w = eigenvalues
 
@@ -677,12 +677,12 @@ CONTAINS
      INTEGER     :: LWORK, LIWORK, info
      CHARACTER   :: jobv
      INTEGER     :: i, ierr
-#if defined(__ELPA) || defined(__ELPA_2016) || defined(__ELPA_2015)     
+#if defined(__ELPA) || defined(__ELPA_2016) || defined(__ELPA_2015) || defined(__ELPA_2016_KNL)
      INTEGER     :: nprow,npcol,my_prow, my_pcol,mpi_comm_rows, mpi_comm_cols
-#if defined(__ELPA_2016)
+#if defined(__ELPA_2016) || defined(__ELPA_2016_KNL)
      LOGICAL     :: success
 #endif
-#endif 
+#endif
 
      IF( SIZE( s, 1 ) /= lds ) &
         CALL lax_error__( ' pdsyevd_drv ', ' wrong matrix leading dimension ', 1 )
@@ -703,11 +703,14 @@ CONTAINS
      itmp = 0
      rtmp = 0.0_DP
 
-#if defined(__ELPA) || defined(__ELPA_2016) || defined(__ELPA_2015)
+#if defined(__ELPA) || defined(__ELPA_2016) || defined(__ELPA_2015) || defined(__ELPA_2016_KNL)
      CALL BLACS_Gridinfo(ortho_cntx,nprow, npcol, my_prow,my_pcol)
 #if defined(__ELPA_2016)
      ierr = elpa_get_communicators(ortho_comm, my_prow, my_pcol,mpi_comm_rows, mpi_comm_cols)
      success = solve_evp_real_1stage(n,  n,   s, lds,    w,  vv, lds,SIZE(s,2),nb  ,mpi_comm_rows, mpi_comm_cols, ortho_comm)
+#elif defined(__ELPA_2016_KNL)
+     ierr = get_elpa_communicators(ortho_comm, my_prow, my_pcol,mpi_comm_rows, mpi_comm_cols)
+     success = solve_evp_real_1stage(n,  n,   s, lds,    w,  vv, lds,SIZE(s,2),nb  ,mpi_comm_rows, mpi_comm_cols)
 #elif defined(__ELPA_2015)
      ierr = get_elpa_row_col_comms(ortho_comm, my_prow, my_pcol,mpi_comm_rows, mpi_comm_cols)
      ierr = solve_evp_real(n,  n,   s, lds,    w,  vv, lds,SIZE(s,2),nb  ,mpi_comm_rows, mpi_comm_cols)
@@ -744,7 +747,7 @@ CONTAINS
      IF( ALLOCATED( vv ) ) DEALLOCATE( vv )
      DEALLOCATE( work )
      DEALLOCATE( iwork )
-#endif 
+#endif
 
      RETURN
   END SUBROUTINE pdsyevd_drv
@@ -753,7 +756,7 @@ CONTAINS
 
 
 !   ----------------------------------------------
-!   Simplified driver 
+!   Simplified driver
 
 SUBROUTINE diagonalize_parallel( n, rhos, rhod, s, desc )
 
