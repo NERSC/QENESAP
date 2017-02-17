@@ -769,7 +769,7 @@ MODULE exx
     INTEGER :: npw, current_ik
     INTEGER, EXTERNAL :: global_kpoint_index
     INTEGER :: ibnd_start_new, ibnd_end_new
-    INTEGER :: ibnd_exx
+    INTEGER :: ibnd_exx, evc_offset
     !
     CALL start_clock ('exxinit')
     !
@@ -851,10 +851,10 @@ MODULE exx
 
     IF ( gamma_only ) THEN
         ibnd_buff_start = ibnd_start_new/2
-        IF(mod(ibnd_start,2)==1) ibnd_buff_start = ibnd_buff_start +1
+        IF(mod(iexx_start,2)==1) ibnd_buff_start = ibnd_buff_start +1
         !
         ibnd_buff_end = ibnd_end_new/2
-        IF(mod(ibnd_end,2)==1) ibnd_buff_end = ibnd_buff_end +1
+        IF(mod(iexx_end,2)==1) ibnd_buff_end = ibnd_buff_end +1
     ELSE
         ibnd_buff_start = ibnd_start_new
         ibnd_buff_end   = ibnd_end_new
@@ -903,6 +903,7 @@ MODULE exx
              ibnd_loop_start=iexx_start
           ENDIF
 
+          evc_offset = 0
           DO ibnd = ibnd_loop_start, iexx_end, 2
              ibnd_exx = ibnd
              h_ibnd = h_ibnd + 1
@@ -912,21 +913,22 @@ MODULE exx
              IF ( ibnd < iexx_end ) THEN
                 IF ( ibnd == ibnd_loop_start .and. MOD(iexx_start,2) == 0 ) THEN
                    DO ig=1,exx_fft%npwt
-                      psic_exx(exx_fft%nlt(ig))  = ( 0._dp, 1._dp )*evc_exx(ig,ibnd-ibnd_loop_start+2)
-                      psic_exx(exx_fft%nltm(ig)) = ( 0._dp, 1._dp )*conjg(evc_exx(ig,ibnd-ibnd_loop_start+2))
+                      psic_exx(exx_fft%nlt(ig))  = ( 0._dp, 1._dp )*evc_exx(ig,1)
+                      psic_exx(exx_fft%nltm(ig)) = ( 0._dp, 1._dp )*conjg(evc_exx(ig,1))
                    ENDDO
+                   evc_offset = -1
                 ELSE
                    DO ig=1,exx_fft%npwt
-                      psic_exx(exx_fft%nlt(ig))  = evc_exx(ig,ibnd-ibnd_loop_start+1)  &
-                           + ( 0._dp, 1._dp ) * evc_exx(ig,ibnd-ibnd_loop_start+2)
-                      psic_exx(exx_fft%nltm(ig)) = conjg( evc_exx(ig,ibnd-ibnd_loop_start+1) ) &
-                           + ( 0._dp, 1._dp ) * conjg( evc_exx(ig,ibnd-ibnd_loop_start+2) )
+                      psic_exx(exx_fft%nlt(ig))  = evc_exx(ig,ibnd-ibnd_loop_start+evc_offset+1)  &
+                           + ( 0._dp, 1._dp ) * evc_exx(ig,ibnd-ibnd_loop_start+evc_offset+2)
+                      psic_exx(exx_fft%nltm(ig)) = conjg( evc_exx(ig,ibnd-ibnd_loop_start+evc_offset+1) ) &
+                           + ( 0._dp, 1._dp ) * conjg( evc_exx(ig,ibnd-ibnd_loop_start+evc_offset+2) )
                    ENDDO
                 END IF
              ELSE
                 DO ig=1,exx_fft%npwt
-                   psic_exx(exx_fft%nlt (ig)) = evc_exx(ig,ibnd-ibnd_loop_start+1)
-                   psic_exx(exx_fft%nltm(ig)) = conjg( evc_exx(ig,ibnd-ibnd_loop_start+1) )
+                   psic_exx(exx_fft%nlt (ig)) = evc_exx(ig,ibnd-ibnd_loop_start+evc_offset+1)
+                   psic_exx(exx_fft%nltm(ig)) = conjg( evc_exx(ig,ibnd-ibnd_loop_start+evc_offset+1) )
                 ENDDO
              ENDIF
 
@@ -1336,6 +1338,7 @@ MODULE exx
     COMPLEX(DP), ALLOCATABLE :: exxtemp(:,:), psiwork(:)
     INTEGER :: ijt, njt, jblock_start, jblock_end
     INTEGER :: index_start, index_end, exxtemp_index
+    INTEGER :: ending_im
     !
     ialloc = nibands(my_egrp_id+1)
     !
@@ -1403,8 +1406,8 @@ MODULE exx
              l_fft_doubleband = .false.
              l_fft_singleband = .false.
              !
-             IF ( mod(ii,2)==1 .and. (ii+1)<=nibands(my_egrp_id+1) ) l_fft_doubleband = .true.
-             IF ( mod(ii,2)==1 .and. ii==nibands(my_egrp_id+1) )     l_fft_singleband = .true.
+             IF ( mod(ii,2)==1 .and. (ii+1)<=min(m,nibands(my_egrp_id+1)) ) l_fft_doubleband = .true.
+             IF ( mod(ii,2)==1 .and. ii==min(m,nibands(my_egrp_id+1)) )     l_fft_singleband = .true.
              !
              IF( l_fft_doubleband ) THEN
 !$omp parallel do  default(shared), private(ig)
@@ -1618,7 +1621,12 @@ MODULE exx
     !
     CALL result_sum(n*npol, m, big_result)
     IF (iexx_istart(my_egrp_id+1).gt.0) THEN
-       DO im=1, iexx_iend(my_egrp_id+1) - iexx_istart(my_egrp_id+1) + 1
+       IF (negrp == 1) then
+          ending_im = m
+       ELSE
+          ending_im = iexx_iend(my_egrp_id+1) - iexx_istart(my_egrp_id+1) + 1
+       END IF
+       DO im=1, ending_im
 !$omp parallel do default(shared), private(ig) firstprivate(im,n)
            DO ig = 1, n
               hpsi(ig,im)=hpsi(ig,im) + big_result(ig,im+iexx_istart(my_egrp_id+1)-1)
@@ -5271,7 +5279,7 @@ END SUBROUTINE compute_becpsi
 
     DO jbnd=jstart, jend, 2
        DO ir=1, lda*npol
-          exxtemp(ir,1+(jbnd-jstart+1)/2) = CMPLX( work(ir,jbnd-jstart+1), work(ir,jbnd-jstart+2) )
+          exxtemp(ir,1+(jbnd-jstart+1)/2) = DCMPLX( work(ir,jbnd-jstart+1), work(ir,jbnd-jstart+2) )
        END DO
     END DO
 
