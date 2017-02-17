@@ -1320,6 +1320,7 @@ MODULE exx
     COMPLEX(DP), ALLOCATABLE :: exxtemp(:,:), psiwork(:)
     INTEGER :: ijt, njt, jblock_start, jblock_end
     INTEGER :: index_start, index_end, exxtemp_index
+    INTEGER :: ending_im
     !
     ialloc = nibands(my_egrp_id+1)
     !
@@ -1387,8 +1388,8 @@ MODULE exx
              l_fft_doubleband = .false.
              l_fft_singleband = .false.
              !
-             IF ( mod(ii,2)==1 .and. (ii+1)<=nibands(my_egrp_id+1) ) l_fft_doubleband = .true.
-             IF ( mod(ii,2)==1 .and. ii==nibands(my_egrp_id+1) )     l_fft_singleband = .true.
+             IF ( mod(ii,2)==1 .and. (ii+1)<=min(m,nibands(my_egrp_id+1)) ) l_fft_doubleband = .true.
+             IF ( mod(ii,2)==1 .and. ii==min(m,nibands(my_egrp_id+1)) )     l_fft_singleband = .true.
              !
              IF( l_fft_doubleband ) THEN
 !$omp parallel do  default(shared), private(ig)
@@ -1594,7 +1595,12 @@ MODULE exx
     !
     CALL result_sum(n*npol, m, big_result)
     IF (iexx_istart(my_egrp_id+1).gt.0) THEN
-       DO im=1, iexx_iend(my_egrp_id+1) - iexx_istart(my_egrp_id+1) + 1
+       IF (negrp == 1) then
+          ending_im = m
+       ELSE
+          ending_im = iexx_iend(my_egrp_id+1) - iexx_istart(my_egrp_id+1) + 1
+       END IF
+       DO im=1, ending_im
 !$omp parallel do default(shared), private(ig) firstprivate(im,n)
            DO ig = 1, n
               hpsi(ig,im)=hpsi(ig,im) + big_result(ig,im+iexx_istart(my_egrp_id+1)-1)
