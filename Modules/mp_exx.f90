@@ -161,7 +161,7 @@ CONTAINS
     INTEGER :: n_underloaded ! number of band groups that are under max load
     INTEGER :: pair_bands(nbnd,nbnd)
 
-    jblock = 7
+    jblock = 32
     
     max_ibands = CEILING(float(nbnd)/float(negrp))+2
     IF (ALLOCATED(all_start)) THEN

@@ -129,7 +129,8 @@ MODULE us_exx
   END SUBROUTINE qvan_clean
   !
   !-----------------------------------------------------------------------
-  SUBROUTINE addusxx_g(exx_fft, rhoc, xkq, xk, flag, becphi_c, becpsi_c, becphi_r, becpsi_r )
+  SUBROUTINE addusxx_g(exx_fft, rhoc, xkq, xk, jblock, nblock, &
+    flag, becphi_c, becpsi_c, becphi_r, becpsi_r)
     !-----------------------------------------------------------------------
     ! 
     ! Add US contribution to rhoc for hybrid functionals
@@ -152,15 +153,18 @@ MODULE us_exx
     TYPE(fft_cus), INTENT(inout):: exx_fft
     ! In input I get a slice of <beta|left> and <beta|right>
     ! only for this kpoint and this band
-    COMPLEX(DP),INTENT(inout) :: rhoc(exx_fft%dfftt%nnr)
-    COMPLEX(DP),INTENT(in), OPTIONAL  :: becphi_c(nkb), becpsi_c(nkb)
-    REAL(DP),   INTENT(in), OPTIONAL  :: becphi_r(nkb), becpsi_r(nkb)
+    COMPLEX(DP),INTENT(inout) :: rhoc(exx_fft%dfftt%nnr,jblock)
+    COMPLEX(DP),INTENT(in), OPTIONAL  :: becphi_c(nkb,jblock), becpsi_c(nkb)
+    REAL(DP),   INTENT(in), OPTIONAL  :: becphi_r(nkb,jblock), becpsi_r(nkb)
     REAL(DP),   INTENT(in)    :: xkq(3), xk(3)
+    COMPLEX(DP) :: phi_c
+    INTEGER,    INTENT(in) :: jblock, nblock
+    INTEGER :: jbnd
     CHARACTER(LEN=1), INTENT(in) :: flag
     !
     ! ... local variables
     !
-    COMPLEX(DP),ALLOCATABLE :: aux1(:), aux2(:), eigqts(:)
+    COMPLEX(DP),ALLOCATABLE :: aux1(:), aux2(:,:), eigqts(:), aug(:,:)
     INTEGER :: ngms, ikb, jkb, ijkb0, ih, jh, na, nt, ig, nij, ijh
     COMPLEX(DP) :: becfac_c
     REAL(DP) :: arg, becfac_r
@@ -184,7 +188,7 @@ MODULE us_exx
        CALL errore('addusxx_g', 'called with incorrect arguments', 2 )
     !
     ngms = exx_fft%ngmt
-    ALLOCATE( aux1(ngms), aux2(ngms) )
+    ALLOCATE( aux1(ngms), aux2(ngms,jblock), aug(ngms,jblock) )
     ALLOCATE(eigqts(nat))
     !
     DO na = 1, nat
@@ -192,6 +196,7 @@ MODULE us_exx
       eigqts(na) = CMPLX( COS(arg), -SIN(arg), kind=DP)
     END DO
     !
+    aug(:,:) = (0.0_dp, 0.0_dp)
     nij = 0
     DO nt = 1, ntyp
        !
@@ -205,10 +210,13 @@ MODULE us_exx
                 !
                 ijkb0 = indv_ijkb0(na) 
                 !
-                aux2(:) = (0.0_dp, 0.0_dp)
+                aux2(:,:) = (0.0_dp, 0.0_dp)
                 DO ih = 1, nh(nt)
                    ikb = ijkb0 + ih
+                   !
                    aux1(:) = (0.0_dp, 0.0_dp)
+                   CALL start_clock('test1')
+                   !
                    DO jh = 1, nh(nt)
                       jkb = ijkb0 + jh
                       IF ( add_complex ) THEN
@@ -227,50 +235,70 @@ MODULE us_exx
 !$omp end parallel do
                       END IF
                    END DO
-                   IF ( add_complex ) THEN
+                   CALL stop_clock('test1')
+                   !
+                   CALL start_clock('test2')
+                   DO jbnd = 1, nblock
+                      IF ( add_complex ) THEN
+                         phi_c = CONJG(becphi_c(ikb,jbnd))
 !$omp parallel do default(shared) private(ig)
-                      DO ig = 1,ngms
-                         aux2(ig) = aux2(ig) + aux1(ig) * CONJG(becphi_c(ikb))
-                      ENDDO
+                         DO ig = 1,ngms
+                            aux2(ig,jbnd) = aux2(ig,jbnd) + aux1(ig) * phi_c
+                         ENDDO
 !$omp end parallel do
-                   ELSE
+                      ELSE
 !$omp parallel do default(shared) private(ig)
-                      DO ig = 1,ngms
-                         aux2(ig) = aux2(ig) + aux1(ig) * becphi_r(ikb)
-                      ENDDO
+                         DO ig = 1,ngms
+                            aux2(ig,jbnd) = aux2(ig,jbnd) + aux1(ig) * becphi_r(ikb,jbnd)
+                         ENDDO
 !$omp end parallel do
-                   END IF
-                END DO
-!$omp parallel do default(shared) private(ig)
-                DO ig = 1, ngms
-                   aux2(ig) = aux2(ig) * eigqts(na) * &
-                                 eigts1 (mill (1,ig), na) * &
-                                 eigts2 (mill (2,ig), na) * &
-                                 eigts3 (mill (3,ig), na)
-                ENDDO
-!$omp end parallel do
-                IF ( add_complex ) THEN
-                   DO ig = 1, ngms
-                      rhoc(exx_fft%nlt(ig)) = rhoc(exx_fft%nlt(ig)) + aux2(ig)
+                      END IF
                    END DO
-                ELSE IF ( add_real ) THEN
+                   CALL stop_clock('test2')
+                END DO
+                !
+                CALL start_clock('test3')
+                DO ig = 1, ngms
+                   aux1(ig) = eigqts(na) * &
+                           eigts1 (mill (1,ig), na) * &
+                           eigts2 (mill (2,ig), na) * &
+                           eigts3 (mill (3,ig), na)
+                END DO
+                !
+                DO jbnd = 1, nblock
+!$omp parallel do default(shared) private(ig)
                    DO ig = 1, ngms
-                      rhoc(exx_fft%nlt(ig)) = rhoc(exx_fft%nlt(ig)) + aux2(ig)
+                      aux2(ig,jbnd) = aux2(ig,jbnd) * aux1(ig)
                    ENDDO
-                   DO ig = gstart, ngms
-                      rhoc(exx_fft%nltm(ig)) = rhoc(exx_fft%nltm(ig)) &
-                                               + CONJG(aux2(ig))
-                   ENDDO
-                ELSE IF ( add_imaginary ) THEN
-                   DO ig = 1, ngms
-                      rhoc(exx_fft%nlt(ig)) = rhoc(exx_fft%nlt(ig)) &
-                                              + (0.0_dp,1.0_dp) * aux2(ig)
-                   ENDDO
-                   DO ig = gstart, ngms
-                      rhoc(exx_fft%nltm(ig)) = rhoc(exx_fft%nltm(ig)) &
-                                             + (0.0_dp,1.0_dp)* CONJG(aux2(ig))
-                   ENDDO
-                ENDIF
+!$omp end parallel do
+                END DO
+                !
+                DO jbnd = 1, nblock
+                   IF ( add_complex ) THEN
+                      DO ig = 1, ngms
+                         aug(ig,jbnd) = aug(ig,jbnd) + aux2(ig,jbnd)
+                      END DO
+                   ELSE IF ( add_real ) THEN
+                      DO ig = 1, ngms
+                         rhoc(exx_fft%nlt(ig),jbnd) = rhoc(exx_fft%nlt(ig),jbnd) + aux2(ig,jbnd)
+                      ENDDO
+                      DO ig = gstart, ngms
+                         rhoc(exx_fft%nltm(ig),jbnd) = rhoc(exx_fft%nltm(ig),jbnd) &
+                                                       + CONJG(aux2(ig,jbnd))
+                      ENDDO
+                   ELSE IF ( add_imaginary ) THEN
+                      DO ig = 1, ngms
+                         rhoc(exx_fft%nlt(ig),jbnd) = rhoc(exx_fft%nlt(ig),jbnd) &
+                                                      + (0.0_dp,1.0_dp) * aux2(ig,jbnd)
+                      ENDDO
+                      DO ig = gstart, ngms
+                         rhoc(exx_fft%nltm(ig),jbnd) = rhoc(exx_fft%nltm(ig),jbnd) &
+                                                       + (0.0_dp,1.0_dp)* CONJG(aux2(ig,jbnd))
+                      ENDDO
+                   ENDIF
+                END DO
+                CALL stop_clock('test3')
+                !
              ENDIF
           ENDDO   ! nat
           !
@@ -279,6 +307,14 @@ MODULE us_exx
        END IF
        !
     ENDDO   ! nt
+    !
+    IF ( add_complex ) THEN
+       DO jbnd = 1, nblock
+          DO ig = 1, ngms
+             rhoc(exx_fft%nlt(ig),jbnd) = rhoc(exx_fft%nlt(ig),jbnd) + aug(ig,jbnd)
+          ENDDO
+       ENDDO
+    ENDIF
     !
     DEALLOCATE( eigqts, aux2, aux1)
     !
@@ -291,7 +327,7 @@ MODULE us_exx
   !-----------------------------------------------------------------------
   !
   !-----------------------------------------------------------------------
-  SUBROUTINE newdxx_g(exx_fft, vc, xkq, xk, flag, deexx, becphi_r, becphi_c)
+  SUBROUTINE newdxx_g(exx_fft, vc, xkq, xk, jblock, nblock, flag, deexx, becphi_r, becphi_c)
     !-----------------------------------------------------------------------
     !
     ! This subroutine computes some sort of EXX contribution to the non-local 
@@ -316,14 +352,18 @@ MODULE us_exx
     IMPLICIT NONE
     !
     TYPE(fft_cus), INTENT(inout):: exx_fft
-    COMPLEX(DP),INTENT(in)    :: vc(exx_fft%dfftt%nnr)
+    COMPLEX(DP),INTENT(in)    :: vc(exx_fft%dfftt%nnr,jblock)
     ! In input I get a slice of <beta|left> and <beta|right> 
     ! only for this kpoint and this band
-    COMPLEX(DP),INTENT(in), OPTIONAL :: becphi_c(nkb)
-    REAL(DP),   INTENT(in), OPTIONAL :: becphi_r(nkb)
+    COMPLEX(DP),INTENT(in), OPTIONAL :: becphi_c(nkb,jblock)
+    REAL(DP),   INTENT(in), OPTIONAL :: becphi_r(nkb,jblock)
     COMPLEX(DP),INTENT(inout) :: deexx(nkb)
     REAL(DP),INTENT(in)       :: xk(3), xkq(3)
     CHARACTER(LEN=1), INTENT(IN) :: flag
+    COMPLEX(DP) :: phi_c
+    REAL(DP) :: phi_r
+    INTEGER, INTENT(in) :: jblock, nblock
+    INTEGER :: jbnd
     INTEGER:: ngms
     !
     ! ... local variables
@@ -331,8 +371,8 @@ MODULE us_exx
     REAL(DP) :: fact
     COMPLEX(DP), EXTERNAL :: zdotc
     !
-    COMPLEX(DP),ALLOCATABLE :: auxvc(:), &  ! vc in order of |g|
-                               eigqts(:), aux1(:), aux2(:)
+    COMPLEX(DP),ALLOCATABLE :: auxvc(:,:), &  ! vc in order of |g|
+                               eigqts(:), aux1(:), aux2(:,:)
     COMPLEX(DP) :: fp, fm
     REAL(DP) :: arg
     LOGICAL :: add_complex, add_real, add_imaginary
@@ -356,7 +396,7 @@ MODULE us_exx
     CALL start_clock( 'newdxx' )
     !
     ngms = exx_fft%ngmt
-    ALLOCATE(aux1(ngms), aux2(ngms), auxvc( ngms))
+    ALLOCATE(aux1(ngms), aux2(ngms,jblock), auxvc( ngms, jblock))
     ALLOCATE(eigqts(nat))
     !
     DO na = 1, nat
@@ -368,25 +408,27 @@ MODULE us_exx
     ! select real or imaginary part if so desired
     ! fact=2 to account for G and -G components
     !
-    auxvc = (0._dp, 0._dp)
-    IF ( add_complex ) THEN
-       auxvc(1:ngms) = vc(exx_fft%nlt(1:ngms) )
-       fact=omega
-    ELSE IF ( add_real ) THEN
-       DO ig = 1, ngms
-          fp = (vc(exx_fft%nlt(ig)) + vc(exx_fft%nltm(ig)))/2.0_dp
-          fm = (vc(exx_fft%nlt(ig)) - vc(exx_fft%nltm(ig)))/2.0_dp
-          auxvc(ig) = CMPLX( DBLE(fp), AIMAG(fm), KIND=dp)
-       END DO
-       fact=2.0_dp*omega
-    ELSE IF ( add_imaginary ) THEN
-       DO ig = 1, ngms
-          fp = (vc(exx_fft%nlt(ig)) + vc(exx_fft%nltm(ig)))/2.0_dp
-          fm = (vc(exx_fft%nlt(ig)) - vc(exx_fft%nltm(ig)))/2.0_dp
-          auxvc(ig) = CMPLX( AIMAG(fp), -DBLE(fm), KIND=dp)
-       END DO
-       fact=2.0_dp*omega
-    END IF 
+    DO jbnd = 1, nblock
+       auxvc(:,jbnd) = (0._dp, 0._dp)
+       IF ( add_complex ) THEN
+          auxvc(1:ngms,jbnd) = vc(exx_fft%nlt(1:ngms),jbnd )
+          fact=omega
+       ELSE IF ( add_real ) THEN
+          DO ig = 1, ngms
+             fp = (vc(exx_fft%nlt(ig),jbnd) + vc(exx_fft%nltm(ig),jbnd))/2.0_dp
+             fm = (vc(exx_fft%nlt(ig),jbnd) - vc(exx_fft%nltm(ig),jbnd))/2.0_dp
+             auxvc(ig,jbnd) = CMPLX( DBLE(fp), AIMAG(fm), KIND=dp)
+          END DO
+          fact=2.0_dp*omega
+       ELSE IF ( add_imaginary ) THEN
+          DO ig = 1, ngms
+             fp = (vc(exx_fft%nlt(ig),jbnd) + vc(exx_fft%nltm(ig),jbnd))/2.0_dp
+             fm = (vc(exx_fft%nlt(ig),jbnd) - vc(exx_fft%nltm(ig),jbnd))/2.0_dp
+             auxvc(ig,jbnd) = CMPLX( AIMAG(fp), -DBLE(fm), KIND=dp)
+          END DO
+          fact=2.0_dp*omega
+       END IF
+    END DO
     !
     nij = 0
     DO nt = 1, ntyp
@@ -401,40 +443,59 @@ MODULE us_exx
                 !
                 ijkb0 = indv_ijkb0(na) 
                 !
-!$omp parallel do default(shared) private(ig)
+                CALL start_clock('ult1')
                 DO ig = 1, ngms
-                   aux2(ig) = CONJG( auxvc(ig) ) * eigqts(na) * &
-                              eigts1(mill(1,ig), na) * &
-                              eigts2(mill(2,ig), na) * &
-                              eigts3(mill(3,ig), na)
+                   aux1(ig) = CONJG( eigqts(na) * &
+                           eigts1(mill(1,ig), na) * &
+                           eigts2(mill(2,ig), na) * &
+                           eigts3(mill(3,ig), na) )
                 END DO
-!$omp end parallel do
-                DO ih = 1, nh(nt)
-                   ikb = ijkb0 + ih
-                   aux1(:) = (0.0_dp, 0.0_dp)
-                   DO jh = 1, nh(nt)
-                      jkb = ijkb0 + jh
-                      IF ( gamma_only ) THEN
+                !
+                DO jbnd = 1, nblock
 !$omp parallel do default(shared) private(ig)
-                         DO ig = 1, ngms
-                            aux1(ig) = aux1(ig) + becphi_r(jkb) * &
-                                 CONJG( qgm(ig,nij+ijtoh(ih,jh,nt)) )
-                         ENDDO
+                   DO ig = 1, ngms
+                      aux2(ig,jbnd) = auxvc(ig,jbnd) * aux1(ig)
+                   END DO
 !$omp end parallel do
+                END DO
+                CALL stop_clock('ult1')
+
+
+                DO jh = 1, nh(nt)
+                   jkb = ijkb0 + jh
+                   !
+                   CALL start_clock('ult2')
+                   aux1(:) = (0._dp, 0._dp)
+                   !
+                   DO jbnd = 1, nblock
+                      IF (gamma_only) THEN
+                         phi_r = becphi_r(jkb,jbnd)
+                         DO ig = 1, ngms
+                            aux1(ig) = aux1(ig) + phi_r*aux2(ig,jbnd)
+                         END DO
                       ELSE
-!$omp parallel do default(shared) private(ig)
+                         phi_c = becphi_c(jkb,jbnd)
                          DO ig = 1, ngms
-                            aux1(ig) = aux1(ig) + becphi_c(jkb) * &
-                                 CONJG( qgm(ig,nij+ijtoh(ih,jh,nt)) )
-                         ENDDO
-!$omp end parallel do
+                            aux1(ig) = aux1(ig) + phi_c*aux2(ig,jbnd)
+                         END DO
                       END IF
                    END DO
+                   CALL stop_clock('ult2')
                    !
-                   deexx(ikb) = deexx(ikb) + fact*zdotc(ngms, aux2, 1, aux1, 1)
-                   IF( gamma_only .AND. gstart == 2 ) &
-                        deexx(ikb) =  deexx(ikb) - omega*CONJG (aux2(1))*aux1(1)
+                   DO ih = 1, nh(nt)
+                      ikb = ijkb0 + ih
+                      CALL start_clock('ult3')
+                      !
+                      deexx(ikb) = deexx(ikb) + fact*zdotc(ngms, qgm(:,nij+ijtoh(ih,jh,nt)), 1, aux1, 1)
+                      IF( gamma_only .AND. gstart == 2 ) &
+                           deexx(ikb) =  deexx(ikb) - omega*aux1(1)*CONJG(qgm(1,nij+ijtoh(ih,jh,nt)))
+                      !
+                      CALL stop_clock('ult3')
+                      !
+                   ENDDO
+                   !
                 ENDDO
+                !
              ENDIF
              !
           ENDDO  ! nat

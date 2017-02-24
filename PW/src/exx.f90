@@ -1499,11 +1499,11 @@ MODULE exx
                 IF(okvan .and. .not. tqr) THEN
                    ! contribution from one band added to real (in real space) part of rhoc
                    IF(jbnd>=jstart) &
-                        CALL addusxx_g(exx_fft, rhoc(:,ii), xkq,  xkp, 'r', &
+                        CALL addusxx_g(exx_fft, rhoc(:,ii), xkq,  xkp, 1, 1, 'r', &
                         becphi_r=becxx(ikq)%r(:,jbnd), becpsi_r=becpsi%r(:,ibnd) )
                    ! contribution from following band added to imaginary (in real space) part of rhoc
                    IF(jbnd<jend) &
-                        CALL addusxx_g(exx_fft, rhoc(:,ii), xkq,  xkp, 'i', &
+                        CALL addusxx_g(exx_fft, rhoc(:,ii), xkq,  xkp, 1, 1, 'i', &
                         becphi_r=becxx(ikq)%r(:,jbnd+1), becpsi_r=becpsi%r(:,ibnd) )
                 ENDIF
                 !   >>>> charge density done
@@ -1522,10 +1522,10 @@ MODULE exx
                 !   >>>>  compute <psi|H_fock G SPACE here
                 IF(okvan .and. .not. tqr) THEN
                    IF(jbnd>=jstart) &
-                        CALL newdxx_g(exx_fft, vc(:,ii), xkq, xkp, 'r', deexx(:,ii), &
+                        CALL newdxx_g(exx_fft, vc(:,ii), xkq, xkp, 1, 1, 'r', deexx(:,ii), &
                            becphi_r=x1*becxx(ikq)%r(:,jbnd))
                    IF(jbnd<jend) &
-                        CALL newdxx_g(exx_fft, vc(:,ii), xkq, xkp, 'i', deexx(:,ii), &
+                        CALL newdxx_g(exx_fft, vc(:,ii), xkq, xkp, 1, 1, 'i', deexx(:,ii), &
                             becphi_r=x2*becxx(ikq)%r(:,jbnd+1))
                 ENDIF
                 !
@@ -1923,9 +1923,9 @@ MODULE exx
              !   >>>> add augmentation in G space HERE
              CALL start_clock ('vexx_augg')
              IF(okvan .and. .not. tqr) THEN
-                DO jbnd=jstart, jend
-                   CALL addusxx_g(exx_fft, rhoc(:,jbnd-jstart+1), xkq, xkp, 'c', becphi_c=becxx(ikq)%k(:,jbnd),becpsi_c=becpsi%k(:,ibnd))
-                ENDDO
+                CALL addusxx_g(exx_fft, rhoc, xkq, xkp, jblock, jend-jstart+1, 'c', &
+                     becphi_c=becxx(ikq)%k(:,jstart:jend), &
+                     becpsi_c=becpsi%k(:,ibnd) )
              ENDIF
              CALL stop_clock ('vexx_augg')
              !   >>>> charge done
@@ -1955,9 +1955,8 @@ MODULE exx
              ! compute alpha_I,j,k+q = \sum_J \int <beta_J|phi_j,k+q> V_i,j,k,q Q_I,J(r) d3r
              CALL start_clock ('vexx_ultr')
              IF(okvan .and. .not. tqr) THEN
-                DO jbnd=jstart, jend
-                   CALL newdxx_g(exx_fft, vc(:,jbnd-jstart+1), xkq, xkp, 'c', deexx(:,ii), becphi_c=becxx(ikq)%k(:,jbnd))
-                ENDDO
+                CALL newdxx_g(exx_fft, vc, xkq, xkp, jblock, jend-jstart+1, 'c', deexx(:,ii), &
+                     becphi_c=becxx(ikq)%k(:,jstart:jend))
              ENDIF
              CALL stop_clock ('vexx_ultr')
              !
@@ -2627,10 +2626,10 @@ MODULE exx
                    !
                    IF(okvan .and..not.tqr) THEN
                       IF(ibnd>=istart ) &
-                           CALL addusxx_g( exx_fft, rhoc, xkq, xkp, 'r', &
+                           CALL addusxx_g( exx_fft, rhoc, xkq, xkp, 1, 1, 'r', &
                            becphi_r=becxx(ikq)%r(:,ibnd), becpsi_r=becpsi%r(:,jbnd-calbec_start+1) )
                       IF(ibnd<iend) &
-                           CALL addusxx_g( exx_fft, rhoc, xkq, xkp, 'i', &
+                           CALL addusxx_g( exx_fft, rhoc, xkq, xkp, 1, 1, 'i', &
                            becphi_r=becxx(ikq)%r(:,ibnd+1), becpsi_r=becpsi%r(:,jbnd-calbec_start+1) )
                    ENDIF
                    !
@@ -2963,7 +2962,7 @@ MODULE exx
                 ! augment the "charge" in G space
                 IF(okvan .and. .not. tqr) THEN
                    DO ibnd = ibnd_inner_start, ibnd_inner_end
-                      CALL addusxx_g(exx_fft, rhoc(:,ibnd-ibnd_inner_start+1), xkq, xkp, 'c', becphi_c=becxx(ikq)%k(:,ibnd),becpsi_c=becpsi%k(:,jbnd))
+                      CALL addusxx_g(exx_fft, rhoc(:,ibnd-ibnd_inner_start+1), xkq, xkp, 1, 1, 'c', becphi_c=becxx(ikq)%k(:,ibnd),becpsi_c=becpsi%k(:,jbnd) )
                    ENDDO
                 ENDIF
                 CALL stop_clock ('exxenergy_augr')
