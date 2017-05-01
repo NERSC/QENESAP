@@ -940,7 +940,11 @@ MODULE exx
                 ENDDO
              ENDIF
 
-             CALL invfft ('CustomWave', psic_exx, exx_fft%dfftt)
+#ifdef __USE_3D_FFT
+            CALL invfft ('CustomLocal', psic_exx, exx_fft%dfftt)
+#else
+            CALL invfft ('CustomWave', psic_exx, exx_fft%dfftt)
+#endif
 
              exxbuff(1:nrxxs,h_ibnd,ik)=psic_exx(1:nrxxs)
              
@@ -964,13 +968,21 @@ MODULE exx
                    temppsic_nc(exx_fft%nlt(igk_exx(ig,ik)),1) = evc_exx(ig,ibnd-iexx_start+1)
                 ENDDO
 !$omp end parallel do
-                CALL invfft ('CustomWave', temppsic_nc(:,1), exx_fft%dfftt)
+#ifdef __USE_3D_FFT
+				CALL invfft ('CustomLocal', temppsic_nc(:,1), exx_fft%dfftt)
+#else
+				CALL invfft ('CustomWave', temppsic_nc(:,1), exx_fft%dfftt)
+#endif
 !$omp parallel do default(shared) private(ig) firstprivate(npw,ik,ibnd_exx,npwx)
                 DO ig=1,npw
                    temppsic_nc(exx_fft%nlt(igk_exx(ig,ik)),2) = evc_exx(ig+npwx,ibnd-iexx_start+1)
                 ENDDO
 !$omp end parallel do
-                CALL invfft ('CustomWave', temppsic_nc(:,2), exx_fft%dfftt)
+#ifdef __USE_3D_FFT
+				CALL invfft ('CustomLocal', temppsic_nc(:,2), exx_fft%dfftt)
+#else
+				CALL invfft ('CustomWave', temppsic_nc(:,2), exx_fft%dfftt)
+#endif
              ELSE
 !$omp parallel do default(shared) private(ir) firstprivate(nrxxs)
                 DO ir=1,nrxxs
@@ -981,7 +993,11 @@ MODULE exx
                    temppsic(exx_fft%nlt(igk_exx(ig,ik))) = evc_exx(ig,ibnd-iexx_start+1)
                 ENDDO
 !$omp end parallel do
+#ifdef __USE_3D_FFT
+				CALL invfft ('CustomLocal', temppsic, exx_fft%dfftt)
+#else
                 CALL invfft ('CustomWave', temppsic, exx_fft%dfftt)
+#endif
              ENDIF
              !
              DO ikq=1,nkqs
@@ -1429,7 +1445,11 @@ MODULE exx
              ENDIF
              !
              IF( l_fft_doubleband.or.l_fft_singleband) THEN
-                CALL invfft ('CustomWave', psiwork, exx_fft%dfftt)
+#ifdef __USE_3D_FFT
+			CALL invfft ('CustomLocal', psiwork, exx_fft%dfftt)
+#else
+			CALL invfft ('CustomWave', psiwork, exx_fft%dfftt)
+#endif
 !$omp parallel do default(shared), private(ir)
                 DO ir = 1, nrxxs
                    temppsic_dble(ir)  = dble ( psiwork(ir) )
@@ -1511,8 +1531,7 @@ MODULE exx
                         CALL addusxx_r(exx_fft,rhoc(:,ii), &
                        _CX(becxx(ikq)%r(:,jbnd)), _CX(becpsi%r(:,ibnd)))
                    IF(jbnd<jend) &
-                        CALL addusxx_r(exx_fft,rhoc(:,ii), &
-                       _CY(becxx(ikq)%r(:,jbnd+1)),_CX(becpsi%r(:,ibnd)))
+                        CALL addusxx_r(exx_fft,rhoc(:,ii),_CY(becxx(ikq)%r(:,jbnd+1)),_CX(becpsi%r(:,ibnd)))
                 ENDIF
                 !
                 CALL fwfft ('Custom', rhoc(:,ii), exx_fft%dfftt)
@@ -1551,7 +1570,7 @@ MODULE exx
                 ENDIF
                 !
                 !brings back v in real space
-                CALL invfft ('Custom', vc(:,ii), exx_fft%dfftt)
+                CALL invfft ('Custom', vc(:,ii), exx_fft%dfftt) 
                 !
                 !   >>>>  compute <psi|H_fock REAL SPACE here
                 IF(okvan .and. tqr) THEN
@@ -1603,7 +1622,11 @@ MODULE exx
        !
        ! brings back result in G-space
        !
-       CALL fwfft( 'CustomWave' , result(:,ii), exx_fft%dfftt )
+#ifdef __USE_3D_FFT
+       CALL fwfft( 'CustomLocal' , result(:,ii), exx_fft%dfftt)
+#else
+       CALL fwfft( 'CustomWave' , result(:,ii), exx_fft%dfftt)
+#endif
        !communicate result
        DO ig = 1, n
           big_result(ig,ibnd) = big_result(ig,ibnd) - exxalfa*result(exx_fft%nlt(igk_exx(ig,current_k)),ii)
@@ -1689,7 +1712,7 @@ MODULE exx
     !
 	COMPLEX(DP),ALLOCATABLE :: deexx(:,:)
     COMPLEX(DP),ALLOCATABLE,TARGET :: rhoc(:,:), vc(:,:)
-#if defined(__USE_3D_FFT) & defined(__USE_MANY_FFT)
+#if defined(__USE_MANY_FFT)
     COMPLEX(DP),POINTER :: prhoc(:), pvc(:)
 #endif
 #if defined(__USE_INTEL_HBM_DIRECTIVES)
@@ -1740,7 +1763,7 @@ MODULE exx
     !
     !allocate arrays for rhoc and vc
     ALLOCATE(rhoc(nrxxs,jblock), vc(nrxxs,jblock))
-#if defined(__USE_3D_FFT) & defined(__USE_MANY_FFT)
+#if defined(__USE_MANY_FFT)
     prhoc(1:nrxxs*jblock) => rhoc(:,:)
     pvc(1:nrxxs*jblock) => vc(:,:)
 #endif
@@ -1771,8 +1794,13 @@ MODULE exx
           ENDDO
 !$omp end parallel do
           !
+#ifdef __USE_3D_FFT
+          CALL invfft ('CustomLocal', temppsic_nc(:,1,ii), exx_fft%dfftt)
+          CALL invfft ('CustomLocal', temppsic_nc(:,2,ii), exx_fft%dfftt)
+#else
           CALL invfft ('CustomWave', temppsic_nc(:,1,ii), exx_fft%dfftt)
           CALL invfft ('CustomWave', temppsic_nc(:,2,ii), exx_fft%dfftt)
+#endif
           !
        ELSE
           !
@@ -1782,7 +1810,11 @@ MODULE exx
           ENDDO
 !$omp end parallel do
           !
+#ifdef __USE_3D_FFT
+          CALL invfft ('CustomLocal', temppsic(:,ii), exx_fft%dfftt)
+#else
           CALL invfft ('CustomWave', temppsic(:,ii), exx_fft%dfftt)
+#endif
           !
        END IF
        !
@@ -1913,10 +1945,14 @@ MODULE exx
              !
              !   >>>> brings it to G-space
 #if defined(__USE_3D_FFT) & defined(__USE_MANY_FFT)
-             CALL fwfft ('Custom', prhoc, exx_fft%dfftt, howmany=jcount)
+             CALL fwfft ('CustomLocal', prhoc, exx_fft%dfftt, howmany=jcount)
 #else
              DO jbnd=jstart, jend
+#if defined(__USE_3D_FFT)
+                CALL fwfft('CustomLocal', rhoc(:,jbnd-jstart+1), exx_fft%dfftt)
+#else
                 CALL fwfft('Custom', rhoc(:,jbnd-jstart+1), exx_fft%dfftt)
+#endif
              ENDDO
 #endif
              !
@@ -1959,11 +1995,14 @@ MODULE exx
              !
              !brings back v in real space
 #if defined(__USE_3D_FFT) & defined(__USE_MANY_FFT)
-             !fft many
-             CALL invfft ('Custom', pvc, exx_fft%dfftt, howmany=jcount)
+             CALL invfft ('CustomLocal', pvc, exx_fft%dfftt, howmany=jcount)
 #else
              DO jbnd=jstart, jend
-                CALL invfft('Custom', vc(:,jbnd-jstart+1), exx_fft%dfftt)
+#if defined(__USE_3D_FFT)
+                 CALL invfft('CustomLocal', vc(:,jbnd-jstart+1), exx_fft%dfftt)
+#else
+                 CALL invfft('Custom', vc(:,jbnd-jstart+1), exx_fft%dfftt)
+#endif
              ENDDO
 #endif
              !
@@ -2036,15 +2075,20 @@ MODULE exx
        !
        IF (noncolin) THEN
           !brings back result in G-space
-          CALL fwfft ('CustomWave', result_nc(:,1,ii), exx_fft%dfftt)
-          CALL fwfft ('CustomWave', result_nc(:,2,ii), exx_fft%dfftt)
-          DO ig = 1, n
-             big_result(ig,ibnd) = big_result(ig,ibnd) - exxalfa*result_nc(exx_fft%nlt(igk_exx(ig,current_k)),1,ii)
-             big_result(n+ig,ibnd) = big_result(n+ig,ibnd) - exxalfa*result_nc(exx_fft%nlt(igk_exx(ig,current_k)),2,ii)
-          ENDDO
+#if __USE_3D_FFT
+           CALL fwfft ('CustomLocal', result_nc(:,1,ii), exx_fft%dfftt)
+           CALL fwfft ('CustomLocal', result_nc(:,2,ii), exx_fft%dfftt)
+#else
+           CALL fwfft ('CustomWave', result_nc(:,1,ii), exx_fft%dfftt)
+           CALL fwfft ('CustomWave', result_nc(:,2,ii), exx_fft%dfftt)
+#endif
        ELSE
           !
-          CALL fwfft ('CustomWave', result(:,ii), exx_fft%dfftt)
+#if __USE_3D_FFT
+           CALL fwfft ('CustomLocal', result(:,ii), exx_fft%dfftt)
+#else
+           CALL fwfft ('CustomWave', result(:,ii), exx_fft%dfftt)
+#endif
           DO ig = 1, n
              big_result(ig,ibnd) = big_result(ig,ibnd) - exxalfa*result(exx_fft%nlt(igk_exx(ig,current_k)),ii)
           ENDDO
@@ -2540,7 +2584,7 @@ MODULE exx
                 ENDIF
                 !
                 IF( l_fft_doubleband.or.l_fft_singleband) THEN
-                   CALL invfft ('CustomWave', temppsic, exx_fft%dfftt)
+                    CALL invfft ('CustomWave', temppsic, exx_fft%dfftt)
 !$omp parallel do default(shared), private(ir)
                    DO ir = 1, nrxxs
                       temppsic_dble(ir)  = dble ( temppsic(ir) )
@@ -2623,7 +2667,11 @@ MODULE exx
                    ENDIF
                    !
                    ! bring rhoc to G-space
+#ifdef __USE_3D_FFT
+                   CALL fwfft ('CustomLocal', rhoc, exx_fft%dfftt)
+#else
                    CALL fwfft ('Custom', rhoc, exx_fft%dfftt)
+#endif
                    !
                    IF(okvan .and..not.tqr) THEN
                       IF(ibnd>=istart ) &
@@ -2713,9 +2761,6 @@ MODULE exx
     USE mp_bands,                ONLY : intra_bgrp_comm
     USE mp,                      ONLY : mp_sum
     USE fft_interfaces,          ONLY : fwfft, invfft
-!#if defined(__USE_3D_FFT) & defined(__USE_MANY_FFT)
-!    USE fft_interfaces,          ONLY : fwfftm, invfftm
-!#endif
     USE gvect,                   ONLY : ecutrho
     USE klist,                   ONLY : wk
     USE uspp,                    ONLY : okvan,nkb,vkb
@@ -2735,7 +2780,7 @@ MODULE exx
     COMPLEX(DP), ALLOCATABLE :: temppsic(:,:)
     COMPLEX(DP), ALLOCATABLE :: temppsic_nc(:,:,:)
     COMPLEX(DP), ALLOCATABLE,TARGET :: rhoc(:,:)
-#if defined(__USE_3D_FFT) & defined(__USE_MANY_FFT)
+#if defined(__USE_MANY_FFT)
     COMPLEX(DP), POINTER :: prhoc(:)
 #endif
     REAL(DP),    ALLOCATABLE :: fac(:)
@@ -2822,8 +2867,13 @@ MODULE exx
              ENDDO
 !$omp end parallel do
              !
-             CALL invfft ('CustomWave', temppsic_nc(:,1,ii), exx_fft%dfftt)
-             CALL invfft ('CustomWave', temppsic_nc(:,2,ii), exx_fft%dfftt)
+#ifdef __USE_3D_FFT
+                 CALL invfft ('CustomLocal', temppsic_nc(:,1,ii), exx_fft%dfftt)
+                 CALL invfft ('CustomLocal', temppsic_nc(:,2,ii), exx_fft%dfftt)
+#else
+                 CALL invfft ('CustomWave', temppsic_nc(:,1,ii), exx_fft%dfftt)
+                 CALL invfft ('CustomWave', temppsic_nc(:,2,ii), exx_fft%dfftt)
+#endif
              !
           ELSE
 !$omp parallel do default(shared), private(ig)
@@ -2832,7 +2882,11 @@ MODULE exx
              ENDDO
 !$omp end parallel do
              !
+#ifdef __USE_3D_FFT
+             CALL invfft ('CustomLocal', temppsic(:,ii), exx_fft%dfftt)
+#else
              CALL invfft ('CustomWave', temppsic(:,ii), exx_fft%dfftt)
+#endif
              !
           ENDIF
        END DO
@@ -2890,7 +2944,7 @@ MODULE exx
                 !
                 !allocate arrays
                 ALLOCATE( rhoc(nrxxs,ibnd_inner_count) )
-#if defined(__USE_3D_FFT) & defined(__USE_MANY_FFT)
+#if defined(__USE_MANY_FFT)
                 prhoc(1:nrxxs*ibnd_inner_count) => rhoc
 #endif 
                 !
@@ -2941,10 +2995,14 @@ MODULE exx
                 !
                 ! bring rhoc to G-space
 #if defined(__USE_3D_FFT) & defined(__USE_MANY_FFT)
-                CALL fwfft ('Custom', prhoc, exx_fft%dfftt, howmany=ibnd_inner_count)
+                CALL fwfft ('CustomLocal', prhoc, exx_fft%dfftt, howmany=ibnd_inner_count)
 #else
                 DO ibnd=ibnd_inner_start, ibnd_inner_end
-                   CALL fwfft('Custom', rhoc(:,ibnd-ibnd_inner_start+1), exx_fft%dfftt)
+#if defined(__USE_3D_FFT)
+                    CALL fwfft('CustomLocal', rhoc(:,ibnd-ibnd_inner_start+1), exx_fft%dfftt)
+#else
+                    CALL fwfft('Custom', rhoc(:,ibnd-ibnd_inner_start+1), exx_fft%dfftt)
+#endif
                 ENDDO
 #endif
                 
@@ -3417,7 +3475,11 @@ MODULE exx
                         ENDDO
 !$omp end parallel do
                         ! bring it to G-space
+#ifdef __USE_3D_FFT
+                        CALL fwfft ('CustomLocal', rhoc, exx_fft%dfftt)
+#else
                         CALL fwfft ('Custom', rhoc, exx_fft%dfftt)
+#endif
 
                         vc = 0._dp
 !$omp parallel do default(shared), private(ig), reduction(+:vc)
@@ -3452,7 +3514,11 @@ MODULE exx
 !$omp end parallel do
 
                       ! bring it to G-space
+#ifdef __USE_3D_FFT
+                      CALL fwfft ('CustomLocal', rhoc, exx_fft%dfftt)
+#else
                       CALL fwfft ('Custom', rhoc, exx_fft%dfftt)
+#endif
 
                       vc = 0._dp
 !$omp parallel do default(shared), private(ig), reduction(+:vc)

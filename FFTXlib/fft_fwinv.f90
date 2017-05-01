@@ -29,6 +29,10 @@ SUBROUTINE invfft_x( grid_type, f, dfft, dtgs, howmany )
   !! **grid_type = 'CustomWave'** :
   !!   inverse fourier transform of  wave functions f
   !!   on a custom grid. On output, f is overwritten
+  !!
+  !! **grid_type = 'CustomLocal'** :
+  !!   inverse fourier transform of  wave functions f
+  !!   on a local regular grid. On output, f is overwritten
   !! 
   !! **dfft = FFT descriptor**, IMPORTANT NOTICE: grid is specified only by dfft.
   !!   No check is performed on the correspondence between dfft and grid_type.
@@ -53,6 +57,8 @@ SUBROUTINE invfft_x( grid_type, f, dfft, dtgs, howmany )
 
   IF(PRESENT(howmany) ) THEN
      howmany_ = howmany
+  ELSE
+     howmany_ = 1
   END IF
   !
   IF( grid_type == 'Dense' ) THEN
@@ -65,48 +71,57 @@ SUBROUTINE invfft_x( grid_type, f, dfft, dtgs, howmany )
      CALL start_clock('fftc')
   ELSE IF( grid_type == 'CustomWave' ) THEN
      CALL start_clock('fftcw')
+  ELSE IF( grid_type == 'CustomLocal' ) THEN
+   	 CALL start_clock('fftcl')
   ELSE 
      CALL fftx_error__( ' invfft ', ' unknown grid: '//grid_type , 1 )
   END IF
 
+#ifndef __DFTI
+      IF( howmany_ /= 1 ) THEN
+          CALL fftx_error__( ' invfft ', ' howmany not yet implemented for parallel driver ', 1 )
+      END IF
+#endif
+
   IF( dfft%lpara ) THEN
 
-     IF( howmany_ /= 1 ) THEN
-        CALL fftx_error__( ' invfft ', ' howmany not yet implemented for parallel driver ', 1 )
-     END IF
-     
-     IF( grid_type == 'Dense' .OR. grid_type == 'Smooth' .OR. &
-          grid_type == 'Custom' ) THEN
-        CALL tg_cft3s( f, dfft, 1 )
-     ELSE IF( grid_type == 'Wave' .OR. grid_type == 'CustomWave' ) THEN
-        CALL tg_cft3s( f, dfft, 2, dtgs )
-     END IF
+#if defined(__MPI)
+      	IF ( grid_type == 'CustomLocal' ) THEN
+      		CALL cfft3d( f, dfft%nr1, dfft%nr2, dfft%nr3, dfft%nr1x,dfft%nr2x,dfft%nr3x, howmany_, 1)
+      	ELSE IF( grid_type == 'Dense' .OR. grid_type == 'Smooth' .OR. grid_type == 'Custom' ) THEN
+      		CALL tg_cft3s( f, dfft, 1)
+      	ELSE IF( grid_type == 'Wave' .OR. grid_type == 'CustomWave' ) THEN
+      		CALL tg_cft3s( f, dfft, 2, dtgs)
+      	END IF
+#endif
 
   ELSE
 
-     IF( grid_type == 'Dense' .OR. grid_type == 'Smooth' .OR. &
-         grid_type == 'Custom' ) THEN
-        CALL cfft3d( f, dfft%nr1, dfft%nr2, dfft%nr3, &
-                        dfft%nr1x,dfft%nr2x,dfft%nr3x, howmany_ , 1)
-     ELSE IF( grid_type == 'Wave' .OR. grid_type == 'CustomWave' ) THEN
-        CALL cfft3ds( f, dfft%nr1, dfft%nr2, dfft%nr3, &
-                         dfft%nr1x,dfft%nr2x,dfft%nr3x, howmany_ , 1, &
-                         dfft%isind, dfft%iplw )
-     END IF
+      IF( grid_type == 'Dense' .OR. grid_type == 'Smooth' .OR. &
+          grid_type == 'Custom' .OR. grid_type == 'CustomLocal' ) THEN
+          CALL cfft3d( f, dfft%nr1, dfft%nr2, dfft%nr3, &
+                      dfft%nr1x,dfft%nr2x,dfft%nr3x, howmany_ , 1)
+      ELSE IF( grid_type == 'Wave' .OR. grid_type == 'CustomWave' ) THEN
+          CALL cfft3ds( f, dfft%nr1, dfft%nr2, dfft%nr3, &
+                      dfft%nr1x,dfft%nr2x,dfft%nr3x, howmany_ , 1, &
+                      dfft%isind, dfft%iplw )
+      END IF
 
   END IF
 
-  IF( grid_type == 'Dense' ) THEN
-     CALL stop_clock( 'fft' )
-  ELSE IF( grid_type == 'Smooth' ) THEN
-     CALL stop_clock( 'ffts' )
-  ELSE IF( grid_type == 'Wave' ) THEN
-     CALL stop_clock('fftw')
-  ELSE IF( grid_type == 'Custom' ) THEN
-     CALL stop_clock('fftc')
-  ELSE IF( grid_type == 'CustomWave' ) THEN
-     CALL stop_clock('fftcw')
-  END IF
+    IF( grid_type == 'Dense' ) THEN
+        CALL stop_clock( 'fft' )
+    ELSE IF( grid_type == 'Smooth' ) THEN
+        CALL stop_clock( 'ffts' )
+    ELSE IF( grid_type == 'Wave' ) THEN
+        CALL stop_clock('fftw')
+    ELSE IF( grid_type == 'Custom' ) THEN
+        CALL stop_clock('fftc')
+    ELSE IF( grid_type == 'CustomWave' ) THEN
+        CALL stop_clock('fftcw')
+    ELSE IF( grid_type == 'CustomLocal' ) THEN
+        CALL stop_clock('fftcl')
+    END IF
 
   RETURN
 
@@ -136,6 +151,10 @@ SUBROUTINE fwfft_x( grid_type, f, dfft, dtgs, howmany )
   !! **grid_type = 'CustomWave'**
   !!   forward fourier transform of  wave functions
   !!   on a custom grid . On output, f is overwritten
+  !!
+  !! **grid_type = 'CustomLocal'**
+  !!   forward fourier transform of  wave functions
+  !!   on a local regular grid . On output, f is overwritten
   !! 
   !! **dfft = FFT descriptor**, IMPORTANT NOTICE: grid is specified only by dfft.
   !!   No check is performed on the correspondence between dfft and grid_type.
@@ -159,6 +178,8 @@ SUBROUTINE fwfft_x( grid_type, f, dfft, dtgs, howmany )
 
   IF(PRESENT(howmany) ) THEN
      howmany_ = howmany
+  ELSE
+     howmany_ = 1
   END IF
 
   IF( grid_type == 'Dense' ) THEN
@@ -171,29 +192,36 @@ SUBROUTINE fwfft_x( grid_type, f, dfft, dtgs, howmany )
      CALL start_clock('fftc')
   ELSE IF( grid_type == 'CustomWave' ) THEN
      CALL start_clock('fftcw')
+     ELSE IF( grid_type == 'CustomLocal' ) THEN
+   	 CALL start_clock('fftcl')
   ELSE
      CALL fftx_error__( ' fwfft ', ' unknown grid: '//grid_type , 1 )
   END IF
 
   IF( dfft%lpara ) THEN
 
+#ifndef __DFTI
      IF( howmany_ /= 1 ) THEN
         CALL fftx_error__( ' fwfft ', ' howmany not yet implemented for parallel driver ', 1 )
      END IF
+#endif
      
-     IF( grid_type == 'Dense' .OR. grid_type == 'Smooth' .OR. &
-         grid_type == 'Custom' ) THEN
-        CALL tg_cft3s(f,dfft,-1)
+#if defined(__MPI)
+     IF ( grid_type == 'CustomLocal' ) THEN
+	     CALL cfft3d( f, dfft%nr1, dfft%nr2, dfft%nr3, dfft%nr1x,dfft%nr2x,dfft%nr3x, howmany_, -1)
+     ELSE IF( grid_type == 'Dense' .OR. grid_type == 'Smooth' .OR. grid_type == 'Custom' ) THEN
+        CALL tg_cft3s( f, dfft, -1)
      ELSE IF( grid_type == 'Wave' .OR. grid_type == 'CustomWave' ) THEN
-        CALL tg_cft3s(f,dfft,-2, dtgs )
-     END IF
+        CALL tg_cft3s( f, dfft, -2, dtgs)
+  END IF
+
+#endif
 
   ELSE
 
      IF( grid_type == 'Dense' .OR. grid_type == 'Smooth' .OR. &
-         grid_type == 'Custom' ) THEN
-        CALL cfft3d( f, dfft%nr1, dfft%nr2, dfft%nr3, &
-                        dfft%nr1x,dfft%nr2x,dfft%nr3x, howmany_ , -1)
+         grid_type == 'Custom' .OR. grid_type == 'CustomLocal' ) THEN
+        CALL cfft3d( f, dfft%nr1, dfft%nr2, dfft%nr3, dfft%nr1x,dfft%nr2x,dfft%nr3x, howmany_ , -1)
      ELSE IF( grid_type == 'Wave' .OR. grid_type == 'CustomWave' ) THEN
         CALL cfft3ds( f, dfft%nr1, dfft%nr2, dfft%nr3, &
                          dfft%nr1x,dfft%nr2x,dfft%nr3x, howmany_ , -1, &
@@ -212,6 +240,8 @@ SUBROUTINE fwfft_x( grid_type, f, dfft, dtgs, howmany )
      CALL stop_clock('fftc')
   ELSE IF( grid_type == 'CustomWave' ) THEN
      CALL stop_clock('fftcw')
+  ELSE IF( grid_type == 'CustomLocal' ) THEN
+     CALL stop_clock('fftcl')
   END IF
   
   RETURN
