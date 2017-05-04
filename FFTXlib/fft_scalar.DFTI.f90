@@ -125,7 +125,7 @@
      END SUBROUTINE check_dims
 
      SUBROUTINE lookup()
-     IF( dfti_first ) THEN
+     IF( dfti_first .EQ. .TRUE. ) THEN
         DO ip = 1, ndims
            hand(ip)%desc => NULL()
         END DO
@@ -306,7 +306,7 @@
      END SUBROUTINE check_dims
 
      SUBROUTINE lookup()
-     IF( dfti_first ) THEN
+     IF( dfti_first .EQ. .TRUE. ) THEN
         DO ip = 1, ndims
            hand(ip)%desc => NULL()
         END DO
@@ -326,45 +326,45 @@
        if( ASSOCIATED( hand( icurrent )%desc ) ) THEN
           dfti_status = DftiFreeDescriptor( hand( icurrent )%desc )
           IF( dfti_status /= 0) THEN
-             WRITE(*,*) "stopped in DftiFreeDescriptor", dfti_status
+             WRITE(*,*) "stopped in cft_2xy, DftiFreeDescriptor", dfti_status
              STOP
           ENDIF
        END IF
 
        dfti_status = DftiCreateDescriptor(hand( icurrent )%desc, DFTI_DOUBLE, DFTI_COMPLEX, 2,(/nx,ny/))
        IF(dfti_status /= 0) THEN
-          WRITE(*,*) "stopped in DftiCreateDescriptor", dfti_status
+          WRITE(*,*) "stopped in cft_2xy, DftiCreateDescriptor", dfti_status
           STOP
        ENDIF
        dfti_status = DftiSetValue(hand( icurrent )%desc, DFTI_NUMBER_OF_TRANSFORMS,nzl)
        IF(dfti_status /= 0)THEN
-          WRITE(*,*) "stopped in DFTI_NUMBER_OF_TRANSFORMS", dfti_status
+          WRITE(*,*) "stopped in cft_2xy, DFTI_NUMBER_OF_TRANSFORMS", dfti_status
           STOP
        ENDIF
        dfti_status = DftiSetValue(hand( icurrent )%desc,DFTI_INPUT_DISTANCE, ldx*ldy )
        IF(dfti_status /= 0)THEN
-          WRITE(*,*) "stopped in DFTI_INPUT_DISTANCE", dfti_status
+          WRITE(*,*) "stopped in cft_2xy, DFTI_INPUT_DISTANCE", dfti_status
           STOP
        ENDIF
        dfti_status = DftiSetValue(hand( icurrent )%desc, DFTI_PLACEMENT, DFTI_INPLACE)
        IF(dfti_status /= 0)THEN
-          WRITE(*,*) "stopped in DFTI_PLACEMENT", dfti_status
+          WRITE(*,*) "stopped in cft_2xy, DFTI_PLACEMENT", dfti_status
           STOP
        ENDIF
        tscale = 1.0_DP/ (nx * ny )
        dfti_status = DftiSetValue( hand( icurrent )%desc, DFTI_FORWARD_SCALE, tscale);
        IF(dfti_status /= 0)THEN
-          WRITE(*,*) "stopped in DFTI_FORWARD_SCALE", dfti_status
+          WRITE(*,*) "stopped in cft_2xy, DFTI_FORWARD_SCALE", dfti_status
           STOP
        ENDIF
        dfti_status = DftiSetValue( hand( icurrent )%desc, DFTI_BACKWARD_SCALE, DBLE(1) );
        IF(dfti_status /= 0)THEN
-          WRITE(*,*) "stopped in DFTI_BACKWARD_SCALE", dfti_status
+          WRITE(*,*) "stopped in cft_2xy, DFTI_BACKWARD_SCALE", dfti_status
           STOP
        ENDIF
        dfti_status = DftiCommitDescriptor(hand( icurrent )%desc)
        IF(dfti_status /= 0)THEN
-          WRITE(*,*) "stopped in DftiCommitDescriptor", dfti_status
+          WRITE(*,*) "stopped in cft_2xy, DftiCommitDescriptor", dfti_status
           STOP
        ENDIF
 
@@ -473,7 +473,7 @@
      END SUBROUTINE check_dims
 
      SUBROUTINE lookup()
-     IF( dfti_first ) THEN
+     IF( dfti_first .EQ. .TRUE. ) THEN
         DO ip = 1, ndims
            hand(ip)%desc => NULL()
         END DO

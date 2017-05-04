@@ -1768,6 +1768,7 @@ MODULE exx
     pvc(1:nrxxs*jblock) => vc(:,:)
 #endif
     !
+	
     DO ii=1, nibands(my_egrp_id+1)
        !
        ibnd = ibands(ii,my_egrp_id+1)

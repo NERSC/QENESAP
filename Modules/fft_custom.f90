@@ -179,7 +179,7 @@ CONTAINS
   END SUBROUTINE set_custom_grid
   !
   !--------------------------------------------------------------------
-  SUBROUTINE ggent(fc)
+  SUBROUTINE ggent(fc, is_exx)
     !--------------------------------------------------------------------
     !
     USE kinds,              ONLY : DP
@@ -190,7 +190,8 @@ CONTAINS
     IMPLICIT NONE
     
     TYPE(fft_cus) :: fc
-    
+    ! pcarrier@cray.com CHANGED added is_exx 
+    LOGICAL, OPTIONAL, INTENT(IN) :: is_exx    
     !
     REAL(DP) ::  t (3), tt, swap
     !
@@ -202,6 +203,7 @@ CONTAINS
     ! array containing all g vectors generators, on all processors:
     !     replicated data
     INTEGER, ALLOCATABLE :: igsrt(:)
+    LOGICAL :: is_exx_
     !
 
 #if defined(__MPI)
@@ -218,6 +220,12 @@ CONTAINS
     ALLOCATE( g2sort_g( fc%ngmt_g ) )
     ALLOCATE( fc%ig1t(fc%ngmt), fc%ig2t(fc%ngmt), fc%ig3t(fc%ngmt) )
    
+	! pcarrier@cray.com CHANGED added is_exx_ syntax below
+	if (present(is_exx)) then
+		is_exx_ = is_exx
+	else
+		is_exx_ = .false.
+	end if
     g2sort_g(:) = 1.0d20
     !
     ! save present value of ngm in ngmx variable
@@ -338,9 +346,12 @@ CONTAINS
        fc%nlt (ng) = n3 + ( fc%dfftt%isind (n1 + (n2 - 1) * fc%dfftt%nr1x)&
             & - 1) * fc%dfftt%nr3x
 #else
-       fc%nlt (ng) = n1 + (n2 - 1) * fc%dfftt%nr1x + (n3 - 1) * &
-            & fc%dfftt%nr1x * fc%dfftt%nr2x 
-       
+		if (is_exx_) then
+			fc%nlt (ng) = n1 + (n2 - 1) * fc%dfftt%nr1x + (n3 - 1) * fc%dfftt%nr1x * fc%dfftt%nr2x 
+		else  ! this is local exchange
+			fc%nlt (ng) = n3 + ( fc%dfftt%isind (n1 + (n2 - 1) * fc%dfftt%nr1x) - 1) * fc%dfftt%nr3x
+		end if
+
 #endif
     ENDDO
     !
