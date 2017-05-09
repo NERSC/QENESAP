@@ -24,6 +24,7 @@ MODULE mp_global
   USE mp_bands_TDDFPT
   USE mp_exx
   USE mp_diag
+  USE mp_orthopools
   !
   IMPLICIT NONE 
   SAVE
@@ -76,6 +77,8 @@ CONTAINS
     END IF
     !
     CALL mp_start_pools ( npool_, intra_image_comm )
+    ! Init orthopools is done during EXX bootstrap but, if they become more used, do it here:
+    ! CALL mp_start_orthopools ( intra_image_comm )
     CALL mp_start_bands ( nband_, ntg_, intra_pool_comm )
     CALL mp_start_exx ( nband_, ntg_, intra_pool_comm )
     !

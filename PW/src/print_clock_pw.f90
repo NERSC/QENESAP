@@ -184,8 +184,21 @@ SUBROUTINE print_clock_pw()
       CALL print_clock( 'vexx_augr' )
       CALL print_clock( 'vexx_ffft' )
       CALL print_clock( 'vexx_augg' )
+      !<<<
+      CALL print_clock( 'test1' )
+      CALL print_clock( 'test1_z' )
+      CALL print_clock( 'test1_1' )
+      CALL print_clock( 'test1_2' )
+      CALL print_clock( 'test2' )
+      CALL print_clock( 'test3' )
+      !>>>
       CALL print_clock( 'vexx_vc' )
       CALL print_clock( 'vexx_ultr' )
+      !<<<
+      CALL print_clock( 'ult1' )
+      CALL print_clock( 'ult2' )
+      CALL print_clock( 'ult3' )
+      !>>>
       CALL print_clock( 'vexx_ifft' )
       CALL print_clock( 'vexx_ultg' )
       CALL print_clock( 'vexx_paw' )

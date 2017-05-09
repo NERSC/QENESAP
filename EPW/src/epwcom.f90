@@ -157,8 +157,6 @@
   !! if .TRUE. calculate spectral electron function due to e-p interaction
   LOGICAL :: wannierize
   !! if .TRUE. run the wannier90 code
-  LOGICAL :: spinors
-  !! if .TRUE. run the wannier90 with spinors
   LOGICAL :: parallel_k
   !! if .TRUE. scatter the electron k-points on the fine mesh among pools (not q)
   LOGICAL :: parallel_q
@@ -193,6 +191,8 @@
   ! band_plot : if .true. write filrs to plot band structure and phonon dispersion
   LOGICAL :: lpolar 
   !! if .true. enable the correct Wannier interpolation in the case of polar material.  
+  LOGICAL :: lifc
+  !! if .true. reads interatomic force constants produced by q2r.x for phonon interpolation
   LOGICAL :: delta_approx
   !! if .true. the double delta approximation is used for the phonon self energy
   LOGICAL :: ep_coupling
@@ -254,6 +254,8 @@
   !! projections and any extra info for W90 
   CHARACTER(LEN=75) :: title 
   !! ...  title of the simulation  
+  CHARACTER(LEN=10)  :: asr_typ
+  !! type of ASR if lifc=.true.
   !
 END MODULE control_epw
 !
