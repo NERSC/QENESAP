@@ -327,7 +327,7 @@ MODULE pw_restart_new
                  qexsd_input%bands%smearing%lwrite = .FALSE.
               END IF             
               CALL  qexsd_init_band_structure(output%band_structure,lsda,noncolin,lspinorb, &
-                   nbnd,nelec, natomwfc, occupations_are_fixed, & 
+                   nbnd, nbnd,nelec, natomwfc, occupations_are_fixed, & 
                    h_energy,two_fermi_energies, [ef_up,ef_dw], et,wg,nkstot,xk,ngk_g,wk,    & 
                    STARTING_KPOINTS = qexsd_input%k_points_IBZ, OCCUPATION_KIND = qexsd_input%bands%occupations, &
                    WF_COLLECTED = twfcollect, SMEARING = qexsd_input%bands%smearing)
@@ -337,7 +337,7 @@ MODULE pw_restart_new
                  qexsd_input%bands%occupations%lwrite = .FALSE.
               END IF 
               CALL  qexsd_init_band_structure(output%band_structure,lsda,noncolin,lspinorb, &
-                   nbnd,nelec, natomwfc, occupations_are_fixed, & 
+                   nbnd, nbnd, nelec, natomwfc, occupations_are_fixed, & 
                    h_energy,two_fermi_energies, [ef_up,ef_dw], et,wg,nkstot,xk,ngk_g,wk,    & 
                    STARTING_KPOINTS = qexsd_input%k_points_IBZ, OCCUPATION_KIND = qexsd_input%bands%occupations, &
                    WF_COLLECTED = twfcollect)
@@ -429,7 +429,7 @@ MODULE pw_restart_new
     SUBROUTINE pw_write_binaries( )
       !------------------------------------------------------------------------
       !
-      USE mp,                   ONLY : mp_bcast, mp_sum, mp_max
+      USE mp,                   ONLY : mp_sum, mp_max
       USE io_base,              ONLY : write_wfc
       USE io_files,             ONLY : iunwfc, nwordwfc
       USE control_flags,        ONLY : gamma_only, smallmem
@@ -917,10 +917,9 @@ MODULE pw_restart_new
       !------------------------------------------------------------------------
       !
       USE control_flags,        ONLY : twfcollect
-      USE io_rho_xml,           ONLY : read_rho
+      USE io_rho_xml,           ONLY : read_scf
       USE scf,                  ONLY : rho
       USE lsda_mod,             ONLY : nspin
-      USE mp,                   ONLY : mp_sum, mp_barrier
       USE qes_types_module,     ONLY : input_type, output_type, &
                                        general_info_type, parallel_info_type    
       !
@@ -1116,7 +1115,7 @@ MODULE pw_restart_new
          ! ... to read the charge-density we use the routine from io_rho_xml 
          ! ... it also reads ns for ldaU and becsum for PAW
          !
-         CALL read_rho( rho, nspin )
+         CALL read_scf( rho, nspin )
          !
       END IF
       IF ( lef ) THEN
@@ -1230,8 +1229,11 @@ MODULE pw_restart_new
     noncolin = band_structure%noncolin
     nelec =    band_structure%nelec
     nkstot =   band_structure%nks  
-    IF ( lsda ) nkstot = nkstot * 2 
     nbnd = band_structure%nbnd 
+    IF ( lsda ) THEN
+       nkstot = nkstot * 2 
+       nbnd   = nbnd / 2
+    END IF
     END SUBROUTINE readschema_dim
     !
     !-----------------------------------------------------------------------
@@ -1897,7 +1899,8 @@ MODULE pw_restart_new
       IF ( band_struct_obj%nbnd_up_ispresent ) nupdwn(1) = band_struct_obj%nbnd_up
       IF ( band_struct_obj%nbnd_dw_ispresent ) nupdwn(2) = band_struct_obj%nbnd_dw 
       IF ( lsda )  THEN 
-         nspin = 2  
+         nspin = 2
+         nbnd = nbnd / 2
       ELSE IF ( band_struct_obj%noncolin) THEN 
          nspin = 4 
       ELSE 
@@ -1971,17 +1974,18 @@ MODULE pw_restart_new
       ! 
       lkpoint_dir = .FALSE.
       lsda = band_struct_obj%lsda
+      nbnd  = band_struct_obj%nbnd 
       nkstot = band_struct_obj%nks 
       IF ( lsda) THEN 
-        nkstot = nkstot * 2 
-        isk(1:nkstot/2) = 1
-        isk(nkstot/2+1:nkstot) = 2 
+         nbnd  = nbnd / 2
+         nkstot = nkstot * 2 
+         isk(1:nkstot/2) = 1
+         isk(nkstot/2+1:nkstot) = 2 
       ELSE 
-        isk(1:nkstot)   = 1 
+         isk(1:nkstot)   = 1 
       END IF 
       ! 
       nelec = band_struct_obj%nelec
-      nbnd  = band_struct_obj%nbnd 
       natomwfc = band_struct_obj%num_of_atomic_wfc
       IF ( band_struct_obj%fermi_energy_ispresent) THEN 
          ef = band_struct_obj%fermi_energy*e2 
@@ -2046,7 +2050,7 @@ MODULE pw_restart_new
                                        intra_pool_comm, inter_pool_comm
       USE mp_bands,             ONLY : me_bgrp, nbgrp, root_bgrp, &
                                        intra_bgrp_comm
-      USE mp,                   ONLY : mp_bcast, mp_sum, mp_max
+      USE mp,                   ONLY : mp_sum, mp_max
       USE io_base,              ONLY : read_wfc
       !
       IMPLICIT NONE

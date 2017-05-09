@@ -948,7 +948,7 @@ CONTAINS
     !
     ! 
     !---------------------------------------------------------------------------------------
-    SUBROUTINE qexsd_init_band_structure(obj, lsda, noncolin, lspinorb, nbnd, nelec, n_wfc_at, occupations_are_fixed, & 
+    SUBROUTINE qexsd_init_band_structure(obj, lsda, noncolin, lspinorb, nbnd_up, nbnd_dw, nelec, n_wfc_at, occupations_are_fixed, & 
                                          fermi_energy, two_fermi_energies, ef_updw, et, wg, nks, xk, ngk, wk, & 
                                          starting_kpoints, occupation_kind, smearing, wf_collected)
     !----------------------------------------------------------------------------------------
@@ -957,7 +957,7 @@ CONTAINS
     TYPE(band_structure_type)               :: obj
     CHARACTER(LEN=*), PARAMETER             :: TAGNAME="band_structure"
     LOGICAL,INTENT(IN)                      :: lsda, noncolin, lspinorb, occupations_are_fixed
-    INTEGER,INTENT(IN)                      :: nbnd, nks, n_wfc_at
+    INTEGER,INTENT(IN)                      :: nbnd_up, nbnd_dw, nks, n_wfc_at
     REAL(DP),INTENT(IN)                     :: nelec, fermi_energy
     REAL(DP),DIMENSION(:,:),INTENT(IN)      :: et, wg, xk
     REAL(DP),DIMENSION(:),INTENT(IN)        :: wk
@@ -972,8 +972,7 @@ CONTAINS
     LOGICAL                                 :: nbnd_up_ispresent, nbnd_dw_ispresent, &
                                                fermi_energy_ispresent, HOL_ispresent, & 
                                                n_wfc_at_ispresent = .TRUE.  
-    INTEGER                                 :: nbnd_up,nbnd_dw
-    INTEGER                                 :: ndim_ks_energies, nbnd_tot, ik
+    INTEGER                                 :: ndim_ks_energies, nbnd, ik
     TYPE(k_point_type)                      :: kp_obj
     TYPE(ks_energies_type),ALLOCATABLE      :: ks_objs(:)
     TYPE (k_points_IBZ_type)                :: starting_k_points_
@@ -983,18 +982,14 @@ CONTAINS
     !
     !
     ndim_ks_energies=nks   
-    nbnd_tot=nbnd
     !
     IF ( lsda ) THEN 
        ndim_ks_energies=ndim_ks_energies/2
-       nbnd_up=nbnd
-       nbnd_dw=nbnd
-       nbnd_tot=nbnd_up+nbnd_dw
+       nbnd=nbnd_up+nbnd_dw
        nbnd_up_ispresent=.true.
        nbnd_dw_ispresent=.true.
     ELSE 
-       nbnd_up=0
-       nbnd_dw=0
+       nbnd=nbnd_up
        nbnd_up_ispresent=.false.
        nbnd_dw_ispresent=.false. 
     END IF 
@@ -1012,38 +1007,38 @@ CONTAINS
     END IF  
     !
     !   
-    ALLOCATE(eigenvalues(nbnd_tot),occupations(nbnd_tot))
+    ALLOCATE(eigenvalues(nbnd),occupations(nbnd))
     ALLOCATE(ks_objs(ndim_ks_energies))
     !  
     DO ik=1,ndim_ks_energies
        CALL qes_init_k_point(kp_obj,"k_point",wk(ik),.true.,"",.FALSE., xk(:,ik))
        IF ( lsda ) THEN 
           eigenvalues(1:nbnd_up)=et(1:nbnd_up,ik)/e2
-          eigenvalues(nbnd_up+1:nbnd_tot)=et(1:nbnd_dw,ndim_ks_energies+ik)/e2
+          eigenvalues(nbnd_up+1:nbnd)=et(1:nbnd_dw,ndim_ks_energies+ik)/e2
        ELSE 
-          eigenvalues(1:nbnd_tot)= et(1:nbnd_tot,ik)/e2
+          eigenvalues(1:nbnd)= et(1:nbnd,ik)/e2
        END IF
        !
        !
        IF (lsda) THEN 
           IF ( ABS(wk(ik)).GT.1.d-10) THEN 
              occupations(1:nbnd_up)=wg(1:nbnd_up,ik)/wk(ik)
-             occupations(nbnd_up+1:nbnd_tot)=wg(1:nbnd_dw,ndim_ks_energies+ik)/wk(ndim_ks_energies+ik)
+             occupations(nbnd_up+1:nbnd)=wg(1:nbnd_dw,ndim_ks_energies+ik)/wk(ndim_ks_energies+ik)
           ELSE 
              occupations(1:nbnd_up)=wg(1:nbnd_up,ik)
-             occupations(nbnd_up+1:nbnd_tot)=wg(1:nbnd_dw,ik) 
+             occupations(nbnd_up+1:nbnd)=wg(1:nbnd_dw,ik) 
           END IF            
        ELSE 
           IF (ABS(wk(ik)).GT.1.d-10) THEN
-              occupations(1:nbnd_tot)=wg(1:nbnd_tot,ik)/wk(ik)
+              occupations(1:nbnd)=wg(1:nbnd,ik)/wk(ik)
           ELSE
-              occupations(1:nbnd_tot)=wg(1:nbnd_tot,ik)
+              occupations(1:nbnd)=wg(1:nbnd,ik)
           END IF
        END IF
        !
        !
-       CALL  qes_init_ks_energies(ks_objs(ik),"ks_energies",kp_obj,ngk(ik),nbnd_tot,eigenvalues,& 
-                      nbnd_tot,occupations)
+       CALL  qes_init_ks_energies(ks_objs(ik),"ks_energies",kp_obj,ngk(ik),nbnd,eigenvalues,& 
+                      nbnd,occupations)
        !
        eigenvalues=0.d0
        occupations=0.d0
@@ -1058,7 +1053,7 @@ CONTAINS
     occupations_kind_  = occupation_kind
     occupations_kind_%tagname = "occupations_kind"
 ! 
-    CALL qes_init_band_structure( obj,TAGNAME,lsda,noncolin,lspinorb, nbnd , nbnd_up_ispresent,&
+    CALL qes_init_band_structure( obj,TAGNAME,lsda,noncolin,lspinorb, nbnd, nbnd_up_ispresent,&
                   nbnd_up,nbnd_dw_ispresent,nbnd_dw,nelec, n_wfc_at_ispresent, n_wfc_at, wf_collected, & 
                   fermi_energy_ispresent, fermi_energy/e2, HOL_ispresent, fermi_energy/e2,     &
                   two_fermi_energies, 2, ef_updw/e2, starting_k_points_, ndim_ks_energies,      &
