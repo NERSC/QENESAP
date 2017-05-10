@@ -225,7 +225,7 @@ MODULE exx
     !
     exx_fft%gcutmt = exx_fft%dual_t*exx_fft%ecutt / tpiba2
     CALL data_structure_custom(exx_fft, smap_exx, gamma_only)
-    CALL ggent(exx_fft)
+    CALL ggent(exx_fft, is_exx=.true.)
     exx_fft%initialized = .true.
     !
     IF(tqr)THEN
@@ -1024,9 +1024,7 @@ MODULE exx
                          !DIR$ UNROLL_AND_JAM (4)
                          DO ipol=1,npol
                             DO jpol=1,npol
-                               psic_all_nc(ir,ipol) = psic_all_nc(ir,ipol) + &
-                                  conjg(d_spin(jpol,ipol,isym)) * &
-                                  temppsic_all_nc(rir(ir,isym),jpol)
+                               psic_all_nc(ir,ipol)=psic_all_nc(ir,ipol)+conjg(d_spin(jpol,ipol,isym))* temppsic_all_nc(rir(ir,isym),jpol)
                             ENDDO
                          ENDDO
                       ENDDO
@@ -1528,13 +1526,16 @@ MODULE exx
                 !   >>>> add augmentation in REAL SPACE here
                 IF(okvan .and. tqr) THEN
                    IF(jbnd>=jstart) &
-                        CALL addusxx_r(exx_fft,rhoc(:,ii), &
-                       _CX(becxx(ikq)%r(:,jbnd)), _CX(becpsi%r(:,ibnd)))
+                        CALL addusxx_r(exx_fft,rhoc(:,ii),_CX(becxx(ikq)%r(:,jbnd)), _CX(becpsi%r(:,ibnd)))
                    IF(jbnd<jend) &
                         CALL addusxx_r(exx_fft,rhoc(:,ii),_CY(becxx(ikq)%r(:,jbnd+1)),_CX(becpsi%r(:,ibnd)))
                 ENDIF
                 !
-                CALL fwfft ('Custom', rhoc(:,ii), exx_fft%dfftt)
+#if defined(__USE_3D_FFT)
+				CALL fwfft('CustomLocal', rhoc(:,ii), exx_fft%dfftt)
+#else
+				CALL fwfft('Custom', rhoc(:,ii), exx_fft%dfftt)
+#endif
                 !   >>>> add augmentation in G SPACE here
                 IF(okvan .and. .not. tqr) THEN
                    ! contribution from one band added to real (in real space) part of rhoc
@@ -1570,7 +1571,11 @@ MODULE exx
                 ENDIF
                 !
                 !brings back v in real space
-                CALL invfft ('Custom', vc(:,ii), exx_fft%dfftt) 
+#if defined(__USE_3D_FFT)
+				CALL invfft('CustomLocal', vc(:,ii), exx_fft%dfftt)
+#else
+				CALL invfft('Custom', vc(:,ii), exx_fft%dfftt)
+#endif
                 !
                 !   >>>>  compute <psi|H_fock REAL SPACE here
                 IF(okvan .and. tqr) THEN
