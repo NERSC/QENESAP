@@ -216,7 +216,7 @@ MODULE exx
     !
     exx_fft%gcutmt = exx_fft%dual_t*exx_fft%ecutt / tpiba2
     CALL data_structure_custom(exx_fft, smap_exx, gamma_only)
-    CALL ggent(exx_fft)
+    CALL ggent(exx_fft, is_exx=.true.)
     exx_fft%initialized = .true.
     !
     IF(tqr)THEN
@@ -937,7 +937,6 @@ MODULE exx
 #else
 			CALL invfft ('CustomWave', psic_exx, exx_fft%dfftt)
 #endif
-
              exxbuff(1:nrxxs,h_ibnd,ik)=psic_exx(1:nrxxs)
              
           ENDDO
@@ -960,21 +959,25 @@ MODULE exx
                    temppsic_nc(exx_fft%nlt(igk_exx(ig,ik)),1) = evc_exx(ig,ibnd-iexx_start+1)
                 ENDDO
 !$omp end parallel do
+
 #ifdef __USE_3D_FFT
 				CALL invfft ('CustomLocal', temppsic_nc(:,1), exx_fft%dfftt)
 #else
 				CALL invfft ('CustomWave', temppsic_nc(:,1), exx_fft%dfftt)
 #endif
+
 !$omp parallel do default(shared) private(ig) firstprivate(npw,ik,ibnd_exx,npwx)
                 DO ig=1,npw
                    temppsic_nc(exx_fft%nlt(igk_exx(ig,ik)),2) = evc_exx(ig+npwx,ibnd-iexx_start+1)
                 ENDDO
 !$omp end parallel do
+
 #ifdef __USE_3D_FFT
 				CALL invfft ('CustomLocal', temppsic_nc(:,2), exx_fft%dfftt)
 #else
 				CALL invfft ('CustomWave', temppsic_nc(:,2), exx_fft%dfftt)
 #endif
+
              ELSE
 !$omp parallel do default(shared) private(ir) firstprivate(nrxxs)
                 DO ir=1,nrxxs
@@ -985,11 +988,13 @@ MODULE exx
                    temppsic(exx_fft%nlt(igk_exx(ig,ik))) = evc_exx(ig,ibnd-iexx_start+1)
                 ENDDO
 !$omp end parallel do
+
 #ifdef __USE_3D_FFT
 				CALL invfft ('CustomLocal', temppsic, exx_fft%dfftt)
 #else
                 CALL invfft ('CustomWave', temppsic, exx_fft%dfftt)
 #endif
+
              ENDIF
              !
              DO ikq=1,nkqs
