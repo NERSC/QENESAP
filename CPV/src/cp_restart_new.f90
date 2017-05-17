@@ -12,6 +12,7 @@ MODULE cp_restart_new
   ! ... This module contains subroutines to write and read data required to
   ! ... restart a calculation from the disk
   !
+  USE kinds,     ONLY : DP
 #if !defined(__OLDXML)
   !
   USE iotk_module
@@ -27,10 +28,9 @@ MODULE cp_restart_new
                           qexsd_init_outputElectricField, input_obj => qexsd_input_obj
   USE io_files,  ONLY : iunpun, xmlpun_schema, prefix, tmp_dir, qexsd_fmt,&
        qexsd_version
-  USE io_base,   ONLY : write_wfc, read_wfc
-  USE xml_io_base,     ONLY  : write_rho_xml,read_print_counter, create_directory
+  USE io_base,   ONLY : write_wfc, read_wfc, write_rhog
+  USE xml_io_base,     ONLY  : read_print_counter, create_directory
   !
-  USE kinds,     ONLY : DP
   USE io_global, ONLY : ionode, ionode_id, stdout
   USE mp,        ONLY : mp_bcast
   USE parser,    ONLY : version_compare
@@ -89,6 +89,7 @@ MODULE cp_restart_new
                                            epseu, enl, exc, vave
       USE mp,                       ONLY : mp_sum, mp_barrier
       USE fft_base,                 ONLY : dfftp, dffts, dfftb
+      USE fft_rho,                  ONLY : rho_r2g
       USE uspp_param,               ONLY : n_atom_wfc, upf
       USE global_version,           ONLY : version_number
       USE kernel_table,             ONLY : vdw_table_name, kernel_file_name
@@ -159,7 +160,7 @@ MODULE cp_restart_new
       INTEGER,  ALLOCATABLE :: ityp(:)
       REAL(DP), ALLOCATABLE :: ftmp(:,:)
       REAL(DP), ALLOCATABLE :: tau(:,:)
-      REAL(DP), ALLOCATABLE :: rhoaux(:)
+      COMPLEX(DP), ALLOCATABLE :: rhog(:,:)
       REAL(DP)              :: omega, htm1(3,3), h(3,3)
       REAL(DP)              :: a1(3), a2(3), a3(3)
       REAL(DP)              :: b1(3), b2(3), b3(3)
@@ -183,7 +184,7 @@ MODULE cp_restart_new
       IF( force_pairing ) &
             CALL errore('cp_writefile',' force pairing not implemented', 1 )
       IF( tksw ) &
-            CALL errore('cp_writefile',' Kohn-Sham states not written', 1 )
+            CALL infomsg('cp_writefile',' Kohn-Sham states not written' )
       IF( PRESENT(mat_z) ) &
             CALL errore('cp_writefile',' case not implemented', 1 )
       !
@@ -447,40 +448,16 @@ MODULE cp_restart_new
 ! ... CHARGE DENSITY
 !-------------------------------------------------------------------------------
       !
-      IF (trhow) THEN
-         !
-         filename = TRIM( dirname ) // 'charge-density'
-         !
-         IF ( nspin == 1 ) THEN
-            !
-            CALL write_rho_xml( filename, rho(:,1), &
-                                dfftp%nr1, dfftp%nr2, dfftp%nr3, dfftp%nr1x, dfftp%nr2x, &
-                                dfftp%ipp, dfftp%npp, ionode, intra_bgrp_comm, inter_bgrp_comm )
-            !
-         ELSE IF ( nspin == 2 ) THEN
-            !
-            ALLOCATE( rhoaux( SIZE( rho, 1 ) ) )
-            !
-            rhoaux = rho(:,1) + rho(:,2) 
-            !
-            CALL write_rho_xml( filename, rhoaux, &
-                                dfftp%nr1, dfftp%nr2, dfftp%nr3, dfftp%nr1x, dfftp%nr2x, &
-                                dfftp%ipp, dfftp%npp, ionode, intra_bgrp_comm, inter_bgrp_comm )
-            !
-            filename = TRIM( dirname ) // 'spin-polarization'
-            !
-            rhoaux = rho(:,1) - rho(:,2) 
-            !
-            CALL write_rho_xml( filename, rhoaux, &
-                                dfftp%nr1, dfftp%nr2, dfftp%nr3, dfftp%nr1x, dfftp%nr2x, &
-                                dfftp%ipp, dfftp%npp, ionode, intra_bgrp_comm, inter_bgrp_comm )
-            !
-            DEALLOCATE( rhoaux )
-            !
-         END IF
-         !
-      END IF
-      !
+     IF (trhow) THEN
+        ! Workaround: input rho in real space, bring it to reciprocal space
+        ! To be removed together with old I/O
+        ALLOCATE ( rhog(ngm, nspin) )
+        CALL rho_r2g (rho, rhog)
+        CALL write_rhog ( dirname, alat*b1, alat*b2, alat*b3, gamma_only, mill,&
+             ig_l2g, rhog )
+        DEALLOCATE ( rhog )
+     END IF
+     !
 !-------------------------------------------------------------------------------
 ! ... END RESTART SECTIONS
 !-------------------------------------------------------------------------------
@@ -1835,5 +1812,5 @@ MODULE cp_restart_new
     !
   END SUBROUTINE cp_read_lambda
 #endif
-  !
+
 END MODULE cp_restart_new

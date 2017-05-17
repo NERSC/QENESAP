@@ -33,7 +33,6 @@ MODULE xml_io_base
   PUBLIC :: attr
   !
   PUBLIC :: read_wfc, write_wfc, read_rho, write_rho, &
-       read_rho_xml, write_rho_xml, &
        save_print_counter, read_print_counter
   PUBLIC :: create_directory, check_file_exst, restart_dir
   !
@@ -92,14 +91,7 @@ MODULE xml_io_base
       !
       ! ... main restart directory
       !
-      ! ... keep the line below ( this is the old style RESTARTXX ) !!!
-      !
-      ! dirname = 'RESTART' // int_to_char( runit )
-      ! the next line is to have separate RESTART for each image
-      ! KNK_nimage
-      ! if (my_image_id > 0) dirname = trim(dirname) // '_' // trim(int_to_char( my_image_id ))
-      !
-      dirname = TRIM( prefix ) // '_' // TRIM( int_to_char( runit ) )// '.save'
+      dirname = TRIM( prefix ) // '_' // TRIM( int_to_char( runit ) )// '.save/'
       !
       IF ( LEN( outdir ) > 1 ) THEN
          !
@@ -203,7 +195,7 @@ MODULE xml_io_base
       !
       IF ( ionode ) THEN
          !
-         filename = TRIM( dirname ) // '/print_counter.xml'
+         filename = TRIM( dirname ) // 'print_counter.xml'
          !
          CALL iotk_open_write( iunpun, FILE = filename, &
                              & ROOT = "PRINT_COUNTER",  IERR = ierr )
@@ -254,7 +246,7 @@ MODULE xml_io_base
       !
       IF ( ionode ) THEN
          !
-         filename = TRIM( dirname ) // '/print_counter.xml'
+         filename = TRIM( dirname ) // 'print_counter.xml'
          !
          CALL iotk_open_read( iunpun, FILE = filename, IERR = ierr )
          !
@@ -412,14 +404,12 @@ MODULE xml_io_base
     !
     !
     !------------------------------------------------------------------------
-    SUBROUTINE write_rho( rho, nspin, extension )
+    SUBROUTINE write_rho( dirname, rho, nspin, extension )
       !------------------------------------------------------------------------
       !
       ! ... this routine writes the charge-density in xml format into the
-      ! ... '.save' directory
-      ! ... the '.save' directory is created if not already present
+      ! ... $dirname directory - $dirname must exist and end with '/'
       !
-      USE io_files, ONLY : tmp_dir, prefix
       USE fft_base, ONLY : dfftp
       USE io_global,ONLY : ionode
       USE mp_bands, ONLY : intra_bgrp_comm, inter_bgrp_comm
@@ -428,22 +418,19 @@ MODULE xml_io_base
       !
       INTEGER,          INTENT(IN)           :: nspin
       REAL(DP),         INTENT(IN)           :: rho(dfftp%nnr,nspin)
+      CHARACTER(LEN=*), INTENT(IN)           :: dirname
       CHARACTER(LEN=*), INTENT(IN), OPTIONAL :: extension
       !
-      CHARACTER(LEN=256)    :: dirname, file_base
-      CHARACTER(LEN=256)    :: ext
+      CHARACTER(LEN=256)    :: file_base
+      CHARACTER(LEN=6)      :: ext
       REAL(DP), ALLOCATABLE :: rhoaux(:)
       !
       !
       ext = ' '
-      !
-      dirname = TRIM( tmp_dir ) // TRIM( prefix ) // '.save'
-      !
-      CALL create_directory( dirname )
-      !
       IF ( PRESENT( extension ) ) ext = '.' // TRIM( extension )
       !
-      file_base = TRIM( dirname ) // '/charge-density' // TRIM( ext )
+      file_base = TRIM( dirname ) // 'charge-density' // TRIM( ext )
+      print *, 'writing file ', TRIM(dirname)//'charge-density'//TRIM(ext)
       !
       IF ( nspin == 1 ) THEN
          !
@@ -461,7 +448,7 @@ MODULE xml_io_base
                   dfftp%nr3, dfftp%nr1x, dfftp%nr2x, dfftp%ipp, dfftp%npp, &
                   ionode, intra_bgrp_comm, inter_bgrp_comm )
          !
-         file_base = TRIM( dirname ) // '/spin-polarization' // TRIM( ext )
+         file_base = TRIM( dirname ) // 'spin-polarization' // TRIM( ext )
          !
          rhoaux(:) = rho(:,1) - rho(:,2)
          !
@@ -477,19 +464,19 @@ MODULE xml_io_base
                   dfftp%nr3, dfftp%nr1x, dfftp%nr2x, dfftp%ipp, dfftp%npp, &
                   ionode, intra_bgrp_comm, inter_bgrp_comm )
          !
-         file_base = TRIM( dirname ) // '/magnetization.x' // TRIM( ext )
+         file_base = TRIM( dirname ) // 'magnetization.x' // TRIM( ext )
          !
          CALL write_rho_xml( file_base, rho(:,2), dfftp%nr1, dfftp%nr2, &
                dfftp%nr3, dfftp%nr1x, dfftp%nr2x, dfftp%ipp, dfftp%npp, &
                ionode, intra_bgrp_comm, inter_bgrp_comm )
          !
-         file_base = TRIM( dirname ) // '/magnetization.y' // TRIM( ext )
+         file_base = TRIM( dirname ) // 'magnetization.y' // TRIM( ext )
          !
          CALL write_rho_xml( file_base, rho(:,3), dfftp%nr1, dfftp%nr2, &
                dfftp%nr3, dfftp%nr1x, dfftp%nr2x, dfftp%ipp, dfftp%npp, &
                ionode, intra_bgrp_comm, inter_bgrp_comm )
          !
-         file_base = TRIM( dirname ) // '/magnetization.z' // TRIM( ext )
+         file_base = TRIM( dirname ) // 'magnetization.z' // TRIM( ext )
          !
          CALL write_rho_xml( file_base, rho(:,4), dfftp%nr1, dfftp%nr2, &
                dfftp%nr3, dfftp%nr1x, dfftp%nr2x, dfftp%ipp, dfftp%npp, &
@@ -502,31 +489,30 @@ MODULE xml_io_base
     END SUBROUTINE write_rho
     !
     !------------------------------------------------------------------------
-    SUBROUTINE read_rho( rho, nspin, extension )
+    SUBROUTINE read_rho( dirname, rho, nspin, extension)
       !------------------------------------------------------------------------
       !
       ! ... this routine reads the charge-density in xml format from the
       ! ... files saved into the '.save' directory
       !
-      USE io_files,  ONLY : tmp_dir, prefix
       USE fft_base,  ONLY : dfftp
       USE io_global, ONLY : ionode
       !
       IMPLICIT NONE
       !
       INTEGER,          INTENT(IN)           :: nspin
-      REAL(DP),         INTENT(OUT)          :: rho(dfftp%nnr,nspin)
+      CHARACTER(LEN=*), INTENT(IN)           :: dirname
       CHARACTER(LEN=*), INTENT(IN), OPTIONAL :: extension
+      REAL(DP),         INTENT(OUT)          :: rho(dfftp%nnr,nspin)
       !
-      CHARACTER(LEN=256)    :: dirname, file_base
-      CHARACTER(LEN=256)    :: ext
+      CHARACTER(LEN=256)  :: file_base
+      CHARACTER(LEN=6)    :: ext
       REAL(DP), ALLOCATABLE :: rhoaux(:)
       !
-      dirname = TRIM( tmp_dir ) // TRIM( prefix ) // '.save'
       ext = ' '
       IF ( PRESENT( extension ) ) ext = '.' // TRIM( extension )
-      file_base = TRIM( dirname ) // '/charge-density' // TRIM( ext )
       !
+      file_base = TRIM( dirname ) // 'charge-density' // TRIM( ext )
       CALL read_rho_xml ( file_base, dfftp%nr1, dfftp%nr2, dfftp%nr3, &
                  dfftp%nr1x, dfftp%nr2x, dfftp%ipp, dfftp%npp, rho(:,1) ) 
       !
@@ -536,7 +522,7 @@ MODULE xml_io_base
          !
          ALLOCATE( rhoaux( dfftp%nnr ) )
          !
-         file_base = TRIM( dirname ) // '/spin-polarization' // TRIM( ext )
+         file_base = TRIM( dirname ) // 'spin-polarization' // TRIM( ext )
          CALL read_rho_xml ( file_base, dfftp%nr1, dfftp%nr2, dfftp%nr3, &
                     dfftp%nr1x, dfftp%nr2x, dfftp%ipp, dfftp%npp, rhoaux ) 
          !
@@ -547,15 +533,15 @@ MODULE xml_io_base
          !
       ELSE IF ( nspin == 4 ) THEN
          !
-         file_base = TRIM( dirname ) // '/magnetization.x' // TRIM( ext )
+         file_base = TRIM( dirname ) // 'magnetization.x' // TRIM( ext )
          CALL read_rho_xml ( file_base, dfftp%nr1, dfftp%nr2, dfftp%nr3, &
               dfftp%nr1x, dfftp%nr2x, dfftp%ipp, dfftp%npp, rho(:,2) ) 
          !
-         file_base = TRIM( dirname ) // '/magnetization.y' // TRIM( ext )
+         file_base = TRIM( dirname ) // 'magnetization.y' // TRIM( ext )
          CALL read_rho_xml ( file_base, dfftp%nr1, dfftp%nr2, dfftp%nr3, &
               dfftp%nr1x, dfftp%nr2x, dfftp%ipp, dfftp%npp, rho(:,3) ) 
          !
-         file_base = TRIM( dirname ) // '/magnetization.z' // TRIM( ext )
+         file_base = TRIM( dirname ) // 'magnetization.z' // TRIM( ext )
          CALL read_rho_xml ( file_base, dfftp%nr1, dfftp%nr2, dfftp%nr3, &
               dfftp%nr1x, dfftp%nr2x, dfftp%ipp, dfftp%npp, rho(:,4) ) 
          !
@@ -770,13 +756,6 @@ MODULE xml_io_base
       rhounit = find_free_unit ( )
       rho_file = TRIM( rho_file_base ) // ".dat"
       exst = check_file_exst( TRIM(rho_file) ) 
-      !
-      IF ( .NOT. exst ) THEN
-          !
-          rho_file = TRIM( rho_file_base ) // ".xml"
-          exst = check_file_exst( TRIM(rho_file) ) 
-          !
-      ENDIF
       !
       IF ( .NOT. exst ) CALL errore('read_rho_xml', 'searching for '//TRIM(rho_file), 10)
 #endif
