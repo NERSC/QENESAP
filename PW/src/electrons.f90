@@ -352,7 +352,7 @@ SUBROUTINE electrons_scf ( printout, exxen )
   USE noncollin_module,     ONLY : noncolin, magtot_nc, i_cons,  bfield, &
                                    lambda, report
   USE spin_orb,             ONLY : domag
-  USE io_rho_xml,           ONLY : write_rho
+  USE io_rho_xml,           ONLY : write_scf
   USE uspp,                 ONLY : okvan
   USE mp_bands,             ONLY : intra_bgrp_comm
   USE mp_pools,             ONLY : root_pool, my_pool_id, inter_pool_comm
@@ -825,7 +825,7 @@ SUBROUTINE electrons_scf ( printout, exxen )
   ! ... exiting: write (unless disabled) the charge density to file
   ! ... (also write ldaU ns coefficients and PAW becsum)
   !
-  IF ( io_level > -1 ) CALL write_rho( rho, nspin )
+  IF ( io_level > -1 ) CALL write_scf( rho, nspin )
   !
   ! ... delete mixing info if converged, keep it if not
   !
@@ -846,7 +846,7 @@ SUBROUTINE electrons_scf ( printout, exxen )
 9000 FORMAT(/'     total cpu time spent up to now is ',F10.1,' secs' )
 9001 FORMAT(/'     per-process dynamical memory: ',f7.1,' Mb' )
 9002 FORMAT(/'     Self-consistent Calculation' )
-9010 FORMAT(/'     iteration #',I3,'     ecut=', F9.2,' Ry',5X,'beta=',F4.2 )
+9010 FORMAT(/'     iteration #',I3,'     ecut=', F9.2,' Ry',5X,'beta=',F5.2 )
 9050 FORMAT(/'     WARNING: integrated charge=',F15.8,', expected=',F15.8 )
 9101 FORMAT(/'     End of self-consistent calculation' )
 9110 FORMAT(/'     convergence has been achieved in ',i3,' iterations' )

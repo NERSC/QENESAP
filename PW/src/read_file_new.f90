@@ -5,9 +5,9 @@
 ! in the root directory of the present distribution,
 ! or http://www.gnu.org/copyleft/gpl.txt .
 !
-#if ! defined(__XSD)
-SUBROUTINE read_file_dummy()
-END SUBROUTINE read_file_dummy
+#if defined(__OLDXML)
+   SUBROUTINE read_file_dummy()
+   END SUBROUTINE read_file_dummy
 #else
 !----------------------------------------------------------------------------
 SUBROUTINE read_file()
@@ -43,14 +43,14 @@ SUBROUTINE read_file()
   IMPLICIT NONE 
   INTEGER :: ierr
   LOGICAL :: exst
-  CHARACTER( 256 )  :: dirname
+  CHARACTER( LEN=256 )  :: dirname
   !
   !
   ierr = 0 
   !
   ! ... Read the contents of the xml data file
   !
-  dirname = TRIM( tmp_dir ) // TRIM( prefix ) // '.save'
+  dirname = TRIM( tmp_dir ) // TRIM( prefix ) // '.save/'
   IF ( ionode ) WRITE( stdout, '(/,5x,A,/,5x,A)') &
      'Reading data from directory:', TRIM( dirname )
   !
@@ -139,9 +139,9 @@ SUBROUTINE read_xml_file ( )
   USE pw_restart_new,       ONLY :  pw_readschema_file, init_vars_from_schema 
   USE qes_types_module,     ONLY :  output_type, parallel_info_type, general_info_type
   USE qes_libs_module,      ONLY :  qes_reset_output, qes_reset_input, qes_reset_general_info, qes_reset_parallel_info 
-  USE io_rho_xml,           ONLY : read_rho
+  USE io_rho_xml,           ONLY : read_scf
+  USE fft_rho,              ONLY : rho_g2r
   USE read_pseudo_mod,      ONLY : readpp
-  USE xml_io_base,          ONLY : pp_check_file
   USE uspp,                 ONLY : becsum
   USE uspp_param,           ONLY : upf
   USE paw_variables,        ONLY : okpaw, ddd_PAW
@@ -159,12 +159,11 @@ SUBROUTINE read_xml_file ( )
   REAL(DP) :: rdum(1,1), ehart, etxc, vtxc, etotefield, charge
   REAL(DP) :: sr(3,3,48)
   CHARACTER(LEN=20) dft_name
-  TYPE ( output_type), ALLOCATABLE   :: output_obj 
-  TYPE (parallel_info_type),ALLOCATABLE :: parinfo_obj
-  TYPE (general_info_type ),ALLOCATABLE :: geninfo_obj 
+  TYPE ( output_type)                   :: output_obj 
+  TYPE (parallel_info_type)             :: parinfo_obj
+  TYPE (general_info_type )             :: geninfo_obj 
   !
   !
-  ALLOCATE ( output_obj, parinfo_obj, geninfo_obj ) 
   CALL pw_readschema_file ( ierr, output_obj, parinfo_obj, geninfo_obj)
   IF ( ierr /= 0 ) CALL errore ( 'read_schema', 'unable to read xml file', ierr ) 
   ! ... first we get the version of the qexml file
@@ -240,7 +239,7 @@ SUBROUTINE read_xml_file ( )
   !
   ! ... check on symmetry
   !
-  IF (nat > 0) CALL checkallsym( nat, tau, ityp, dfftp%nr1, dfftp%nr2, dfftp%nr3 )
+  IF (nat > 0) CALL checkallsym( nat, tau, ityp)
   !
   !  Set the different spin indices
   !
@@ -305,7 +304,12 @@ SUBROUTINE read_xml_file ( )
   !
   ! ... read the charge density
   !
-  CALL read_rho( rho, nspin )
+  CALL read_scf( rho, nspin )
+#if ! defined (__OLDXML)
+  ! FIXME: for compatibility. rho was previously read and written in real space
+  ! FIXME: now it is in G space - to be removed together with old format
+  CALL rho_g2r ( rho%of_g, rho%of_r )
+#endif
   !
   ! ... re-calculate the local part of the pseudopotential vltot
   ! ... and the core correction charge (if any) - This is done here
@@ -336,7 +340,6 @@ SUBROUTINE read_xml_file ( )
   CALL qes_reset_output ( output_obj )  
   CALL qes_reset_general_info ( geninfo_obj ) 
   CALL qes_reset_parallel_info ( parinfo_obj ) 
-  DEALLOCATE ( output_obj, geninfo_obj, parinfo_obj ) 
   ! 
   RETURN
   !

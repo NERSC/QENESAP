@@ -9,7 +9,7 @@ include make.libs
 
 IFLAGS   = -I../../include  
 MODFLAGS = -I../../iotk/src -I../../Modules -I../../LAXlib -I../../iotk/src \
-	   -I../../FFTXlib -I../../PW/src -I../../LR_Modules -I../../PHonon/PH -I../../PP/src/ -I.
+	   -I../../FFTXlib -I../../PW/src -I../../LR_Modules -I../../PHonon/PH -I../../PP/src/ -I. -I../../wannier90-2.1.0/src/obj/
 
 #
 # The above is in alphabetical order except when order matter during compilation
@@ -107,7 +107,9 @@ wannierize.o \
 pw2wan90epw.o \
 wigner_seitz2.o \
 wigner_seitz.o \
-write_ephmat.o 
+write_ephmat.o \
+io_scattering.o
+
 # setphases.o \ : SP: We keep it in case its usefull in the future but now depreciated.
 
 #default : epw
@@ -115,7 +117,8 @@ write_ephmat.o
 
 PHOBJS = ../../PHonon/PH/libph.a
 PWOBJS = ../../PW/src/libpw.a
-W90LIB = ../../wannier90-2.0.1/libwannier.a 
+###W90LIB = ../../wannier90-2.0.1/libwannier.a 
+W90LIB = ../../wannier90-2.1.0/libwannier.a 
 LRMODS = ../../LR_Modules/liblrmod.a
 PWOBJS = ../../PW/src/libpw.a
 QEMODS = ../../Modules/libqemod.a ../../FFTXlib/libqefft.a ../../LAXlib/libqela.a
@@ -123,8 +126,8 @@ LIBOBJS = ../../clib/clib.a ../../iotk/src/libiotk.a
 
 TLDEPS= bindir mods libs pw-lib pw ph
 
-all :   pw ph wannier wcorr pp ld1 upf libepw.a epw.x 
-#all :   pw ph wannier pp ld1 upf libepw.a epw.x 
+#all :   pw ph wannier wcorr pp ld1 upf libepw.a epw.x 
+all :   pw ph wannier pp ld1 upf libepw.a epw.x 
 
 libepw.a : $(EPWOBJS)
 	$(AR) $(ARFLAGS) $@ $?
@@ -147,7 +150,7 @@ ph :
 	cd ../../ ; make ph
 
 wannier :
-	cd ../../ ; make w90
+	cd ../../ ; make w90 ; cd wannier90-2.1.0/ ; make lib
 
 pp : 
 	cd ../../ ; make pp

@@ -1,5 +1,5 @@
 \documentclass[12pt,a4paper]{article}
-\def\version{6.0}
+\def\version{6.1}
 \def\qe{{\sc Quantum ESPRESSO}}
 
 \usepackage{html}
@@ -107,7 +107,9 @@ We quote in particular:
   \item Michele Lazzeri (Univ.Paris VI) for the 2n+1 code and Raman 
   cross section calculation with 2nd-order response;
  \item Andrea Dal Corso for the implementation of Ultrasoft, PAW,
-  noncolinear, spin-orbit extensions to \PHonon.
+  noncolinear, spin-orbit extensions to \PHonon;
+  \item Mitsuaki Kawamura (U.Tokyo) for implementation of the optimized
+  tetrahedron method in phonon and electron-phonon calculations. 
 \end{itemize}
 
 The \texttt{PlotPhon} and \texttt{QHA} packages were contribute by the
@@ -161,6 +163,10 @@ from the \PHonon\ directory, produces the following codes:
     the electron-phonon coefficient $\lambda$, the function $\alpha^2F(\omega)$
 \item \texttt{PH/lambda.x}: also calculates $\lambda$ and $\alpha^2F(\omega)$,
    plus $T_c$ for  superconductivity using the McMillan formula
+\item \texttt{PH/alpha2f.x}: also calculates $\lambda$ and $\alpha^2F(\omega)$.
+  It is used together with the optimized tetrahedron method
+  (\verb|occupations="tetrahedra_opt"| in \pwx) and shifted {\it q}-grid
+  (\verb|lshiftq=.true.| in \phx).
 \item \texttt{PH/fqha.x}: a simple code to calculate vibrational entropy with
    the quasi-harmonic approximation
 \item \texttt{Gamma/phcg.x}: 
@@ -310,6 +316,49 @@ See the appendix for the relevant formulae.
 {\bf Important notice}: the $q\rightarrow 0$ limit of the contribution 
 to the electron-phonon coefficient diverges for optical modes! please 
 be very careful, consult the relevant literature. . 
+
+\subsection{DFPT with the tetrahedron method}
+
+In order to use the tetrahedron method for phonon calculations,
+you should run \pwx\ and \phx\ as follows:
+\begin{enumerate}
+  \item Run \pwx\ with \verb|occupation = "tetrahedra_opt"| and \verb|K_POINT automatic|.
+  \item Run \phx.
+\end{enumerate}
+
+There is an example in \verb|PHonon/example/tetra_example/|.
+
+\subsection{Calculation of electron-phonon interaction coefficients with the tetrahedron method}
+
+When you perform a calculation of electron-phonon interaction coefficients 
+with the tetrahedron method,
+you have to use an offset $q$-point grid in order to avoid a singularity 
+at $q=\Gamma$; you can perform this calculation as follows:
+
+\begin{enumerate}
+  \item Run \pwx\ with \verb|occupation = "tetrahedra_opt"| and \verb|K_POINT automatic|.
+  \item Run \phx\ with \verb|lshift_q = .true.| and \verb|electron_phonon = ""| (or unset it)
+    to generate the dynamical matrix and
+    the deformation potential (in \verb|_ph*/{prefix}_q*/|) of each $q$.
+  \item Run \phx\ with \verb|electron_phonon = "lambda_tetra"|.
+    You should use a denser $k$ grid by setting \verb|nk1|, \verb|nk2|, and \verb|nk3|.
+    Then \verb|lambda*.dat| are generated; they contain $\lambda_{q \nu}$.
+  \item Run \verb|alpha2f.x| with an input file as follows:
+\begin{verbatim}
+&INPUTPH
+! The same as that for the electron-phonon calculation with ph.x
+ :
+/
+&INPUTA2F
+  nfreq = Number of frequency-points for a2F(omega), 
+/
+\end{verbatim}
+Then $\lambda$, and $\omega_{\ln}$ are computed and they are printed to the standard output.
+$\alpha^2F(\omega)$ and (partial) phonon-DOS are also computed;
+they are printed to a file \textit{prefix}\verb|.a2F.dat|.
+\end{enumerate}
+
+There is an example in \verb|PHonon/example/tetra_example/|.
 
 \section{Parallelism}
 \label{Sec:para}

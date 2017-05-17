@@ -1,5 +1,5 @@
 
-     Program CP v.6.0 starts on  2Oct2016 at 19: 0: 3 
+     Program CP v.6.1 (svn rev. 13369) starts on  2Mar2017 at 23:31:54 
 
      This program is part of the open-source Quantum ESPRESSO suite
      for quantum simulation of materials; please cite
@@ -21,11 +21,11 @@
    ----------------------------------
 
    Reading pseudopotential for specie #  1 from file :
-   /scratch/fs395/QE/espresso/test-suite/..//pseudo/O.blyp-mt.UPF
+   /home/fs395/scratch/QE/espresso/test-suite/..//pseudo/O.blyp-mt.UPF
    file type is UPF v.1
 
    Reading pseudopotential for specie #  2 from file :
-   /scratch/fs395/QE/espresso/test-suite/..//pseudo/H.blyp-vbc.UPF
+   /home/fs395/scratch/QE/espresso/test-suite/..//pseudo/H.blyp-vbc.UPF
    file type is UPF v.1
 
 
@@ -67,7 +67,7 @@
 
    Electronic states
    -----------------
-   Number of Electron =     8, of States =     4
+   Number of Electrons=     8, of States =     4
    Occupation numbers :
    2.00 2.00 2.00 2.00
 
@@ -202,8 +202,8 @@
    ECONT  [HARTREE A.U.] - Constant of motion for the CP lagrangian
 
 
-   reading restart file: /tmp/save/h2o_51.save
-   restart file read in    0.019 sec.
+   reading restart file: /home/fs395/scratch/QE/espresso/test-suite/..//tempdir/h2o_51.save
+   restart file read in    0.022 sec.
 
 
 
@@ -322,8 +322,8 @@
    MAIN:   0.596452D-06  0.1D-05  0.369715D-06  0.1D-03  0.000000D+00  0.1D+11
    MAIN: convergence achieved for system relaxation
 
-   writing restart file: /tmp/save/h2o_51.save
-   restart file written in    0.031 sec.
+   writing restart file: /home/fs395/scratch/QE/espresso/test-suite/..//tempdir/h2o_51.save
+   restart file written in    0.055 sec.
 
 
 
@@ -342,21 +342,21 @@
 
 
      Called by MAIN_LOOP:
-     initialize   :      0.54s CPU      0.21s WALL (       1 calls)
-     main_loop    :     14.15s CPU      7.69s WALL (      30 calls)
-     cpr_total    :     14.19s CPU      7.77s WALL (       1 calls)
+     initialize   :      0.47s CPU      0.20s WALL (       1 calls)
+     main_loop    :     12.77s CPU      7.21s WALL (      30 calls)
+     cpr_total    :     12.79s CPU      7.30s WALL (       1 calls)
 
      Called by INIT_RUN:
-     init_readfil :      0.06s CPU      0.05s WALL (       1 calls)
+     init_readfil :      0.05s CPU      0.05s WALL (       1 calls)
 
      Called by CPR:
-     cpr_md       :     14.19s CPU      7.77s WALL (      30 calls)
-     move_electro :     13.79s CPU      7.56s WALL (      30 calls)
+     cpr_md       :     12.79s CPU      7.30s WALL (      30 calls)
+     move_electro :     12.44s CPU      7.08s WALL (      30 calls)
 
      Called by move_electrons:
-     rhoofr       :      2.19s CPU      1.34s WALL (      30 calls)
-     vofrho       :     10.03s CPU      5.32s WALL (      30 calls)
-     dforce       :      1.40s CPU      0.86s WALL (      60 calls)
+     rhoofr       :      1.91s CPU      1.20s WALL (      30 calls)
+     vofrho       :      9.12s CPU      5.00s WALL (      30 calls)
+     dforce       :      1.26s CPU      0.85s WALL (      60 calls)
      calphi       :      0.02s CPU      0.00s WALL (      30 calls)
      nlfl         :      0.00s CPU      0.00s WALL (      30 calls)
 
@@ -366,7 +366,7 @@
      rhoset       :      0.04s CPU      0.01s WALL (      30 calls)
      sigset       :      0.04s CPU      0.01s WALL (      30 calls)
      tauset       :      0.04s CPU      0.01s WALL (      30 calls)
-     ortho        :      0.14s CPU      0.03s WALL (      30 calls)
+     ortho        :      0.13s CPU      0.03s WALL (      30 calls)
      updatc       :      0.03s CPU      0.01s WALL (      30 calls)
 
      Small boxes:
@@ -376,24 +376,24 @@
      nlfq         :      0.05s CPU      0.01s WALL (      30 calls)
      nlsm1        :      0.01s CPU      0.00s WALL (      31 calls)
      nlsm2        :      0.05s CPU      0.01s WALL (      30 calls)
-     fft          :      2.99s CPU      2.24s WALL (     240 calls)
-     ffts         :      0.86s CPU      0.56s WALL (      60 calls)
-     fftw         :      1.37s CPU      1.04s WALL (     180 calls)
-     betagx       :      0.17s CPU      0.04s WALL (       1 calls)
+     fft          :      2.78s CPU      2.14s WALL (     240 calls)
+     ffts         :      0.80s CPU      0.54s WALL (      60 calls)
+     fftw         :      1.32s CPU      1.02s WALL (     180 calls)
+     betagx       :      0.15s CPU      0.04s WALL (       1 calls)
      qradx        :      0.00s CPU      0.00s WALL (       1 calls)
-     nlinit       :      0.44s CPU      0.11s WALL (       1 calls)
-     init_dim     :      0.04s CPU      0.05s WALL (       1 calls)
+     nlinit       :      0.38s CPU      0.10s WALL (       1 calls)
+     init_dim     :      0.04s CPU      0.04s WALL (       1 calls)
      newnlinit    :      0.01s CPU      0.00s WALL (       1 calls)
-     from_restart :      0.04s CPU      0.03s WALL (       1 calls)
+     from_restart :      0.03s CPU      0.03s WALL (       1 calls)
      strucf       :      0.00s CPU      0.00s WALL (       1 calls)
-     calbec       :      0.02s CPU      0.00s WALL (      31 calls)
+     calbec       :      0.01s CPU      0.00s WALL (      31 calls)
 
 
 
-     CP           :    14.75s CPU         8.02s WALL
+     CP           :    13.27s CPU         7.52s WALL
 
 
-   This run was terminated on:  19: 0:11   2Oct2016            
+   This run was terminated on:  23:32: 2   2Mar2017            
 
 =------------------------------------------------------------------------------=
    JOB DONE.

@@ -77,13 +77,11 @@
   TYPE (input_type),INTENT(OUT)            ::   obj
   CHARACTER(len=*),INTENT(IN)              ::   obj_tagname
   !
-  CHARACTER(80)                            ::   tau_units,dft_name, diagonalization
+  CHARACTER(80)                            ::   dft_name, diagonalization
   CHARACTER(256)                           ::   tagname
   REAL(DP),ALLOCATABLE                     ::   tau(:,:)
   REAL(DP)                                 ::   alat, a1(3), a2(3), a3(3), gamma_xk(3,1), gamma_wk(1)
   INTEGER                                  ::   inlc,nt
-  REAL(DP),POINTER                         ::   ns_null(:,:,:,:)=>NULL()
-  COMPLEX(DP),POINTER                      ::   ns_nc_null(:,:,:,:)=>NULL()
   LOGICAL                                  ::   lsda,dft_is_hybrid,dft_is_nonlocc,is_hubbard(ntypx)=.FALSE., ibrav_lattice
   INTEGER                                  ::   Hubbard_l=0,Hubbard_lmax=0
   INTEGER                                  ::   iexch, icorr, igcx, igcc, imeta, my_vec(6) 
@@ -95,7 +93,7 @@
   CHARACTER(LEN=80)                        ::  vdw_corr_  
   !
   ! 
-#if defined(__XSD)
+#if !defined(__OLDXML)
   obj%tagname=TRIM(obj_tagname)
   IF ( ABS(ip_ibrav)  .GT. 0 ) THEN  
      ibrav_lattice = .TRUE. 
@@ -130,14 +128,12 @@
   a2 = cb_at(:,2)*alat
   a3 = cb_at(:,3)*alat
   tau(1:3,1:ip_nat) = iob_tau(1:3,1:ip_nat)*alat
-  tau_units="Bohr"
-  !tau=tau*bohr_radius_angs
   !
   IF ( ibrav_lattice ) THEN 
-     CALL qexsd_init_atomic_structure (obj%atomic_structure, ntyp, atm, ip_ityp, ip_nat, tau, tau_units = tau_units,     &
+     CALL qexsd_init_atomic_structure (obj%atomic_structure, ntyp, atm, ip_ityp, ip_nat, tau, &
                                        ALAT = alat, a1 = a1, a2 = a2, a3 = a3 , ibrav = ip_ibrav )
   ELSE 
-     CALL qexsd_init_atomic_structure (obj%atomic_structure, ntyp, atm, ip_ityp, ip_nat, tau, TAU_UNITS = tau_units,     &
+     CALL qexsd_init_atomic_structure (obj%atomic_structure, ntyp, atm, ip_ityp, ip_nat, tau,     &
                                     alat = sqrt(sum(a1(1:3)*a1(1:3))), A1 = a1, A2 = a2, A3 = a3 , IBRAV = 0 )
   END IF 
   DEALLOCATE ( tau ) 
@@ -191,13 +187,15 @@
   !
   vdw_corr_ = vdw_corr
   IF ( london ) vdw_corr_ = 'grimme-d2'
-  CALL qexsd_init_dft (obj%dft,TRIM(dft_name),.FALSE., dft_is_hybrid,ip_nqx1,ip_nqx2,ip_nqx3,ip_ecutfock,exx_fraction,&
-                       screening_parameter,exxdiv_treatment, x_gamma_extrapolation, ip_ecutvcut,                      &
-                       ip_lda_plus_U,ip_lda_plus_u_kind,2*hubbard_lmax+1, ip_noncolin, ip_nspin,ntyp,0,ip_nat,atm,    &
-                       ip_ityp,ip_hubbard_u,ip_hubbard_j0,ip_hubbard_alpha,ip_hubbard_beta,ip_hubbard_j,              &
-                       starting_ns_eigenvalue,ns_null,ns_nc_null,u_projection_type,dft_is_nonlocc,                    &
-                       vdw_corr_, TRIM (get_nonlocc_name()), london_s6, london_c6, london_rcut,                       &
-                       xdm_a1,xdm_a2, ts_vdw_econv_thr, ts_vdw_isolated,  is_hubbard,upf(1:ntyp)%psd)
+  CALL qexsd_init_dft (obj%dft, TRIM(dft_name), .FALSE., dft_is_hybrid, &
+       ip_nqx1, ip_nqx2, ip_nqx3, ip_ecutfock/e2, exx_fraction, &
+       screening_parameter, exxdiv_treatment, x_gamma_extrapolation, ip_ecutvcut/e2, &
+       dft_is_nonlocc, vdw_corr_, TRIM (get_nonlocc_name()), london_s6, &
+       london_c6, london_rcut, xdm_a1,xdm_a2, ts_vdw_econv_thr,ts_vdw_isolated,&
+       ip_lda_plus_U, ip_lda_plus_u_kind, 2*hubbard_lmax+1, ip_noncolin, &
+       ip_nspin, ntyp, ip_nat, atm, ip_ityp, ip_hubbard_u, ip_hubbard_j0,&
+       ip_hubbard_alpha,ip_hubbard_beta,ip_hubbard_j, starting_ns_eigenvalue,&
+       u_projection_type, is_hubbard,upf(1:ntyp)%psd )
   !------------------------------------------------------------------------------------------------------------------------
   !                                                   SPIN ELEMENT
   !-------------------------------------------------------------------------------------------------------------------------
@@ -230,8 +228,8 @@
   !----------------------------------------------------------------------------------------------------------------------------
   !                                                    BASIS ELEMENT
   !---------------------------------------------------------------------------------------------------------------------------
-  CALL qexsd_init_basis(obj%basis, ip_k_points, ecutwfc/e2, ip_ecutrho/e2, ip_nr1, ip_nr2, ip_nr3, ip_nr1s, ip_nr2s, ip_nr3s,& 
-                        ip_nr1b, ip_nr2b,ip_nr3b) 
+  CALL qexsd_init_basis(obj%basis, ip_k_points, ecutwfc/e2, ip_ecutrho/e2, ip_nr1, ip_nr2, ip_nr3, ip_nr1s, ip_nr2s,  & 
+                                                                                     ip_nr3s, ip_nr1b, ip_nr2b,ip_nr3b) 
   !-----------------------------------------------------------------------------------------------------------------------------
   !                                                    ELECTRON CONTROL
   !------------------------------------------------------------------------------------------------------------------------------

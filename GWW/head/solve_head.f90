@@ -17,6 +17,7 @@ subroutine solve_head
   USE io_global,             ONLY : stdout, ionode,ionode_id
   USE io_files,              ONLY : diropn,prefix, tmp_dir
   use pwcom
+  USE cell_base,             ONLY : omega, tpiba2
   USE check_stop,            ONLY : max_seconds
   USE wavefunctions_module,  ONLY : evc
   USE kinds,                 ONLY : DP
@@ -28,7 +29,8 @@ subroutine solve_head
                                    l_scissor,scissor,len_head_block_freq, &
                                    len_head_block_wfc
   USE control_ph,           ONLY : tr2_ph
-  USE gvect,                ONLY : ig_l2g
+  USE gvect,                ONLY : ngm, ngm_g, nl, ig_l2g, gstart, g
+  USE gvecs,                ONLY : nls, doublegrid
   USE mp,                   ONLY : mp_sum, mp_barrier, mp_bcast
   USE mp_world,             ONLY : world_comm, mpime, nproc
   USE uspp,                 ONLY : nkb, vkb
@@ -39,7 +41,7 @@ subroutine solve_head
   USE fft_base,             ONLY : dfftp, dffts
   USE fft_interfaces,       ONLY : fwfft, invfft
   USE buffers,              ONLY : get_buffer
-  USE constants,            ONLY : rytoev
+  USE constants,            ONLY : rytoev, fpi
 
   use qpoint,                ONLY : npwq, nksq
   use control_lr,            ONLY : nbnd_occ, lgamma

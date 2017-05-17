@@ -5,7 +5,14 @@
 ! in the root directory of the present distribution,
 ! or http://www.gnu.org/copyleft/gpl.txt .
 !
-#if defined(__XSD)
+#if defined(__OLDXLM)
+! 
+MODULE qexsd_input
+  IMPLICIT NONE
+  INTEGER :: dummy__
+END MODULE qexsd_input
+!
+#else
 !---------------------------------------------------------
 MODULE qexsd_input
 !--------------------------------------------------------
@@ -21,7 +28,6 @@ MODULE qexsd_input
   USE constants,        ONLY : e2,bohr_radius_angs
   USE iotk_module
   USE qes_module
-  USE qexsd_module,     ONLY : qexsd_init_atomic_species,qexsd_init_atomic_structure,qexsd_init_dft      
   !
   IMPLICIT NONE
   !
@@ -171,15 +177,17 @@ MODULE qexsd_input
         CALL qes_init_inputOccupations( inpOcc_objs(1),"input_occupations", 1,            &
                                         REAL(spin_degeneracy,KIND=DP) , nbnd-1, input_occupations(2:nbnd) )   
      END IF
+  ELSE 
+     ALLOCATE (inpOcc_objs(0))
+     inpOcc_size = 0
   END IF
   !
   IF (PRESENT ( tot_mag)) tot_mag_ispresent = .TRUE.
         
-  CALL qes_init_bands(obj,TAGNAME,NBND_ISPRESENT=(nbnd .GT. 0), NBND = nbnd,&
-                      SMEARING_ISPRESENT = smearing_obj%lread, SMEARING = smearing_obj,& 
-                      TOT_CHARGE_ISPRESENT=.TRUE., TOT_CHARGE = tot_charge,  &
-                      TOT_MAGNETIZATION_ISPRESENT = tot_mag_ispresent, TOT_MAGNETIZATION = tot_mag, &
-                      OCCUPATIONS=occup_obj, INPUTOCCUPATIONS_ISPRESENT=inp_occ_arepresent, &
+  CALL qes_init_bands(obj,TAGNAME,NBND_ISPRESENT=(nbnd .GT. 0), NBND = nbnd, SMEARING_ISPRESENT = smearing_obj%lread,&
+                      SMEARING = smearing_obj, TOT_CHARGE_ISPRESENT=.TRUE., TOT_CHARGE = tot_charge,                 &
+                      TOT_MAGNETIZATION_ISPRESENT = tot_mag_ispresent, TOT_MAGNETIZATION = tot_mag,                  & 
+                      OCCUPATIONS=occup_obj, INPUTOCCUPATIONS_ISPRESENT=inp_occ_arepresent,                          &
                       NDIM_INPUTOCCUPATIONS= inpOcc_size, INPUTOCCUPATIONS = inpOcc_objs)
   CALL qes_reset_smearing(smearing_obj)
   CALL qes_reset_occupations(occup_obj)
@@ -284,6 +292,7 @@ MODULE qexsd_input
    CHARACTER(LEN=*),PARAMETER           :: TAGNAME="k_points_IBZ"
    TYPE(monkhorst_pack_type)            :: mpack_obj
    TYPE(k_point_type),ALLOCATABLE       :: kp_obj(:)
+   TYPE (k_point_type)                  :: dummy_kpobj(0)
    LOGICAL                              :: mpack_ispresent,kp_ispresent
    CHARACTER(LEN=100)                   :: kind_of_grid
    INTEGER                              :: kdim,ik,jk,kcount
@@ -302,7 +311,7 @@ MODULE qexsd_input
                                    s1,s2,s3,kind_of_grid)
       CALL qes_init_k_points_IBZ(obj,TAGNAME,monkhorst_pack_ispresent=.TRUE.,&
                                  monkhorst_pack=mpack_obj,nk_ispresent=.FALSE.,&
-                                 nk=0,k_point_ispresent=.FALSE.,ndim_k_point=0,k_point=kp_obj)
+                                 nk=0,k_point_ispresent=.FALSE.,ndim_k_point=0,k_point=dummy_kpobj)
       CALL qes_reset_monkhorst_pack(mpack_obj)
    ELSE
       IF ( ibrav_lattice ) THEN 
@@ -705,13 +714,6 @@ MODULE qexsd_input
    !
    !------------------------------------------------------------------------------------------------------------ 
 END MODULE qexsd_input          
-         
-#else
-! 
-MODULE qexsd_input
-  IMPLICIT NONE
-  INTEGER :: dummy__
-END MODULE qexsd_input
 ! 
 #endif
   

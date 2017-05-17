@@ -18,6 +18,7 @@ cp_autopilot.o \
 cp_emass.o \
 cp_interfaces.o \
 cp_restart.o \
+cp_restart_new.o \
 cplib.o \
 cpr_mod.o \
 cpr.o \
@@ -120,7 +121,7 @@ QEMODS=../../Modules/libqemod.a
 QEFFT=../../FFTXlib/libqefft.a
 QELA=../../LAXlib/libqela.a
 
-TLDEPS= bindir fftlib mods libs libiotk
+TLDEPS= bindir mods libs libiotk
 
 all : tldeps libcp.a manycp.x cp.x cppp.x wfdd.x
 

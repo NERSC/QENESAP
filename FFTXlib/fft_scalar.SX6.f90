@@ -354,7 +354,6 @@
      COMMON/NEC_ASL_PARA/nbtasks
 #endif
 
-
      IF ( nx < 1 ) &
          call fftx_error__('cfft3d',' nx is less than 1 ', 1)
      IF ( ny < 1 ) &

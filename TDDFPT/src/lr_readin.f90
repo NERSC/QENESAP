@@ -32,7 +32,7 @@ SUBROUTINE lr_readin
   USE klist,               ONLY : nks, wk, nelec, lgauss, ltetra
   USE fixed_occ,           ONLY : tfixed_occ
   USE input_parameters,    ONLY : degauss, nosym, wfcdir, outdir,&
-                                  & max_seconds
+                                  & max_seconds, assume_isolated
   USE realus,              ONLY : real_space, real_space_debug,&
                                   & init_realspace_vars, qpointlist,&
                                   & betapointlist
@@ -53,7 +53,7 @@ SUBROUTINE lr_readin
   USE esm,                 ONLY : do_comp_esm
   USE qpoint,              ONLY : xq
   USE xml_io_base,         ONLY : create_directory
-  USE io_rho_xml,          ONLY : write_rho
+  USE io_rho_xml,          ONLY : write_scf
   USE noncollin_module,    ONLY : noncolin
   USE mp_bands,            ONLY : ntask_groups
   USE constants,           ONLY : eps4
@@ -98,7 +98,7 @@ SUBROUTINE lr_readin
                         & broadening,print_spectrum,start,finish,step,if_check_orth, if_random_init, &
                         & if_check_her,p_nbnd_occ,p_nbnd_virt,poor_of_ram,poor_of_ram2,max_iter,     &
                         & ecutfock, conv_assistant,if_dft_spectrum,no_hxc,d0psi_rs,lshift_d0psi,     &
-                        & lplot_drho, vccouple_shift
+                        & lplot_drho, vccouple_shift, ltammd
   !
   auto_rs = .TRUE.
   !
@@ -391,14 +391,14 @@ SUBROUTINE lr_readin
   !
   IF (eels) THEN
      !
-     ! Specify the temporary derictory.
+     ! Specify the temporary directory.
      !
      tmp_dir = tmp_dir_lr
      !
      ! Copy the scf-charge-density to the tmp_dir (PH/check_initial_status.f90).
      ! Needed for the nscf calculation.
      !
-     IF (.NOT.restart) CALL write_rho( rho, nspin )
+     IF (.NOT.restart) CALL write_scf( rho, nspin )
      !
      ! If a band structure calculation needs to be done, do not open a file
      ! for k point (PH/phq_readin.f90)

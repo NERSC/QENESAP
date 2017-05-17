@@ -16,6 +16,7 @@ SUBROUTINE dvpsi_e(kpoint,ipol,dvpsi2,l_lr)
   USE ions_base, ONLY : ntyp => nsp, nat, ityp
   USE kinds, ONLY: DP
   USE pwcom
+  USE cell_base, ONLY : tpiba, tpiba2
   USE uspp, ONLY: nkb, vkb, dvan
   USE uspp_param, ONLY: nh
   USE wavefunctions_module,  ONLY: evc
@@ -25,7 +26,7 @@ SUBROUTINE dvpsi_e(kpoint,ipol,dvpsi2,l_lr)
   USE lsda_mod,              ONLY : nspin
   USE control_flags,    ONLY : gamma_only
   USE io_global,   ONLY : ionode,stdout
-  USE gvect,                 ONLY : gstart
+  USE gvect,       ONLY : gstart, ngm, g
   USE mp, ONLY : mp_sum, mp_barrier
   USE mp_world,             ONLY : world_comm
   use bse_wannier, ONLY:num_nbndv

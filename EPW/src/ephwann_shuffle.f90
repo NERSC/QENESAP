@@ -37,9 +37,9 @@
                             elecselfen, phonselfen, nest_fn, a2f,               &
                             vme, eig_read, ephwrite, nkf1, nkf2, nkf3,          & 
                             efermi_read, fermi_energy, specfun, band_plot,      &
-                            nqf1, nqf2, nqf3, mp_mesh_k
+                            nqf1, nqf2, nqf3, mp_mesh_k, restart
   USE noncollin_module, ONLY : noncolin
-  USE constants_epw, ONLY : ryd2ev, ryd2mev, one, two, czero, twopi, ci
+  USE constants_epw, ONLY : ryd2ev, ryd2mev, one, two, czero, twopi, ci, zero
   USE io_files,      ONLY : prefix, diropn
   USE io_global,     ONLY : stdout, ionode
   USE io_epw,        ONLY : lambda_phself, linewidth_phself, iunepmatwe,        &
@@ -50,7 +50,7 @@
                             wkf, dynq, nqtotf, nkqf, epf17, nkf, nqf, et_ks,    &
                             ibndmin, ibndmax, lambda_all, dmec, dmef, vmef,     &
                             sigmai_all, sigmai_mode, gamma_all, epsi, zstar,    &
-                            efnew, ifc
+                            efnew, ifc, sigmar_all, zi_all, nkqtotf
 #if defined(__NAG)
   USE f90_unix_io,   ONLY : flush
 #endif
@@ -85,6 +85,8 @@
   INTEGER :: ios
   !! integer variable for I/O control
   INTEGER :: iq 
+  !! Counter on coarse q-point grid
+  INTEGER :: iq_restart
   !! Counter on coarse q-point grid
   INTEGER :: ik
   !! Counter on coarse k-point grid
@@ -259,6 +261,8 @@
     CALL mp_bcast (ityp, root_pool, intra_pool_comm)  
     CALL mp_bcast (isk, ionode_id, inter_pool_comm)
     CALL mp_bcast (isk, root_pool, intra_pool_comm)    
+    CALL mp_bcast (noncolin, ionode_id, inter_pool_comm)
+    CALL mp_bcast (noncolin, root_pool, intra_pool_comm)    
     IF (mpime.eq.ionode_id) THEN
       CLOSE(crystal)
     ENDIF
@@ -560,16 +564,30 @@
   IF( efermi_read ) THEN
      !
      ef = fermi_energy
-     WRITE(6,'(/5x,a)') repeat('=',67)
-     WRITE(6, '(/5x,a,f10.6,a)') &
+     WRITE(stdout,'(/5x,a)') repeat('=',67)
+     WRITE(stdout, '(/5x,a,f10.6,a)') &
          'Fermi energy is read from the input file: Ef = ', ef * ryd2ev, ' eV'
-     WRITE(6,'(/5x,a)') repeat('=',67)
+     WRITE(stdout,'(/5x,a)') repeat('=',67)
+     ! SP: even when reading from input the number of electron needs to be correct
+     already_skipped = .false.
+     IF ( nbndskip .gt. 0 ) THEN
+        IF ( .not. already_skipped ) THEN
+           IF ( noncolin ) THEN
+              nelec = nelec - one * nbndskip
+           ELSE
+              nelec = nelec - two * nbndskip
+           ENDIF
+           already_skipped = .true.
+           WRITE(6,'(/5x,"Skipping the first ",i4," bands:")') nbndskip
+           WRITE(6,'(/5x,"The Fermi level will be determined with ",f9.5," electrons")') nelec
+        ENDIF
+     ENDIF     
      !
   ELSEIF( band_plot ) THEN 
      !
-     WRITE(6,'(/5x,a)') repeat('=',67)
+     WRITE(stdout,'(/5x,a)') repeat('=',67)
      WRITE(stdout, '(/5x,"Fermi energy corresponds to the coarse k-mesh")')
-     WRITE(6,'(/5x,a)') repeat('=',67) 
+     WRITE(stdout,'(/5x,a)') repeat('=',67) 
      !
   ELSE 
      ! here we take into account that we may skip bands when we wannierize
@@ -584,8 +602,8 @@
               nelec = nelec - two * nbndskip
            ENDIF
            already_skipped = .true.
-           WRITE(6,'(/5x,"Skipping the first ",i4," bands:")') nbndskip
-           WRITE(6,'(/5x,"The Fermi level will be determined with ",f9.5," electrons")') nelec
+           WRITE(stdout,'(/5x,"Skipping the first ",i4," bands:")') nbndskip
+           WRITE(stdout,'(/5x,"The Fermi level will be determined with ",f9.5," electrons")') nelec
         ENDIF
      ENDIF
      !
@@ -604,14 +622,14 @@
      CALL mp_bcast (etf_k, ionode_id, inter_pool_comm)
      ENDIF
      !
-     WRITE(6, '(/5x,a,f10.6,a)') &
+     WRITE(stdout, '(/5x,a,f10.6,a)') &
          'Fermi energy is calculated from the fine k-mesh: Ef = ', efnew * ryd2ev, ' eV'
      !
      ! if 'fine' Fermi level differs by more than 250 meV, there is probably something wrong
      ! with the wannier functions, or 'coarse' Fermi level is inaccurate
      IF (abs(efnew - ef) * ryd2eV .gt. 0.250d0 .and. (.not.eig_read) ) &
-        WRITE(6,'(/5x,a)') 'Warning: check if difference with Fermi level fine grid makes sense'
-     WRITE(6,'(/5x,a)') repeat('=',67)
+        WRITE(stdout,'(/5x,a)') 'Warning: check if difference with Fermi level fine grid makes sense'
+     WRITE(stdout,'(/5x,a)') repeat('=',67)
      !
      ef=efnew
      !
@@ -652,6 +670,23 @@
     ! Fine mesh set of g-matrices.  It is large for memory storage
     ! SP: Should not be a memory problem. If so, can always the number of cores to reduce nkf. 
     ALLOCATE ( epf17 (ibndmax-ibndmin+1, ibndmax-ibndmin+1, nmodes, nkf) )
+    ! 
+    ! Restart calculation
+    iq_restart = 1
+    IF (restart) THEN
+      ! 
+      IF ( elecselfen ) THEN
+        IF ( .not. ALLOCATED (sigmar_all) ) ALLOCATE( sigmar_all(ibndmax-ibndmin+1, nkqtotf/2) )
+        IF ( .not. ALLOCATED (sigmai_all) ) ALLOCATE( sigmai_all(ibndmax-ibndmin+1, nkqtotf/2) )
+        IF ( .not. ALLOCATED (zi_all) )     ALLOCATE( zi_all(ibndmax-ibndmin+1, nkqtotf/2) )
+        sigmar_all(:,:) = zero
+        sigmai_all(:,:) = zero
+        zi_all(:,:) = zero
+        !
+        CALL electron_read(iq_restart,nqf,nkqtotf/2,sigmar_all,sigmai_all,zi_all)
+      ENDIF
+      ! 
+    ENDIF
     !      
     DO iq = 1, nqf
        !   

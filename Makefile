@@ -137,8 +137,13 @@ couple : pw cp
 # EPW needs to invoke make twice due to a Wannier90 workaround
 epw: pw ph ld1
 	if test -d EPW ; then \
-	( cd EPW ; $(MAKE) all ; $(MAKE) all || exit 1; \
+	( cd EPW ; $(MAKE) all || exit 1; \
 		cd ../bin; ln -fs ../EPW/bin/epw.x . ); fi
+
+travis : pwall epw
+	if test -d test-suite ; then \
+	( cd test-suite ; make run-travis || exit 1 ) ; fi
+
 
 gui :
 	@echo 'Check "GUI/README" how to access the Graphical User Interface'

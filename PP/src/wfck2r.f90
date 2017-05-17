@@ -29,7 +29,7 @@ PROGRAM wfck2r
   USE io_files,             ONLY : nwordwfc, iunwfc
   USE gvect, ONLY : ngm, g 
   USE gvecs, ONLY : nls
-  USE noncollin_module, ONLY : npol, nspin_mag, noncolin
+  USE noncollin_module, ONLY : npol, noncolin
   USE environment,ONLY : environment_start, environment_end
   USE fft_base,  only : dffts
   USE scatter_mod,  only : gather_grid
@@ -105,7 +105,7 @@ PROGRAM wfck2r
   IF (ionode) CALL diropn (iuwfcr, filename, lrwfcr, exst)
 
   ALLOCATE ( evc_r(dffts%nnr,npol) )
-  ALLOCATE ( dist_evc_r(dffts%nr1x*dffts%nr2x*dffts%nr3x,nspin_mag) )
+  ALLOCATE ( dist_evc_r(dffts%nr1x*dffts%nr2x*dffts%nr3x,npol) )
   
 
   DO ik = 1,nks
@@ -117,7 +117,7 @@ PROGRAM wfck2r
         !
         ! perform the fourier transform
         !
-        evc_r = cmplx(0.d0, 0.d0)     
+        evc_r = (0.d0, 0.d0)     
         do ig = 1, npw
            evc_r (nls (igk_k(ig,ik) ),1 ) = evc (ig,ibnd)
         enddo
@@ -129,10 +129,10 @@ PROGRAM wfck2r
            CALL invfft ('Wave', evc_r(:,2), dffts)
         ENDIF
 
-        dist_evc_r=CMPLX(0.d0,0.d0)
+        dist_evc_r=(0.d0,0.d0)
 
 #if defined (__MPI)
-        DO is = 1, nspin_mag
+        DO is = 1, npol
            !
            CALL gather_grid( dffts, evc_r(:,is), dist_evc_r(:,is) )
            !
@@ -141,7 +141,7 @@ PROGRAM wfck2r
         dist_evc_r(1:dffts%nnr,:)=evc_r(1:dffts%nnr,:)
 #endif
 
-        if(ionode)     call davcio (dist_evc_r, lrwfcr, iuwfcr, (ik-1)*nbnd+ibnd, +1)
+        if(ionode) call davcio (dist_evc_r, lrwfcr, iuwfcr, (ik-1)*nbnd+ibnd, +1)
      enddo
         
      !
