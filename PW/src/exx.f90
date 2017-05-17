@@ -784,7 +784,7 @@ MODULE exx
 	!do some important check concerning 3D fft and number of band groups:
 #ifdef __USE_3D_FFT
 		!if 3DFFTs are used, set the number of bandgroups to number of ranks
-		IF ( negrp .NE. nproc_pool ) then
+		IF ( (negrp .NE. nproc_pool) ) then
 			CALL errore( 'mp_start_bands', 'n. of band groups  must be equal to parent_nproc if 3D-FFTs are used. To remove that restriction, recompile without __USE_3D_FFT flag.', 1 )
 		endif
 #endif
