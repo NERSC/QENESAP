@@ -129,7 +129,8 @@ MODULE us_exx
   END SUBROUTINE qvan_clean
   !
   !-----------------------------------------------------------------------
-  SUBROUTINE addusxx_g(exx_fft, rhoc, xkq, xk, flag, becphi_c, becpsi_c, becphi_r, becpsi_r )
+  SUBROUTINE addusxx_g(exx_fft, rhoc, xkq, xk, jblock, nblock, &
+    flag, becphi_c, becpsi_c, becphi_r, becpsi_r)
     !-----------------------------------------------------------------------
     ! 
     ! Add US contribution to rhoc for hybrid functionals
@@ -152,15 +153,18 @@ MODULE us_exx
     TYPE(fft_cus), INTENT(inout):: exx_fft
     ! In input I get a slice of <beta|left> and <beta|right>
     ! only for this kpoint and this band
-    COMPLEX(DP),INTENT(inout) :: rhoc(exx_fft%dfftt%nnr)
-    COMPLEX(DP),INTENT(in), OPTIONAL  :: becphi_c(nkb), becpsi_c(nkb)
-    REAL(DP),   INTENT(in), OPTIONAL  :: becphi_r(nkb), becpsi_r(nkb)
+    COMPLEX(DP),INTENT(inout) :: rhoc(exx_fft%dfftt%nnr,jblock)
+    COMPLEX(DP),INTENT(in), OPTIONAL  :: becphi_c(nkb,jblock), becpsi_c(nkb)
+    REAL(DP),   INTENT(in), OPTIONAL  :: becphi_r(nkb,jblock), becpsi_r(nkb)
     REAL(DP),   INTENT(in)    :: xkq(3), xk(3)
+    COMPLEX(DP) :: phi_c
+    INTEGER,    INTENT(in) :: jblock, nblock
+    INTEGER :: jbnd
     CHARACTER(LEN=1), INTENT(in) :: flag
     !
     ! ... local variables
     !
-    COMPLEX(DP),ALLOCATABLE :: aux1(:), aux2(:), eigqts(:)
+    COMPLEX(DP),ALLOCATABLE :: aux1(:), aux2(:,:), eigqts(:), aug(:,:)
     INTEGER :: ngms, ikb, jkb, ijkb0, ih, jh, na, nt, ig, nij, ijh
     COMPLEX(DP) :: becfac_c
     REAL(DP) :: arg, becfac_r
@@ -184,7 +188,7 @@ MODULE us_exx
        CALL errore('addusxx_g', 'called with incorrect arguments', 2 )
     !
     ngms = exx_fft%ngmt
-    ALLOCATE( aux1(ngms), aux2(ngms) )
+    ALLOCATE( aux1(ngms), aux2(ngms,jblock), aug(ngms,jblock) )
     ALLOCATE(eigqts(nat))
     !
     DO na = 1, nat
@@ -192,6 +196,7 @@ MODULE us_exx
       eigqts(na) = CMPLX( COS(arg), -SIN(arg), kind=DP)
     END DO
     !
+    aug(:,:) = (0.0_dp, 0.0_dp)
     nij = 0
     DO nt = 1, ntyp
        !
@@ -205,10 +210,12 @@ MODULE us_exx
                 !
                 ijkb0 = indv_ijkb0(na) 
                 !
-                aux2(:) = (0.0_dp, 0.0_dp)
+                aux2(:,:) = (0.0_dp, 0.0_dp)
                 DO ih = 1, nh(nt)
                    ikb = ijkb0 + ih
+                   !
                    aux1(:) = (0.0_dp, 0.0_dp)
+                   !
                    DO jh = 1, nh(nt)
                       jkb = ijkb0 + jh
                       IF ( add_complex ) THEN
@@ -227,50 +234,88 @@ MODULE us_exx
 !$omp end parallel do
                       END IF
                    END DO
+                   !
                    IF ( add_complex ) THEN
-!$omp parallel do default(shared) private(ig)
-                      DO ig = 1,ngms
-                         aux2(ig) = aux2(ig) + aux1(ig) * CONJG(becphi_c(ikb))
+!                         phi_c = DCONJG(becphi_c(ikb,jbnd))
+!#!#!$omp parallel do default(shared) private(ig)
+!$omp parallel do collapse(2) default(shared) firstprivate(nblock,ngms,ikb) private(jbnd,ig)
+                      DO jbnd = 1, nblock
+                         DO ig = 1,ngms
+                            aux2(ig,jbnd) = aux2(ig,jbnd) + aux1(ig) * DCONJG(becphi_c(ikb,jbnd))
+                         ENDDO
                       ENDDO
 !$omp end parallel do
                    ELSE
-!$omp parallel do default(shared) private(ig)
-                      DO ig = 1,ngms
-                         aux2(ig) = aux2(ig) + aux1(ig) * becphi_r(ikb)
+!$omp parallel do collapse(2) default(shared) firstprivate(nblock,ngms,ikb) private(jbnd,ig)
+                      DO jbnd = 1, nblock
+                         DO ig = 1,ngms
+                            aux2(ig,jbnd) = aux2(ig,jbnd) + aux1(ig) * becphi_r(ikb,jbnd)
+                         ENDDO
                       ENDDO
 !$omp end parallel do
                    END IF
                 END DO
+                !
 !$omp parallel do default(shared) private(ig)
                 DO ig = 1, ngms
-                   aux2(ig) = aux2(ig) * eigqts(na) * &
-                                 eigts1 (mill (1,ig), na) * &
-                                 eigts2 (mill (2,ig), na) * &
-                                 eigts3 (mill (3,ig), na)
-                ENDDO
+                   aux1(ig) = eigqts(na) * &
+                           eigts1 (mill (1,ig), na) * &
+                           eigts2 (mill (2,ig), na) * &
+                           eigts3 (mill (3,ig), na)
+                END DO
 !$omp end parallel do
+                !
+!$omp parallel do collapse(2) default(shared) firstprivate(nblock,ngms) private(jbnd,ig)
+                DO jbnd = 1, nblock
+                   DO ig = 1, ngms
+                      aux2(ig,jbnd) = aux2(ig,jbnd) * aux1(ig)
+                   ENDDO
+                END DO
+!$omp end parallel do
+                !
                 IF ( add_complex ) THEN
-                   DO ig = 1, ngms
-                      rhoc(exx_fft%nlt(ig)) = rhoc(exx_fft%nlt(ig)) + aux2(ig)
-                   END DO
+!$omp parallel do collapse(2) default(shared) firstprivate(nblock,ngms) private(jbnd,ig)
+                   DO jbnd = 1, nblock
+                      DO ig = 1, ngms
+                         aug(ig,jbnd) = aug(ig,jbnd) + aux2(ig,jbnd)
+                      ENDDO
+                   ENDDO
+!$omp end parallel do
                 ELSE IF ( add_real ) THEN
-                   DO ig = 1, ngms
-                      rhoc(exx_fft%nlt(ig)) = rhoc(exx_fft%nlt(ig)) + aux2(ig)
+!$omp parallel do collapse(2) default(shared) firstprivate(nblock,ngms) private(jbnd,ig)
+                   DO jbnd = 1, nblock
+                      DO ig = 1, ngms
+                         rhoc(exx_fft%nlt(ig),jbnd) = rhoc(exx_fft%nlt(ig),jbnd) + aux2(ig,jbnd)
+                      ENDDO
                    ENDDO
-                   DO ig = gstart, ngms
-                      rhoc(exx_fft%nltm(ig)) = rhoc(exx_fft%nltm(ig)) &
-                                               + CONJG(aux2(ig))
+!$omp end parallel do
+!$omp parallel do collapse(2) default(shared) firstprivate(nblock,ngms) private(jbnd,ig)
+                   DO jbnd = 1, nblock
+                      DO ig = gstart, ngms
+                         rhoc(exx_fft%nltm(ig),jbnd) = rhoc(exx_fft%nltm(ig),jbnd) &
+                                                       + DCONJG(aux2(ig,jbnd))
+                      ENDDO
                    ENDDO
+!$omp end parallel do
                 ELSE IF ( add_imaginary ) THEN
-                   DO ig = 1, ngms
-                      rhoc(exx_fft%nlt(ig)) = rhoc(exx_fft%nlt(ig)) &
-                                              + (0.0_dp,1.0_dp) * aux2(ig)
+!$omp parallel do collapse(2) default(shared) firstprivate(nblock,ngms) private(jbnd,ig)
+                   DO jbnd = 1, nblock
+                      DO ig = 1, ngms
+                         rhoc(exx_fft%nlt(ig),jbnd) = rhoc(exx_fft%nlt(ig),jbnd) &
+                                                      + (0.0_dp,1.0_dp) * aux2(ig,jbnd)
+                      ENDDO
                    ENDDO
-                   DO ig = gstart, ngms
-                      rhoc(exx_fft%nltm(ig)) = rhoc(exx_fft%nltm(ig)) &
-                                             + (0.0_dp,1.0_dp)* CONJG(aux2(ig))
+!$omp end parallel do
+!$omp parallel do collapse(2) default(shared) firstprivate(nblock,ngms) private(jbnd,ig)
+                   DO jbnd = 1, nblock
+                      DO ig = gstart, ngms
+                         rhoc(exx_fft%nltm(ig),jbnd) = rhoc(exx_fft%nltm(ig),jbnd) &
+                                                       + (0.0_dp,1.0_dp)* DCONJG(aux2(ig,jbnd))
+                      ENDDO
                    ENDDO
+!$omp end parallel do
                 ENDIF
+                !
              ENDIF
           ENDDO   ! nat
           !
@@ -279,6 +324,16 @@ MODULE us_exx
        END IF
        !
     ENDDO   ! nt
+    !
+    IF ( add_complex ) THEN
+       DO jbnd = 1, nblock
+!$omp parallel do default(shared) private(ig)
+          DO ig = 1, ngms
+             rhoc(exx_fft%nlt(ig),jbnd) = rhoc(exx_fft%nlt(ig),jbnd) + aug(ig,jbnd)
+          ENDDO
+!$omp end parallel do
+       ENDDO
+    ENDIF
     !
     DEALLOCATE( eigqts, aux2, aux1)
     !
@@ -291,7 +346,7 @@ MODULE us_exx
   !-----------------------------------------------------------------------
   !
   !-----------------------------------------------------------------------
-  SUBROUTINE newdxx_g(exx_fft, vc, xkq, xk, flag, deexx, becphi_r, becphi_c)
+  SUBROUTINE newdxx_g(exx_fft, vc, xkq, xk, jblock, nblock, flag, deexx, becphi_r, becphi_c)
     !-----------------------------------------------------------------------
     !
     ! This subroutine computes some sort of EXX contribution to the non-local 
@@ -316,14 +371,18 @@ MODULE us_exx
     IMPLICIT NONE
     !
     TYPE(fft_cus), INTENT(inout):: exx_fft
-    COMPLEX(DP),INTENT(in)    :: vc(exx_fft%dfftt%nnr)
+    COMPLEX(DP),INTENT(in)    :: vc(exx_fft%dfftt%nnr,jblock)
     ! In input I get a slice of <beta|left> and <beta|right> 
     ! only for this kpoint and this band
-    COMPLEX(DP),INTENT(in), OPTIONAL :: becphi_c(nkb)
-    REAL(DP),   INTENT(in), OPTIONAL :: becphi_r(nkb)
+    COMPLEX(DP),INTENT(in), OPTIONAL :: becphi_c(nkb,jblock)
+    REAL(DP),   INTENT(in), OPTIONAL :: becphi_r(nkb,jblock)
     COMPLEX(DP),INTENT(inout) :: deexx(nkb)
     REAL(DP),INTENT(in)       :: xk(3), xkq(3)
     CHARACTER(LEN=1), INTENT(IN) :: flag
+    COMPLEX(DP) :: phi_c
+    REAL(DP) :: phi_r
+    INTEGER, INTENT(in) :: jblock, nblock
+    INTEGER :: jbnd
     INTEGER:: ngms
     !
     ! ... local variables
@@ -331,8 +390,8 @@ MODULE us_exx
     REAL(DP) :: fact
     COMPLEX(DP), EXTERNAL :: zdotc
     !
-    COMPLEX(DP),ALLOCATABLE :: auxvc(:), &  ! vc in order of |g|
-                               eigqts(:), aux1(:), aux2(:)
+    COMPLEX(DP),ALLOCATABLE :: auxvc(:,:), &  ! vc in order of |g|
+                               eigqts(:), aux1(:), aux2(:,:)
     COMPLEX(DP) :: fp, fm
     REAL(DP) :: arg
     LOGICAL :: add_complex, add_real, add_imaginary
@@ -356,7 +415,7 @@ MODULE us_exx
     CALL start_clock( 'newdxx' )
     !
     ngms = exx_fft%ngmt
-    ALLOCATE(aux1(ngms), aux2(ngms), auxvc( ngms))
+    ALLOCATE(aux1(ngms), aux2(ngms,jblock), auxvc( ngms, jblock))
     ALLOCATE(eigqts(nat))
     !
     DO na = 1, nat
@@ -368,25 +427,27 @@ MODULE us_exx
     ! select real or imaginary part if so desired
     ! fact=2 to account for G and -G components
     !
-    auxvc = (0._dp, 0._dp)
-    IF ( add_complex ) THEN
-       auxvc(1:ngms) = vc(exx_fft%nlt(1:ngms) )
-       fact=omega
-    ELSE IF ( add_real ) THEN
-       DO ig = 1, ngms
-          fp = (vc(exx_fft%nlt(ig)) + vc(exx_fft%nltm(ig)))/2.0_dp
-          fm = (vc(exx_fft%nlt(ig)) - vc(exx_fft%nltm(ig)))/2.0_dp
-          auxvc(ig) = CMPLX( DBLE(fp), AIMAG(fm), KIND=dp)
-       END DO
-       fact=2.0_dp*omega
-    ELSE IF ( add_imaginary ) THEN
-       DO ig = 1, ngms
-          fp = (vc(exx_fft%nlt(ig)) + vc(exx_fft%nltm(ig)))/2.0_dp
-          fm = (vc(exx_fft%nlt(ig)) - vc(exx_fft%nltm(ig)))/2.0_dp
-          auxvc(ig) = CMPLX( AIMAG(fp), -DBLE(fm), KIND=dp)
-       END DO
-       fact=2.0_dp*omega
-    END IF 
+    DO jbnd = 1, nblock
+       auxvc(:,jbnd) = (0._dp, 0._dp)
+       IF ( add_complex ) THEN
+          auxvc(1:ngms,jbnd) = vc(exx_fft%nlt(1:ngms),jbnd )
+          fact=omega
+       ELSE IF ( add_real ) THEN
+          DO ig = 1, ngms
+             fp = (vc(exx_fft%nlt(ig),jbnd) + vc(exx_fft%nltm(ig),jbnd))/2.0_dp
+             fm = (vc(exx_fft%nlt(ig),jbnd) - vc(exx_fft%nltm(ig),jbnd))/2.0_dp
+             auxvc(ig,jbnd) = CMPLX( DBLE(fp), AIMAG(fm), KIND=dp)
+          END DO
+          fact=2.0_dp*omega
+       ELSE IF ( add_imaginary ) THEN
+          DO ig = 1, ngms
+             fp = (vc(exx_fft%nlt(ig),jbnd) + vc(exx_fft%nltm(ig),jbnd))/2.0_dp
+             fm = (vc(exx_fft%nlt(ig),jbnd) - vc(exx_fft%nltm(ig),jbnd))/2.0_dp
+             auxvc(ig,jbnd) = CMPLX( AIMAG(fp), -DBLE(fm), KIND=dp)
+          END DO
+          fact=2.0_dp*omega
+       END IF
+    END DO
     !
     nij = 0
     DO nt = 1, ntyp
@@ -403,38 +464,60 @@ MODULE us_exx
                 !
 !$omp parallel do default(shared) private(ig)
                 DO ig = 1, ngms
-                   aux2(ig) = CONJG( auxvc(ig) ) * eigqts(na) * &
-                              eigts1(mill(1,ig), na) * &
-                              eigts2(mill(2,ig), na) * &
-                              eigts3(mill(3,ig), na)
+                   aux1(ig) = DCONJG( eigqts(na) * &
+                           eigts1(mill(1,ig), na) * &
+                           eigts2(mill(2,ig), na) * &
+                           eigts3(mill(3,ig), na) )
                 END DO
 !$omp end parallel do
-                DO ih = 1, nh(nt)
-                   ikb = ijkb0 + ih
-                   aux1(:) = (0.0_dp, 0.0_dp)
-                   DO jh = 1, nh(nt)
-                      jkb = ijkb0 + jh
-                      IF ( gamma_only ) THEN
-!$omp parallel do default(shared) private(ig)
-                         DO ig = 1, ngms
-                            aux1(ig) = aux1(ig) + becphi_r(jkb) * &
-                                 CONJG( qgm(ig,nij+ijtoh(ih,jh,nt)) )
-                         ENDDO
-!$omp end parallel do
-                      ELSE
-!$omp parallel do default(shared) private(ig)
-                         DO ig = 1, ngms
-                            aux1(ig) = aux1(ig) + becphi_c(jkb) * &
-                                 CONJG( qgm(ig,nij+ijtoh(ih,jh,nt)) )
-                         ENDDO
-!$omp end parallel do
-                      END IF
+                !
+!$omp parallel do collapse(2) default(shared) firstprivate(nblock,ngms) private(jbnd,ig)
+                DO jbnd = 1, nblock
+                   DO ig = 1, ngms
+                      aux2(ig,jbnd) = auxvc(ig,jbnd) * aux1(ig)
                    END DO
+                END DO
+!$omp end parallel do
+
+
+                DO jh = 1, nh(nt)
+                   jkb = ijkb0 + jh
                    !
-                   deexx(ikb) = deexx(ikb) + fact*zdotc(ngms, aux2, 1, aux1, 1)
-                   IF( gamma_only .AND. gstart == 2 ) &
-                        deexx(ikb) =  deexx(ikb) - omega*CONJG (aux2(1))*aux1(1)
+!$omp parallel do default(shared) private(ig)
+                   DO ig = 1, ngms
+                      aux1(ig) = (0._dp, 0._dp)
+                   ENDDO
+!$omp end parallel do
+                   !
+                   IF (gamma_only) THEN
+!$omp parallel do default(shared) firstprivate(nblock,ngms,jkb) private(jbnd,ig)
+                      DO ig = 1, ngms
+                         DO jbnd = 1, nblock
+                            aux1(ig) = aux1(ig) + becphi_r(jkb,jbnd)*aux2(ig,jbnd)
+                         ENDDO
+                      ENDDO
+!$omp end parallel do
+                   ELSE
+!$omp parallel do default(shared) firstprivate(nblock,ngms,jkb) private(jbnd,ig)
+                      DO ig = 1, ngms
+                         DO jbnd = 1, nblock
+                            aux1(ig) = aux1(ig) + becphi_c(jkb,jbnd)*aux2(ig,jbnd)
+                         ENDDO
+                      ENDDO
+!$omp end parallel do
+                   END IF
+                   !
+                   DO ih = 1, nh(nt)
+                      ikb = ijkb0 + ih
+                      !
+                      deexx(ikb) = deexx(ikb) + fact*zdotc(ngms, qgm(:,nij+ijtoh(ih,jh,nt)), 1, aux1, 1)
+                      IF( gamma_only .AND. gstart == 2 ) &
+                           deexx(ikb) =  deexx(ikb) - omega*aux1(1)*DCONJG(qgm(1,nij+ijtoh(ih,jh,nt)))
+                      !
+                   ENDDO
+                   !
                 ENDDO
+                !
              ENDIF
              !
           ENDDO  ! nat
@@ -579,7 +662,7 @@ MODULE us_exx
             DO ir = 1, mbia
                 irb = tabxx(ia)%box(ir)
                 rho(irb) = rho(irb) + tabxx(ia)%qr(ir,ijtoh(ih,jh,nt)) &
-                                         *CONJG(becphi(ikb))*becpsi(jkb)
+                                         *DCONJG(becphi(ikb))*becpsi(jkb)
             ENDDO
         ENDDO
         ENDDO
@@ -868,7 +951,7 @@ MODULE us_exx
       IF(sgn_sym>0)THEN
         becp = becp0
       ELSE
-        becp = CONJG(becp0)
+        becp = DCONJG(becp0)
       ENDIF
       RETURN
     ENDIF
@@ -938,7 +1021,7 @@ MODULE us_exx
                     + D(l_i)%d(m_o,m_i, isym) * tau_fact*becp0(okb, :)
               ELSE
                 becp(ikb, :) = becp(ikb, :) &
-                    + D(l_i)%d(m_o,m_i, isym) * tau_fact*CONJG(becp0(okb, :))
+                    + D(l_i)%d(m_o,m_i, isym) * tau_fact*DCONJG(becp0(okb, :))
               ENDIF
           ENDDO ! m_o
           !ENDDO ! isym
