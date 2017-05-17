@@ -5232,14 +5232,14 @@ END SUBROUTINE compute_becpsi
        IF (jbnd < jend) THEN
           ! two real bands can be coupled into a single complex one
           DO ir=1, lda*npol
-             exxtemp(ir,1+(jbnd-jstart+1)/2) = DCMPLX( work(ir,jbnd-jstart+1),&
+             exxtemp(ir,1+(jbnd-jstart+1)/2) = CMPLX( work(ir,jbnd-jstart+1),&
                                                       work(ir,jbnd-jstart+2),&
                                                       KIND=dp )
           END DO
        ELSE
           ! case of lone last band
           DO ir=1, lda*npol
-             exxtemp(ir,1+(jbnd-jstart+1)/2) = DCMPLX( work(ir,jbnd-jstart+1),&
+             exxtemp(ir,1+(jbnd-jstart+1)/2) = CMPLX( work(ir,jbnd-jstart+1),&
                                                       0.0_dp, KIND=dp )
           END DO
        ENDIF
