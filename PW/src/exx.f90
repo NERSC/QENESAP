@@ -771,6 +771,11 @@ MODULE exx
     INTEGER :: ibnd_start_new, ibnd_end_new
     INTEGER :: ibnd_exx, evc_offset
     !
+    !<<<
+    !CALL transform_evc_to_exx(2)
+    !CALL change_data_structure(.FALSE.)
+    !RETURN
+    !>>>
     CALL start_clock ('exxinit')
     !
     CALL transform_evc_to_exx(2)
@@ -1210,6 +1215,9 @@ MODULE exx
     COMPLEX(DP)              :: hpsi(lda*npol,m)
     TYPE(bec_type), OPTIONAL :: becpsi
     INTEGER :: i
+    !<<<
+    !return
+    !>>>
     !
     IF ( (okvan.or.okpaw) .and. .not. present(becpsi)) &
        CALL errore('vexx','becpsi needed for US/PAW case',1)
@@ -2352,6 +2360,10 @@ MODULE exx
     !
     REAL(DP)   :: exxenergy2
     !
+    !<<<
+    !exxenergy2 = 0.d0
+    !return
+    !>>>
     CALL start_clock ('exxenergy')
     !
     IF( gamma_only ) THEN
@@ -3196,6 +3208,10 @@ MODULE exx
     INTEGER :: jstart, jend, ipair, jblock_start, jblock_end
     INTEGER :: ijt, njt, ii, jcount, exxtemp_index
 
+    !<<<
+    !exx_stress = 0.0_DP
+    !return
+    !>>>
     CALL start_clock ('exx_stress')
 
     CALL transform_evc_to_exx(0)
@@ -3817,7 +3833,9 @@ END SUBROUTINE compute_becpsi
     !
     ! get igk
     !
-    CALL update_igk(.TRUE.)
+    !<<<
+    !CALL update_igk(.TRUE.)
+    !>>>
     !
     ! get psi_exx
     !
@@ -3853,7 +3871,9 @@ END SUBROUTINE compute_becpsi
     !
     ! get igk
     !
-    CALL update_igk(.FALSE.)
+    !<<<
+    !CALL update_igk(.FALSE.)
+    !>>>
     n = n_local
     !
     ! transform hpsi_exx to the local data structure
@@ -4565,7 +4585,10 @@ END SUBROUTINE compute_becpsi
     USE cell_base,      ONLY : at, bg, tpiba2
     USE cellmd,         ONLY : lmovecell
     USE wvfct,          ONLY : npwx
-    USE gvect,          ONLY : gcutm, ig_l2g, g, gg, nl, nlm, ngm, ngm_g, mill, &
+    !<<<
+    !USE gvect,          ONLY : gcutm, ig_l2g, g, gg, nl, nlm, ngm, ngm_g, mill, &
+    USE gvect,          ONLY : gcutm, ig_l2g, g, gg, gl, nl, nlm, ngm, ngm_g, mill, &
+    !>>>
                                gstart, gvect_init, deallocate_gvect_exx
     USE gvecs,          ONLY : gcutms, ngms, ngms_g, nls, nlsm, gvecs_init, &
                                deallocate_gvecs
@@ -4644,6 +4667,10 @@ END SUBROUTINE compute_becpsi
           ngm = ngm_
           ngms = ngs_
        ELSE
+          !<<<
+          g_loc = g
+          gg_loc = gg
+          !>>>
           dfftp = dfftp_exx
           dffts = dffts_exx
           ngm = ngm_exx
@@ -4653,6 +4680,9 @@ END SUBROUTINE compute_becpsi
        call deallocate_gvecs()
        call gvect_init( ngm , intra_egrp_comm )
        call gvecs_init( ngms , intra_egrp_comm )
+       !<<<
+       gl => gg
+       !>>>
     ELSE
        exx_mode = 2
        dfftp = dfftp_loc
@@ -4663,6 +4693,9 @@ END SUBROUTINE compute_becpsi
        call deallocate_gvecs()
        call gvect_init( ngm , intra_bgrp_comm )
        call gvecs_init( ngms , intra_bgrp_comm )
+       !<<<
+       gl => gg
+       !>>>
        exx_mode = 0
     END IF
     !
