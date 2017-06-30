@@ -93,6 +93,7 @@ SUBROUTINE setup()
   USE paw_variables,      ONLY : okpaw
   USE fcp_variables,      ONLY : lfcpopt, lfcpdyn
   USE extfield,           ONLY : monopole
+  USE random_numbers,     ONLY : set_random_seed
   !
   IMPLICIT NONE
   !
@@ -149,6 +150,10 @@ SUBROUTINE setup()
      END IF
      IF ( noncolin ) no_t_rev=.true.
   END IF
+  !
+  ! ... ensure that the random seed is initialized properly
+  !
+  IF ( restart ) CALL set_random_seed()
   !
   ! ... Compute the ionic charge for each atom type and the total ionic charge
   !
