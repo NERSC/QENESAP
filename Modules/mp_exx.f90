@@ -12,6 +12,7 @@ MODULE mp_exx
   USE mp, ONLY : mp_barrier, mp_bcast, mp_size, mp_rank, mp_comm_split
   USE mp_bands, ONLY : nbgrp, nproc_bgrp, me_bgrp, root_bgrp, my_bgrp_id, &
        inter_bgrp_comm, intra_bgrp_comm
+  USE control_flags, ONLY : gamma_only
   USE parallel_include
   !
   IMPLICIT NONE 
@@ -61,6 +62,9 @@ MODULE mp_exx
   INTEGER :: max_ibands
   !
   INTEGER :: jblock
+  INTEGER :: njblocks
+  INTEGER, ALLOCATABLE :: jblock_start(:)
+  INTEGER, ALLOCATABLE :: jblock_end(:)
   !
 CONTAINS
   !
@@ -342,6 +346,32 @@ CONTAINS
           END IF
        END DO       
     END DO
+    !
+    ! determine blocking of the j-loop
+    !
+    IF (allocated(jblock_start)) THEN
+       DEALLOCATE(jblock_start)
+       DEALLOCATE(jblock_end)
+    END IF
+    IF(gamma_only) THEN
+       njblocks = nbnd / (2*jblock)
+       if (mod(nbnd, (2*jblock)) .ne. 0) njblocks = njblocks + 1
+       ALLOCATE( jblock_start(njblocks), jblock_end(njblocks) )
+       !
+       DO i=1, njblocks
+          jblock_start(i) = (i - 1) * (2*jblock) + 1
+          jblock_end(i) = min(jblock_start(i)+(2*jblock)-1,nbnd)
+       END DO
+    ELSE
+       njblocks = nbnd / jblock
+       if (mod(nbnd, jblock) .ne. 0) njblocks = njblocks + 1
+       ALLOCATE( jblock_start(njblocks), jblock_end(njblocks) )
+       !
+       DO i=1, njblocks
+          jblock_start(i) = (i - 1) * jblock + 1
+          jblock_end(i) = min(jblock_start(i)+jblock-1,nbnd)
+       END DO
+    END IF
     !
   END SUBROUTINE init_index_over_band
   !

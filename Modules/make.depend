@@ -180,6 +180,7 @@ mp_diag.o : parallel_include.o
 mp_exx.o : mp.o
 mp_exx.o : mp_bands.o
 mp_exx.o : parallel_include.o
+mp_exx.o : control_flags.o
 mp_global.o : command_line_options.o
 mp_global.o : mp.o
 mp_global.o : mp_bands.o
