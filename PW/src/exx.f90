@@ -1319,8 +1319,8 @@ MODULE exx
     INTEGER :: iegrp, iproc, nproc_egrp, ii, ipair
     INTEGER :: jbnd, jstart, jend
     COMPLEX(DP), ALLOCATABLE :: exxtemp(:,:), psiwork(:)
-    INTEGER :: ijt
-    INTEGER :: index_start, index_end, exxtemp_index
+    INTEGER :: ijt, iijt
+    INTEGER :: exxtemp_index
     INTEGER :: ending_im
     !
     ialloc = nibands(my_egrp_id+1)
@@ -1366,11 +1366,11 @@ MODULE exx
        IJT_LOOP : &
        DO ijt=1, njblocks
           !
-          index_start = (ijt - 1) * jblock + 1
-          index_end = min(index_start+jblock-1,nbnd/2)
+          iijt = ijt + mod(my_egrp_id,njblocks)
+          IF (iijt.gt.njblocks) iijt = iijt - njblocks
           !
           !gather exxbuff for jblock_start:jblock_end
-          call exxbuff_comm_gamma(exxtemp,current_k,nrxxs*npol,jblock_start(ijt),jblock_end(ijt),jblock)
+          call exxbuff_comm_gamma(exxtemp,current_k,nrxxs*npol,ijt,jblock_start(iijt),jblock_end(iijt),jblock)
           !
           LOOP_ON_PSI_BANDS : &
           DO ii = 1,  nibands(my_egrp_id+1)
@@ -1430,8 +1430,8 @@ MODULE exx
                 END IF
              END DO
              !
-             jstart = max(jstart,jblock_start(ijt))
-             jend = min(jend,jblock_end(ijt))
+             jstart = max(jstart,jblock_start(iijt))
+             jend = min(jend,jblock_end(iijt))
              !
              h_ibnd = jstart/2
              IF(mod(jstart,2)==0) THEN
@@ -1441,7 +1441,7 @@ MODULE exx
                 ibnd_loop_start=jstart
              ENDIF
              !
-             exxtemp_index = max(0, (jstart-jblock_start(ijt))/2 )
+             exxtemp_index = max(0, (jstart-jblock_start(iijt))/2 )
              !
              IBND_LOOP_GAM : &
              DO jbnd=ibnd_loop_start,jend, 2 !for each band of psi
@@ -1690,7 +1690,7 @@ MODULE exx
     INTEGER :: ir_out, ipair, jbnd
     INTEGER :: ii, jstart, jend, jcount, jind
     INTEGER :: ialloc, ending_im
-    INTEGER :: ijt
+    INTEGER :: ijt, iijt
     COMPLEX(DP), ALLOCATABLE :: exxtemp(:,:)
     !
     CALL start_clock ('vexx_init')
@@ -1825,9 +1825,11 @@ MODULE exx
        IF ( okvan .and..not.tqr ) CALL qvan_init (exx_fft%ngmt, xkq, xkp)
        !
        DO ijt=1, njblocks
+          iijt = ijt + mod(my_egrp_id,njblocks)
+          IF (iijt.gt.njblocks) iijt = iijt - njblocks
           !
           !gather exxbuff for jblock_start:jblock_end
-          call exxbuff_comm(exxtemp,ikq,nrxxs*npol,jblock_start(ijt),jblock_end(ijt))
+          call exxbuff_comm(exxtemp,ikq,nrxxs*npol,ijt,jblock_start(iijt),jblock_end(iijt))
           !
           DO ii=1, nibands(my_egrp_id+1)
              !
@@ -1849,8 +1851,8 @@ MODULE exx
                 END IF
              END DO
              !
-             jstart = max(jstart,jblock_start(ijt))
-             jend = min(jend,jblock_end(ijt))
+             jstart = max(jstart,jblock_start(iijt))
+             jend = min(jend,jblock_end(iijt))
              !
              !how many iters
              jcount=jend-jstart+1
@@ -1867,7 +1869,7 @@ MODULE exx
 !$omp parallel do collapse(2) default(shared) firstprivate(jstart,jend) private(jbnd,ir)
                 DO jbnd=jstart, jend
                    DO ir = 1, nrxxs
-                      rhoc(ir,jbnd-jstart+1) = ( conjg(exxtemp(ir,jbnd-jblock_start(ijt)+1))*temppsic_nc(ir,1,ii) + conjg(exxtemp(nrxxs+ir,jbnd-jblock_start(ijt)+1))*temppsic_nc(ir,2,ii) )/omega
+                      rhoc(ir,jbnd-jstart+1) = ( conjg(exxtemp(ir,jbnd-jblock_start(iijt)+1))*temppsic_nc(ir,1,ii) + conjg(exxtemp(nrxxs+ir,jbnd-jblock_start(iijt)+1))*temppsic_nc(ir,2,ii) )/omega
                    END DO
                 END DO
 !$omp end parallel do
@@ -1882,7 +1884,7 @@ MODULE exx
                       ir_end = min(ir_start+nblock-1,nrxxs)
 !DIR$ vector nontemporal (rhoc)
                       DO ir = ir_start, ir_end
-                         rhoc(ir,jbnd-jstart+1)=conjg(exxtemp(ir,jbnd-jblock_start(ijt)+1))*temppsic(ir,ii) * omega_inv
+                         rhoc(ir,jbnd-jstart+1)=conjg(exxtemp(ir,jbnd-jblock_start(iijt)+1))*temppsic(ir,ii) * omega_inv
                       ENDDO
                    ENDDO
                 ENDDO
@@ -1988,8 +1990,8 @@ MODULE exx
 !$omp parallel do default(shared) firstprivate(jstart,jend) private(ir,jbnd)
                 DO ir = 1, nrxxs
                    DO jbnd=jstart, jend
-                      result_nc(ir,1,ii)= result_nc(ir,1,ii) + vc(ir,jbnd-jstart+1) * exxtemp(ir,jbnd-jblock_start(ijt)+1)
-                      result_nc(ir,2,ii)= result_nc(ir,2,ii) + vc(ir,jbnd-jstart+1) * exxtemp(ir+nrxxs,jbnd-jblock_start(ijt)+1)
+                      result_nc(ir,1,ii)= result_nc(ir,1,ii) + vc(ir,jbnd-jstart+1) * exxtemp(ir,jbnd-jblock_start(iijt)+1)
+                      result_nc(ir,2,ii)= result_nc(ir,2,ii) + vc(ir,jbnd-jstart+1) * exxtemp(ir+nrxxs,jbnd-jblock_start(iijt)+1)
                    ENDDO
                 ENDDO
 !$omp end parallel do
@@ -2005,7 +2007,7 @@ MODULE exx
                       ir_end = min(ir_start+nblock-1,nrxxs)
 !!dir$ vector nontemporal (result)
                       DO ir = ir_start, ir_end
-                         result(ir,ii) = result(ir,ii) + vc(ir,jbnd-jstart+1)*exxtemp(ir,jbnd-jblock_start(ijt)+1)
+                         result(ir,ii) = result(ir,ii) + vc(ir,jbnd-jstart+1)*exxtemp(ir,jbnd-jblock_start(iijt)+1)
                       ENDDO
                    ENDDO
                 ENDDO
@@ -2415,8 +2417,8 @@ MODULE exx
     INTEGER :: jmax, npw
     INTEGER :: istart, iend, ipair, ii, ialloc
     COMPLEX(DP), ALLOCATABLE :: exxtemp(:,:)
-    INTEGER :: ijt
-    INTEGER :: index_start, index_end, exxtemp_index
+    INTEGER :: ijt, iijt
+    INTEGER :: exxtemp_index
     INTEGER :: calbec_start, calbec_end
     INTEGER :: intra_bgrp_comm_
     !
@@ -2485,11 +2487,11 @@ MODULE exx
           IJT_LOOP : &
           DO ijt=1, njblocks
              !
-             index_start = (ijt - 1) * jblock + 1
-             index_end = min(index_start+jblock-1,nbnd/2)
+             iijt = ijt + mod(my_egrp_id,njblocks)
+             IF (iijt.gt.njblocks) iijt = iijt - njblocks
              !
              !gather exxbuff for jblock_start:jblock_end
-             call exxbuff_comm_gamma(exxtemp,ikk,nrxxs*npol,jblock_start(ijt),jblock_end(ijt),jblock)
+             call exxbuff_comm_gamma(exxtemp,ikk,nrxxs*npol,ijt,jblock_start(iijt),jblock_end(iijt),jblock)
              !
              JBND_LOOP : &
              DO ii = 1, nibands(my_egrp_id+1)
@@ -2551,8 +2553,8 @@ MODULE exx
                    END IF
                 END DO
                 !
-                istart = max(istart,jblock_start(ijt))
-                iend = min(iend,jblock_end(ijt))
+                istart = max(istart,jblock_start(iijt))
+                iend = min(iend,jblock_end(iijt))
                 !
                 h_ibnd = istart/2
                 IF(mod(istart,2)==0) THEN
@@ -2562,7 +2564,7 @@ MODULE exx
                    ibnd_loop_start=istart
                 ENDIF
                 !
-                exxtemp_index = max(0, (istart-jblock_start(ijt))/2 )
+                exxtemp_index = max(0, (istart-jblock_start(iijt))/2 )
                 !
                 IBND_LOOP_GAM : &
                 DO ibnd = ibnd_loop_start, iend, 2       !for each band of psi
@@ -2735,7 +2737,7 @@ MODULE exx
     COMPLEX(DP), ALLOCATABLE :: psi_t(:), prod_tot(:)
     INTEGER :: intra_bgrp_comm_
     INTEGER :: ii, ialloc, jstart, jend, ipair
-    INTEGER :: ijt
+    INTEGER :: ijt, iijt
     COMPLEX(DP), ALLOCATABLE :: exxtemp(:,:)
     !
     CALL start_clock ('energy_init')
@@ -2848,8 +2850,11 @@ MODULE exx
           IJT_LOOP : &
           DO ijt=1, njblocks
              !
+             iijt = ijt + mod(my_egrp_id,njblocks)
+             IF (iijt.gt.njblocks) iijt = iijt - njblocks
+             !
              !gather exxbuff for jblock_start:jblock_end
-             call exxbuff_comm(exxtemp,ikq,nrxxs*npol,jblock_start(ijt),jblock_end(ijt))
+             call exxbuff_comm(exxtemp,ikq,nrxxs*npol,ijt,jblock_start(iijt),jblock_end(iijt))
              !
              JBND_LOOP : &
              DO ii=1, nibands(my_egrp_id+1)
@@ -2873,8 +2878,8 @@ MODULE exx
                 END DO
                 !
                 !these variables prepare for inner band parallelism
-                jstart = max(jstart,jblock_start(ijt))
-                jend = min(jend,jblock_end(ijt))
+                jstart = max(jstart,jblock_start(iijt))
+                jend = min(jend,jblock_end(iijt))
                 ibnd_inner_start=jstart
                 ibnd_inner_end=jend
                 ibnd_inner_count=jend-jstart+1
@@ -2890,8 +2895,8 @@ MODULE exx
 !$omp parallel do collapse(2) default(shared) private(ir,ibnd) firstprivate(ibnd_inner_start,ibnd_inner_end)
                    DO ibnd = ibnd_inner_start, ibnd_inner_end
                       DO ir = 1, nrxxs
-                         rhoc(ir,ibnd-ibnd_inner_start+1)=(conjg(exxtemp(ir,ibnd-jblock_start(ijt)+1))*temppsic_nc(ir,1,ii) + &
-                              conjg(exxtemp(ir+nrxxs,ibnd-jblock_start(ijt)+1))*temppsic_nc(ir,2,ii) ) * omega_inv
+                         rhoc(ir,ibnd-ibnd_inner_start+1)=(conjg(exxtemp(ir,ibnd-jblock_start(iijt)+1))*temppsic_nc(ir,1,ii) + &
+                              conjg(exxtemp(ir+nrxxs,ibnd-jblock_start(iijt)+1))*temppsic_nc(ir,2,ii) ) * omega_inv
                       ENDDO
                    ENDDO
 !$omp end parallel do
@@ -2908,7 +2913,7 @@ MODULE exx
                          ir_end = min(ir_start+nblock-1,nrxxs)
 !DIR$ vector nontemporal (rhoc)
                          DO ir = ir_start, ir_end
-                            rhoc(ir,ibnd-ibnd_inner_start+1)=conjg(exxtemp(ir,ibnd-jblock_start(ijt)+1))*temppsic(ir,ii) * omega_inv
+                            rhoc(ir,ibnd-ibnd_inner_start+1)=conjg(exxtemp(ir,ibnd-jblock_start(iijt)+1))*temppsic(ir,ii) * omega_inv
                          ENDDO
                       ENDDO
                    ENDDO
@@ -3176,7 +3181,7 @@ MODULE exx
     REAL(DP) :: delta(3,3)
     COMPLEX(DP), ALLOCATABLE :: exxtemp(:,:)
     INTEGER :: jstart, jend, ipair
-    INTEGER :: ijt, ii, jcount, exxtemp_index
+    INTEGER :: ijt, iijt, ii, jcount, exxtemp_index
 
     CALL start_clock ('exx_stress')
 
@@ -3311,12 +3316,15 @@ MODULE exx
         ! loop over bands
         DO ijt=1, njblocks
            !
+           iijt = ijt + mod(my_egrp_id,njblocks)
+           IF (iijt.gt.njblocks) iijt = iijt - njblocks
+           !
            !gather exxbuff for jblock_start:jblock_end
            IF (gamma_only) THEN
-              call exxbuff_comm_gamma(exxtemp,ikq,nrxxs*npol,jblock_start(ijt),&
-                   jblock_end(ijt),jblock)
+              call exxbuff_comm_gamma(exxtemp,ikq,nrxxs*npol,ijt,jblock_start(iijt),&
+                   jblock_end(iijt),jblock)
            ELSE
-              call exxbuff_comm(exxtemp,ikq,nrxxs*npol,jblock_start(ijt),jblock_end(ijt))
+              call exxbuff_comm(exxtemp,ikq,nrxxs*npol,ijt,jblock_start(iijt),jblock_end(iijt))
            END IF
            !
         DO ii = 1, nibands(my_egrp_id+1)
@@ -3339,8 +3347,8 @@ MODULE exx
                END IF
             ENDDO
             !
-            jstart = max(jstart,jblock_start(ijt))
-            jend = min(jend,jblock_end(ijt))
+            jstart = max(jstart,jblock_start(iijt))
+            jend = min(jend,jblock_end(iijt))
             !
             !how many iters
             jcount=jend-jstart+1
@@ -3375,7 +3383,7 @@ MODULE exx
                       ibnd_loop_start=jstart
                     ENDIF
                     !
-                    exxtemp_index = max(0, (jstart-jblock_start(ijt))/2 )
+                    exxtemp_index = max(0, (jstart-jblock_start(iijt))/2 )
                     !
                     DO ibnd = ibnd_loop_start, jend, 2     !for each band of psi
                         !
@@ -3434,7 +3442,7 @@ MODULE exx
                       ! calculate rho in real space
 !$omp parallel do default(shared), private(ir)
                       DO ir = 1, nrxxs
-                          tempphic(ir) = exxtemp(ir,ibnd-jblock_start(ijt)+1)
+                          tempphic(ir) = exxtemp(ir,ibnd-jblock_start(iijt)+1)
                           rhoc(ir)     = conjg(tempphic(ir))*temppsic(ir) / omega
                       ENDDO
 !$omp end parallel do
@@ -5071,37 +5079,45 @@ END SUBROUTINE compute_becpsi
   !-----------------------------------------------------------------------
   !
   !-----------------------------------------------------------------------
-  SUBROUTINE exxbuff_comm(exxtemp,ikq,lda,jstart,jend)
+  SUBROUTINE exxbuff_comm(exxtemp,ikq,lda,ijt,jstart,jend)
   !-----------------------------------------------------------------------
     USE mp_exx,               ONLY : my_egrp_id, inter_egrp_comm, jblock, &
-                                     all_end, negrp, me_egrp, nproc_egrp
-    USE mp,             ONLY : mp_bcast
+                                     all_end, negrp, me_egrp, nproc_egrp, &
+                                     njblocks, jblock_end
+    USE mp,                   ONLY : mp_bcast, mp_sum
+    USE wvfct,                ONLY : nbnd
 #if defined(__MPI)
-    USE parallel_include, ONLY : MPI_STATUS_SIZE, MPI_DOUBLE_COMPLEX
+    USE parallel_include,     ONLY : MPI_STATUS_SIZE, MPI_DOUBLE_COMPLEX
 #endif
     COMPLEX(DP), intent(inout) :: exxtemp(lda,jend-jstart+1)
-    INTEGER, intent(in) :: ikq, lda, jstart, jend
-    INTEGER :: jbnd, iegrp, ierr, request_send(negrp,jend-jstart+1), request_recv(jend-jstart+1)
-    INTEGER :: jegrp
+    INTEGER, intent(in) :: ikq, lda, jstart, jend, ijt
+    !INTEGER :: jbnd, iegrp, ierr, request_send(negrp,jend-jstart+1), request_recv(jend-jstart+1)
+    INTEGER :: jbnd, iegrp, ierr, request_send(negrp,nbnd), request_recv(nbnd)
+    INTEGER :: jegrp, shift, ijblock
 #if defined(__MPI)
     INTEGER :: istatus(MPI_STATUS_SIZE)
 #endif
 
     CALL start_clock ('comm_buff')
 
-    DO jbnd=jstart, jend
+    DO jbnd=1, nbnd
        !determine which band group has this value of exxbuff
        DO iegrp=1, negrp
           IF(all_end(iegrp) >= jbnd) exit
        END DO
+       DO ijblock=1, njblocks
+          IF(jblock_end(ijblock) >= jbnd) exit
+       END DO
 
        IF (iegrp == my_egrp_id+1) THEN
 #if defined(__MPI)
-          DO jegrp=1, negrp
+          shift = mod(ijblock-1,njblocks) - mod(ijt-1,njblocks)
+          IF(shift.lt.0) shift = shift + njblocks
+          DO jegrp=1+shift, negrp, njblocks
              CALL MPI_ISEND( exxbuff(:,jbnd,ikq), &
                   lda, MPI_DOUBLE_COMPLEX, &
                   jegrp-1, 100+jegrp*nproc_egrp+me_egrp, &
-                  inter_egrp_comm, request_send(jegrp,jbnd-jstart+1), &
+                  inter_egrp_comm, request_send(jegrp,jbnd), &
                   ierr )
           END DO
 #else
@@ -5110,27 +5126,36 @@ END SUBROUTINE compute_becpsi
        END IF
 
 #if defined(__MPI)
-       CALL MPI_IRECV( exxtemp(:,jbnd-jstart+1), &
-            lda, MPI_DOUBLE_COMPLEX, &
-            iegrp-1, 100+(my_egrp_id+1)*nproc_egrp+me_egrp, &
-            inter_egrp_comm, request_recv(jbnd-jstart+1), &
-            ierr )
+       IF(jbnd.ge.jstart.and.jbnd.le.jend)THEN
+          CALL MPI_IRECV( exxtemp(:,jbnd-jstart+1), &
+               lda, MPI_DOUBLE_COMPLEX, &
+               iegrp-1, 100+(my_egrp_id+1)*nproc_egrp+me_egrp, &
+               inter_egrp_comm, request_recv(jbnd), &
+               ierr )
+       END IF
 #endif
 
     END DO
 
-    DO jbnd=jstart, jend
+    DO jbnd=1, nbnd
 #if defined(__MPI)
-       CALL MPI_WAIT(request_recv(jbnd-jstart+1), istatus, ierr)
+       IF(jbnd.ge.jstart.and.jbnd.le.jend)THEN
+          CALL MPI_WAIT(request_recv(jbnd), istatus, ierr)
+       END IF
 #endif
        DO iegrp=1, negrp
           IF(all_end(iegrp) >= jbnd) exit
        END DO
+       DO ijblock=1, njblocks
+          IF(jblock_end(ijblock) >= jbnd) exit
+       END DO
 
        IF (iegrp == my_egrp_id+1) THEN
 #if defined(__MPI)
-          DO jegrp=1, negrp
-             CALL MPI_WAIT(request_send(jegrp, jbnd-jstart+1), istatus, ierr)
+          shift = mod(ijblock-1,njblocks) - mod(ijt-1,njblocks)
+          IF(shift.lt.0) shift = shift + njblocks
+          DO jegrp=1+shift, negrp, njblocks
+             CALL MPI_WAIT(request_send(jegrp,jbnd), istatus, ierr)
           END DO
 #endif
        END IF
@@ -5143,19 +5168,20 @@ END SUBROUTINE compute_becpsi
   !-----------------------------------------------------------------------
   !
   !-----------------------------------------------------------------------
-  SUBROUTINE exxbuff_comm_gamma(exxtemp,ikq,lda,jstart,jend,jlength)
+  SUBROUTINE exxbuff_comm_gamma(exxtemp,ikq,lda,ijt,jstart,jend,jlength)
   !-----------------------------------------------------------------------
     USE mp_exx,               ONLY : my_egrp_id, inter_egrp_comm, jblock, &
-                                     all_end, negrp, me_egrp, nproc_egrp
+                                     all_end, negrp, me_egrp, nproc_egrp, &
+                                     njblocks, jblock_end
     USE mp,             ONLY : mp_bcast
 #if defined(__MPI)
     USE parallel_include, ONLY : MPI_STATUS_SIZE, MPI_DOUBLE
 #endif
     COMPLEX(DP), intent(inout) :: exxtemp(lda*npol,jlength)
-    INTEGER, intent(in) :: ikq, lda, jstart, jend, jlength
+    INTEGER, intent(in) :: ikq, lda, jstart, jend, jlength, ijt
     INTEGER :: jbnd, iegrp, ierr, request_exxbuff(jend-jstart+1), ir
     INTEGER :: request_send(negrp,jend-jstart+1), request_recv(jend-jstart+1)
-    INTEGER :: jegrp
+    INTEGER :: jegrp, shift, ijblock
 #if defined(__MPI)
     INTEGER :: istatus(MPI_STATUS_SIZE)
 #endif
@@ -5169,6 +5195,9 @@ END SUBROUTINE compute_becpsi
        DO iegrp=1, negrp
           IF(all_end(iegrp) >= jbnd) exit
        END DO
+       DO ijblock=1, njblocks
+          IF(jblock_end(ijblock) >= jbnd) exit
+       END DO
 
        IF (iegrp == my_egrp_id+1) THEN
           IF( MOD(jbnd,2) == 1 ) THEN
@@ -5180,7 +5209,10 @@ END SUBROUTINE compute_becpsi
 
 #if defined(__MPI)
        IF (iegrp == my_egrp_id+1) THEN
-          DO jegrp=1, negrp
+          shift = mod(ijblock-1,njblocks) - mod(ijt-1,njblocks)
+          IF(shift.lt.0) shift = shift + njblocks
+          DO jegrp=1+shift, negrp, njblocks
+          !DO jegrp=1, negrp
              CALL MPI_ISEND( work_send(:,jbnd-jstart+1), &
                   lda*npol, MPI_DOUBLE, &
                   jegrp-1, 100+jegrp*nproc_egrp+me_egrp, &
@@ -5206,10 +5238,16 @@ END SUBROUTINE compute_becpsi
        DO iegrp=1, negrp
           IF(all_end(iegrp) >= jbnd) exit
        END DO
+       DO ijblock=1, njblocks
+          IF(jblock_end(ijblock) >= jbnd) exit
+       END DO
 
        IF (iegrp == my_egrp_id+1) THEN
 #if defined(__MPI)
-          DO jegrp=1, negrp
+          shift = mod(ijblock-1,njblocks) - mod(ijt-1,njblocks)
+          IF(shift.lt.0) shift = shift + njblocks
+          DO jegrp=1+shift, negrp, njblocks
+          !DO jegrp=1, negrp
              CALL MPI_WAIT(request_send(jegrp, jbnd-jstart+1), istatus, ierr)
           END DO
 #endif
